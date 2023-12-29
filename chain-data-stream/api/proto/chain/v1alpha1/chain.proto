@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package chain.v1alpha1;
+
+import "google/type/datetime.proto";
+
+enum StreamType{
+    STREAM_TYPE_UNSPECIFIED = 0;
+    STREAM_TYPE_LOG_ONLY = 1;
+    STREAM_TYPE_BATCH_ONLY = 2;
+    STREAM_TYPE_REAL_TIME_ONLY = 3;
+    STREAM_TYPE_BATCH_AND_RT = 4;
+}
+
+message ChainConfig{
+    string id = 1; // User specified, can be duplicate
+    string chain = 2; // Could be handled using Enum, though that limits how support for other chains could be handled
+    StreamType stream_type = 3;
+    string ws_url = 4;
+    string api_key = 5;
+}
+
+message StartChainReadingRequest{
+    ChainConfig config = 1;
+}
+
+message StartChainReadingResponse{
+    string id = 1; // User specified.  Else use a random id
+    string batch_dataset = 2; // Empty if not available
+    string rt_topic = 3; // Empty if not available
+}
+
+service ChainReadingService{
+    rpc Start(StartChainReadingRequest) returns (StartChainReadingResponse) {}
+}
