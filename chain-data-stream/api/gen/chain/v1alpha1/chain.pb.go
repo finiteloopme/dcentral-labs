@@ -7,7 +7,7 @@
 package chainv1alpha1
 
 import (
-	_ "github.com/finiteloopme/dcentral-labs/chain-data-stream/api/gen/google/type"
+	//_ "github.com/finiteloopme/dcentral-labs/chain-data-stream/api/gen/google/type"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

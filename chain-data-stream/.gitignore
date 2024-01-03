@@ -22,3 +22,6 @@ go.work
 
 # Output folder
 bin/
+
+# Config info
+config.env

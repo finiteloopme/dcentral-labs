@@ -2,7 +2,13 @@ BINARY=chain-data-streaming
 BIN_OUT=bin
 PROTO_API=api
 
-.PHONY: venv codeprep run build clean
+# config.env will not be available in the repo
+# This is env specific.
+# Includes config info, per the Config struct in pkg/config/types.go
+include config.env
+export 
+
+.PHONY: venv codeprep run build clean test
 
 clean:
 	rm -fr ${PROTO_API}/gen
@@ -17,6 +23,9 @@ codeprep:
 
 run:
 	go run cmd/main.go
+
+test:
+	go test -cover ./...
 
 build:
 	go build -o ${BIN_OUT}/${BINARY} cmd/main.go
