@@ -9,6 +9,7 @@ type Config struct {
 	EthWebSocketUrl string `envconfig:"ETH_WEB_SOCKET_URL"`
 	BqDataSet       string `envconfig:"BQ_DATA_SET"`
 	PubSubTopic     string `envconfig:"PUB_SUB_TOPIC"`
+	FilePath        string `envconfig:"FILE_PATH"`
 }
 
 func (c *Config) Load() {
