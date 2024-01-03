@@ -29,11 +29,17 @@ func main() {
 	// Write to a file
 	fw := io.NewFileWriter()
 	fw.Init(v)
+
+	// Publish to pubsub
+	pubsub := io.NewPubSubWriter()
+	pubsub.Init(v)
+
 	// handle the received transactions
 	for txn := range ch {
 		//msg, _ := txn.MarshalJSON()
 		//log.Info(string(msg))
 		go fw.Write(txn)
+		go pubsub.Write(txn)
 	}
 
 }
