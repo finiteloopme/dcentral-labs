@@ -2,11 +2,11 @@ package io
 
 import (
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/config"
+	t "github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/types"
 )
 
 type TxnWriter interface {
-	Init(*config.Config) error
+	Init(*t.Config) error
 	Write(*types.Transaction) (*types.Transaction, error)
 	Close() error
 }

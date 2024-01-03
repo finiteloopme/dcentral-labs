@@ -5,7 +5,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/config"
+	t "github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/types"
 	"github.com/finiteloopme/goutils/pkg/log"
 )
 
@@ -17,7 +17,7 @@ func NewPubSubWriter() TxnWriter {
 	return &PubSubWriter{}
 }
 
-func (writer *PubSubWriter) Init(cfg *config.Config) error {
+func (writer *PubSubWriter) Init(cfg *t.Config) error {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, cfg.GcpProject)
 	if err != nil {

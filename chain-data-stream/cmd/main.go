@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/config"
 	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/io"
 	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/svc"
+	t "github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/types"
 	"github.com/finiteloopme/goutils/pkg/log"
 )
 
 func main() {
 	// Load the config
-	v := &config.Config{}
+	v := &t.Config{}
 	v.Load()
 
 	// Establish a connection

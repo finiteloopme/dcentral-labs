@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/config"
+	t "github.com/finiteloopme/dcentral-labs/chain-data-stream/pkg/types"
 	"github.com/finiteloopme/goutils/pkg/log"
 )
 
@@ -17,7 +17,7 @@ func NewFileWriter() TxnWriter {
 	return &FileWriter{}
 }
 
-func (fw *FileWriter) Init(cfg *config.Config) error {
+func (fw *FileWriter) Init(cfg *t.Config) error {
 	file, err := os.OpenFile(cfg.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Info("Error opening file: " + err.Error())
