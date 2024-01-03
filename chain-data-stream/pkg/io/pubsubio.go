@@ -24,10 +24,15 @@ func (writer *PubSubWriter) Init(cfg *t.Config) error {
 		log.Info("Error creating PubSub client: " + err.Error())
 		return err
 	} else {
-		topic, err := client.CreateTopic(ctx, cfg.PubSubTopic)
-		if err != nil {
-			log.Info("Error creating topic: " + err.Error())
-			return err
+		topic := client.Topic(cfg.PubSubTopic)
+		if topic == nil {
+			topic, err = client.CreateTopic(ctx, cfg.PubSubTopic)
+			if err != nil {
+				log.Info("Error creating topic: " + err.Error())
+				return err
+			}
+		} else {
+			log.Info("Topic already exists.")
 		}
 		writer.topic = topic
 		log.Info("Publishing to topic: " + writer.topic.ID())
