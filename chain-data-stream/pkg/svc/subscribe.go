@@ -8,5 +8,5 @@ import (
 )
 
 func (client *Client) SubscribeToPendingTxns(ctx context.Context, ch chan<- *types.Transaction) (*rpc.ClientSubscription, error) {
-	return client.c.SubscribeFullPendingTransactions(ctx, ch)
+	return client.gethclient.SubscribeFullPendingTransactions(ctx, ch)
 }

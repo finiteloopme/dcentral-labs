@@ -7,14 +7,20 @@ import (
 )
 
 type Client struct {
-	c *gethclient.Client
+	gethclient *gethclient.Client
+	ethclient  *ethclient.Client
 }
 
 func NewConnection(url string) *Client {
-	ethc, err := ethclient.Dial(url)
+	_ethclient, err := ethclient.Dial(url)
 	if err != nil {
 		log.Fatal(err)
 	}
-	gethc := gethclient.New(ethc.Client())
-	return &Client{c: gethc}
+	_gethclient := gethclient.New(_ethclient.Client())
+
+	return &Client{
+		ethclient:  _ethclient,
+		gethclient: _gethclient,
+	}
+
 }
