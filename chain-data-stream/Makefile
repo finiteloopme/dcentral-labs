@@ -8,7 +8,7 @@ PROTO_API=api
 include config.env
 export 
 
-.PHONY: venv codeprep run build clean test
+.PHONY: venv codeprep run build clean test init
 
 clean:
 	rm -fr ${PROTO_API}/gen
@@ -20,6 +20,9 @@ venv:
 
 codeprep:
 	cd ${PROTO_API}/proto; buf build; cd ..; buf generate proto
+
+init:
+	go mod tidy
 
 run:
 	go run cmd/main.go
