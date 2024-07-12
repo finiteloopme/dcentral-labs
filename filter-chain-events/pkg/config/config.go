@@ -6,9 +6,10 @@ import (
 )
 
 type Config struct {
-	EthWebSocketUrl string `envconfig:"ETH_WEB_SOCKET_URL"`
-	GcpProject      string `envconfig:"GCP_PROJECT"`
-	GcpRegion       string `envconfig:"GCP_REGION"`
+	EthWebSocketUrl  string `envconfig:"ETH_WEB_SOCKET_URL"`
+	BaseWebSocketUrl string `envconfig:"BASE_WEB_SOCKET_URL"`
+	GcpProject       string `envconfig:"GCP_PROJECT"`
+	GcpRegion        string `envconfig:"GCP_REGION"`
 }
 
 func (c *Config) Load() {

@@ -21,7 +21,8 @@ func main() {
 	// log.Info("ETH_WEB_SOCKET_URL: " + v.EthWebSocketUrl)
 	beam.Init()
 	p, s := beam.NewPipelineWithRoot()
-	v.EthWebSocketUrl = "wss://ws.50b2vvkeb5o872y1tns9yalck.blockchainnodeengine.com?key=AIzaSyCd09sRvOwvZalzSW9ofaRr_dWLdfV3vWI"
+	// v.EthWebSocketUrl = "wss://ws.50b2vvkeb5o872y1tns9yalck.blockchainnodeengine.com?key=AIzaSyCd09sRvOwvZalzSW9ofaRr_dWLdfV3vWI"
+	v.EthWebSocketUrl = "wss://young-stylish-dust.base-mainnet.quiknode.pro/aa04fbd7caad64c3caba0e90accf80a833274a30/"
 	col := eth.Read(s, v.EthWebSocketUrl, filter.Filter{
 		Filter: filter.FilterType{
 			Name:        "USDC-Transfer",

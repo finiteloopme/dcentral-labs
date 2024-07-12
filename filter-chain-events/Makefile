@@ -7,8 +7,8 @@ export
 
 .PHONY: run
 run:
-	go run cli/main.go
-
+	go run cli/main.go --project=kunal-scratch --runner=dataflow --staging_location=gs://kunal-scratch/df/blockchainio
+	
 .PHONY: test
 test:
 	go test ./... -v -cover 
