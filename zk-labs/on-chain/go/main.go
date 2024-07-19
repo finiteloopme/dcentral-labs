@@ -148,6 +148,44 @@ func (c *ClientForChain) TransferZKP(fromPrivateKey string, toAddress common.Add
 	return tx
 }
 
+func (c *ClientForChain) AwardAnEgg(fromPrivateKey string, toAddress common.Address) *types.Transaction {
+	auth := c.NewTransactor(fromPrivateKey)
+	tx, err := c.eggNFT.AwardItem(auth, toAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return tx
+}
+
+func (c *ClientForChain) WhoOwnsTheEgg(tokenId *big.Int) common.Address {
+	owner, err := c.eggNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return owner
+}
+
+func (c *ClientForChain) AwardFeather(fromPrivateKey string, toAddress common.Address) *types.Transaction {
+	auth := c.NewTransactor(fromPrivateKey)
+	tx, err := c.feaNFT.AwardItem(auth, toAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return tx
+}
+
+func (c *ClientForChain) WhoOwnsTheFeather(tokenId *big.Int) common.Address {
+	owner, err := c.feaNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return owner
+}
+
 func GetChainID(client *ethclient.Client) *big.Int {
 	bigInt, err := client.ChainID(context.Background())
 	if err != nil {
@@ -162,9 +200,15 @@ func main() {
 	client := NewClient(cfg)
 	ownerKey := GetKeyFromHexPrivateKey(cfg.UserKeys.Owner)
 	user1Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User1)
+	user2Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User2)
 	log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
 	log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
 	client.TransferZKP(cfg.UserKeys.Owner, user1Key.Address, big.NewInt(10))
 	log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
 	log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
+	client.AwardAnEgg(cfg.UserKeys.Owner, user1Key.Address)
+	client.AwardFeather(cfg.UserKeys.Owner, user2Key.Address)
+
+	log.Info((fmt.Sprintf("Owner of egg1 is: %v", client.WhoOwnsTheEgg(big.NewInt(1)))))
+	log.Info((fmt.Sprintf("Owner of feather1 is: %v", client.WhoOwnsTheFeather(big.NewInt(1)))))
 }

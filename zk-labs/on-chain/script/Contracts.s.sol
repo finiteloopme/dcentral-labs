@@ -10,8 +10,13 @@ contract MyScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        NFT eggNft = new NFT("EggNFT", "EGG");        
-        NFT feaNft = new NFT("FeatherNFT", "FEA");
+        NFT eggNft = new NFT("EggNFT", 
+                            "EGG",
+                            "https://storage.googleapis.com/zk-super-dash/egg.json");        
+        NFT feaNft = new NFT(
+                            "FeatherNFT", 
+                            "FEA",
+                            "https://storage.googleapis.com/zk-super-dash/feather.json");
         ZKProof token = new ZKProof("ZKProof", "ZKP");
 
         vm.stopBroadcast();
