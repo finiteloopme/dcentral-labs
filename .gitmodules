@@ -1,0 +1,6 @@
+[submodule "zk-labs/on-chain/lib/forge-std"]
+	path = zk-labs/on-chain/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "zk-labs/on-chain/lib/openzeppelin-contracts"]
+	path = zk-labs/on-chain/lib/openzeppelin-contracts
+	url = https://github.com/Openzeppelin/openzeppelin-contracts
