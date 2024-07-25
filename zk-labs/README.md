@@ -25,6 +25,15 @@ This section provides details of how all the components hang togther.
    2. Write an updated message with the players ETH address to pubsub topic `player-transfer-topic`
    3. Message on `player-transfer-topic` triggers [orchestrator] to actually transfer on-chain assets by invoking the [Smart contracts]
 
+## Configuration & Setup
+
+### Environment Variables
+
+```bash
+export GCP_PROJECT=kunal-scratch
+
+```
+
 ------
 [Super Dash]: ./super_dash
 [Smart contracts]: ./on-chain

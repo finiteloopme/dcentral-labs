@@ -5,6 +5,9 @@ import (
 	token "contracts/erc20"
 	nft "contracts/erc721"
 	"crypto/ecdsa"
+	"encoding/json"
+	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 
@@ -13,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	_ "github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/account"
+	_ "github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/wallet"
 	"github.com/finiteloopme/goutils/pkg/log"
 	"github.com/finiteloopme/goutils/pkg/os/env"
 	// store "./contracts" // for demo
@@ -207,6 +212,7 @@ func GetChainID(client *ethclient.Client) *big.Int {
 	return bigInt
 }
 
+// Should represent the SendToPubsubRequest in [item-collection] microservice
 type CollectItemRequest struct {
 	Action        string `json:"action"`
 	ItemType      string `json:"itemType"`
@@ -215,8 +221,39 @@ type CollectItemRequest struct {
 	PlayerAddress string `json:"playerAddress,omitempty"`
 }
 
-func HandleCollectItemRequest(w http.ResponseWriter, r *http.Request) {
+// https://cloud.google.com/pubsub/docs/reference/rest/v1/PubsubMessage
+type PubSubMessage struct {
+	Message struct {
+		Data []byte `json:"data,omitempty"`
+		ID   string `json:"id"`
+	} `json:"message"`
+	Subscription string `json:"subscription"`
+}
 
+func HandleCollectItemRequest(w http.ResponseWriter, r *http.Request) {
+	if body, err := io.ReadAll(r.Body); err != nil {
+		log.Warn(fmt.Sprintf("ioutil.ReadAll: %v", err), err)
+		// http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	} else {
+		go ProcessCollectItemRequest(body)
+	}
+
+}
+
+func ProcessCollectItemRequest(data []byte) {
+	var m PubSubMessage
+	// byte slice unmarshalling handles base64 decoding.
+	if err := json.Unmarshal(data, &m); err != nil {
+		log.Warn(fmt.Sprintf("json.Unmarshal: %v", err), err)
+		// http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	collectItemRequest := CollectItemRequest{}
+	if err := json.Unmarshal(m.Message.Data, &collectItemRequest); err != nil {
+		log.Warn("error unmarshalling CollectItemRequest. ", err)
+	}
+	//
 }
 
 func HandleTransferItemRequest(w http.ResponseWriter, r *http.Request) {
