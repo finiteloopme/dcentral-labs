@@ -5,8 +5,8 @@ import (
 	token "contracts/erc20"
 	nft "contracts/erc721"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
+	"net/http"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,18 +31,30 @@ type Keys struct {
 	User3 string `envconfig:"USER2_KEY" yaml:"user3"`
 }
 
+type PubsubConfig struct {
+	Item4Collection PubsubConfigType `yaml:"item-collected"`
+	Transfer2Player PubsubConfigType `yaml:"onchain-transfer"`
+}
+
+type PubsubConfigType struct {
+	PushEndpoint string `yaml:"to-push-endpoint"`
+	TopicName    string `yaml:"from-topic"`
+}
+
 type Config struct {
-	RPC               string    `envconfig:"RPC" required:"true" yaml:"rpc"`
-	ContractAddresses Addresses `yaml:"contracts"`
-	UserKeys          Keys      `yaml:"users"`
+	RPC               string       `envconfig:"RPC" required:"true" yaml:"rpc"`
+	ContractAddresses Addresses    `yaml:"contracts"`
+	UserKeys          Keys         `yaml:"users"`
+	Pubsub            PubsubConfig `yaml:"pubsub-config"`
+	CloudRunPort      string       `envconfig:"PORT" default:"8080" yaml:"cloud-run-port"`
 }
 
 type ClientForChain struct {
-	client   *ethclient.Client
-	cfg      *Config
-	zkpToken *token.Erc20
-	eggNFT   *nft.Erc721
-	feaNFT   *nft.Erc721
+	ethClient *ethclient.Client
+	cfg       *Config
+	zkpToken  *token.Erc20
+	eggNFT    *nft.Erc721
+	feaNFT    *nft.Erc721
 }
 
 func NewClient(_cfg *Config) *ClientForChain {
@@ -57,23 +69,23 @@ func NewClient(_cfg *Config) *ClientForChain {
 	}
 
 	// Connect to RPC endpoint
-	if c.client, err = ethclient.Dial(c.cfg.RPC); err != nil {
+	if c.ethClient, err = ethclient.Dial(c.cfg.RPC); err != nil {
 		log.Warn("error creating client for the chain. ", err)
 		log.Fatal(err)
 	}
 
 	// Load smart contracts
-	if c.zkpToken, err = token.NewErc20(common.HexToAddress(c.cfg.ContractAddresses.ZKPTokenAddress), c.client); err != nil {
+	if c.zkpToken, err = token.NewErc20(common.HexToAddress(c.cfg.ContractAddresses.ZKPTokenAddress), c.ethClient); err != nil {
 		log.Warn("error loading ZKP token contract. ", err)
 		log.Fatal(err)
 	}
 
-	if c.eggNFT, err = nft.NewErc721(common.HexToAddress(c.cfg.ContractAddresses.EggNFTAddress), c.client); err != nil {
+	if c.eggNFT, err = nft.NewErc721(common.HexToAddress(c.cfg.ContractAddresses.EggNFTAddress), c.ethClient); err != nil {
 		log.Warn("error loading egg NFT contract. ", err)
 		log.Fatal(err)
 
 	}
-	if c.feaNFT, err = nft.NewErc721(common.HexToAddress(c.cfg.ContractAddresses.FeaAddress), c.client); err != nil {
+	if c.feaNFT, err = nft.NewErc721(common.HexToAddress(c.cfg.ContractAddresses.FeaAddress), c.ethClient); err != nil {
 		log.Warn("error loading feather NFT contract. ", err)
 		log.Fatal(err)
 	}
@@ -98,7 +110,7 @@ func GetKeyFromHexPrivateKey(privateKey string) *Key {
 }
 
 func (c *ClientForChain) GetChainID() *big.Int {
-	bigInt, err := c.client.ChainID(context.Background())
+	bigInt, err := c.ethClient.ChainID(context.Background())
 	if err != nil {
 		log.Warn("error retrieving chain id", err)
 		bigInt = big.NewInt(0)
@@ -109,12 +121,12 @@ func (c *ClientForChain) GetChainID() *big.Int {
 func (c *ClientForChain) NewTransactor(fromPrivateKey string) *bind.TransactOpts {
 
 	key := GetKeyFromHexPrivateKey(fromPrivateKey)
-	nonce, err := c.client.PendingNonceAt(context.Background(), key.Address)
+	nonce, err := c.ethClient.PendingNonceAt(context.Background(), key.Address)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	gasPrice, err := c.client.SuggestGasPrice(context.Background())
+	gasPrice, err := c.ethClient.SuggestGasPrice(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -195,20 +207,43 @@ func GetChainID(client *ethclient.Client) *big.Int {
 	return bigInt
 }
 
+type CollectItemRequest struct {
+	Action        string `json:"action"`
+	ItemType      string `json:"itemType"`
+	PlayerID      string `json:"playerID"`
+	Points        string `json:"points"`
+	PlayerAddress string `json:"playerAddress,omitempty"`
+}
+
+func HandleCollectItemRequest(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func HandleTransferItemRequest(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func SendMessage(topic string, msg interface{}) {
+
+}
+
 func main() {
 	cfg := &Config{}
-	client := NewClient(cfg)
-	ownerKey := GetKeyFromHexPrivateKey(cfg.UserKeys.Owner)
-	user1Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User1)
-	user2Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User2)
-	log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
-	log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
-	client.TransferZKP(cfg.UserKeys.Owner, user1Key.Address, big.NewInt(10))
-	log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
-	log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
-	client.AwardAnEgg(cfg.UserKeys.Owner, user1Key.Address)
-	client.AwardFeather(cfg.UserKeys.Owner, user2Key.Address)
+	http.HandleFunc(cfg.Pubsub.Item4Collection.PushEndpoint, HandleCollectItemRequest)
+	http.HandleFunc(cfg.Pubsub.Transfer2Player.PushEndpoint, HandleTransferItemRequest)
 
-	log.Info((fmt.Sprintf("Owner of egg1 is: %v", client.WhoOwnsTheEgg(big.NewInt(1)))))
-	log.Info((fmt.Sprintf("Owner of feather1 is: %v", client.WhoOwnsTheFeather(big.NewInt(1)))))
+	// client := NewClient(cfg)
+	// ownerKey := GetKeyFromHexPrivateKey(cfg.UserKeys.Owner)
+	// user1Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User1)
+	// user2Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User2)
+	// log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
+	// log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
+	// client.TransferZKP(cfg.UserKeys.Owner, user1Key.Address, big.NewInt(10))
+	// log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
+	// log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
+	// client.AwardAnEgg(cfg.UserKeys.Owner, user1Key.Address)
+	// client.AwardFeather(cfg.UserKeys.Owner, user2Key.Address)
+
+	// log.Info((fmt.Sprintf("Owner of egg1 is: %v", client.WhoOwnsTheEgg(big.NewInt(1)))))
+	// log.Info((fmt.Sprintf("Owner of feather1 is: %v", client.WhoOwnsTheFeather(big.NewInt(1)))))
 }

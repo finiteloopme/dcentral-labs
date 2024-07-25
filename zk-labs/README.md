@@ -16,9 +16,14 @@ This player activity will create live traffic on the chain.  Type1 ZK proofs are
 
 This section provides details of how all the components hang togther.
 
-- [Super dash] game is hardcoded as web only.  This web app gets deployed on firebase hosting platform.
+- [Super Dash] game is hardcoded as web only.  This web app gets deployed on firebase hosting platform.
+- [account-mgmt] is used for manage wallet (publikey, ETH address, and privatekey) for each player.  It creates a wallet for each player if one doesn't exist.  And write the private key to Secret Manager.
 - [game_bloc.dart] is used to update the score.  We have updated this logic to send a request to the backend that player has collected an item (coins, egg, feather, etc).
-- [item-collected] is deployed as a cloud run instance which recieves the notification from [game_bloc.dart].  It writes the request to a pubsub topic.  This component uses websockets to communivate with [game_bloc.dart]
+- [item-collected] is deployed as a cloud run instance which recieves the notification from [game_bloc.dart].  It writes the request to a pubsub topic `item-collected-topic`.  This component uses websockets to communivate with [game_bloc.dart]
+- [orchestrator] is a golang orchestration microservice which is triggered by a message on `item-collected-topic`.  Orchestration logic used id:
+   1. Use [account-mgmt] service to get ETH address for the required player
+   2. Write an updated message with the players ETH address to pubsub topic `player-transfer-topic`
+   3. Message on `player-transfer-topic` triggers [orchestrator] to actually transfer on-chain assets by invoking the [Smart contracts]
 
 ------
 [Super Dash]: ./super_dash
@@ -26,3 +31,5 @@ This section provides details of how all the components hang togther.
 [Backend services]: ./backend-services
 [game_bloc.dart]: ./super_dash/lib/game/bloc/game_bloc.dart
 [item-collected]: ./backend-services/send-to-chain
+[orchestrator]: ./on-chain/go
+[account-mgmt]: ./backend-services/account-mgmt

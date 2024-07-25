@@ -20,4 +20,8 @@ run:
 	go run cmd/main.go
 
 deploy:
-	gcloud run deploy --source .
+	gcloud run deploy ${BIN_NAME} \
+		--source . \
+		--region=us-central1 \
+		--allow-unauthenticated \
+		--min-instances=1

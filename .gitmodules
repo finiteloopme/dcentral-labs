@@ -4,3 +4,6 @@
 [submodule "zk-labs/on-chain/lib/openzeppelin-contracts"]
 	path = zk-labs/on-chain/lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
+[submodule "zk-labs/super_dash"]
+	path = zk-labs/super_dash
+	url = https://github.com/kunallimaye/super_dash

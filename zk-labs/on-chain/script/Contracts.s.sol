@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {NFT} from "../src/nft-erc721.sol";
 import {ZKProof} from "../src/zkproof-erc20.sol";
+import "forge-std/console.sol";
 
 contract MyScript is Script {
     function run() external {
@@ -20,5 +21,8 @@ contract MyScript is Script {
         ZKProof token = new ZKProof("ZKProof", "ZKP");
 
         vm.stopBroadcast();
+        console.log("Egg NFT address: ", address(eggNft));
+        console.log("Feather NFT address: ", address(feaNft));
+        console.log("ZKProof token address: ", address(token));
     }
 }
