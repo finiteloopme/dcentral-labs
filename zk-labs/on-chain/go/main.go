@@ -60,6 +60,7 @@ type ClientForChain struct {
 	zkpToken  *token.Erc20
 	eggNFT    *nft.Erc721
 	feaNFT    *nft.Erc721
+	callOpts  *bind.CallOpts
 }
 
 func NewClient(_cfg *Config) *ClientForChain {
@@ -77,6 +78,12 @@ func NewClient(_cfg *Config) *ClientForChain {
 	if c.ethClient, err = ethclient.Dial(c.cfg.RPC); err != nil {
 		log.Warn("error creating client for the chain. ", err)
 		log.Fatal(err)
+	}
+
+	// Connect to RPC with owner key
+	ownerKey := GetKeyFromHexPrivateKey(c.cfg.UserKeys.Owner)
+	c.callOpts = &bind.CallOpts{
+		From: ownerKey.Address,
 	}
 
 	// Load smart contracts
@@ -146,7 +153,7 @@ func (c *ClientForChain) NewTransactor(fromPrivateKey string) *bind.TransactOpts
 }
 
 func (c *ClientForChain) ZKPBalanceOf(hexAddress string) *big.Int {
-	if userBalance, err := c.zkpToken.BalanceOf(&bind.CallOpts{}, common.HexToAddress(hexAddress)); err != nil {
+	if userBalance, err := c.zkpToken.BalanceOf(c.callOpts, common.HexToAddress(hexAddress)); err != nil {
 		log.Warn("unable to retrieve user balance.", err)
 		return big.NewInt(-1)
 	} else {
@@ -176,7 +183,7 @@ func (c *ClientForChain) AwardAnEgg(fromPrivateKey string, toAddress common.Addr
 }
 
 func (c *ClientForChain) WhoOwnsTheEgg(tokenId *big.Int) common.Address {
-	owner, err := c.eggNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	owner, err := c.eggNFT.OwnerOf(c.callOpts, tokenId)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -195,7 +202,7 @@ func (c *ClientForChain) AwardFeather(fromPrivateKey string, toAddress common.Ad
 }
 
 func (c *ClientForChain) WhoOwnsTheFeather(tokenId *big.Int) common.Address {
-	owner, err := c.feaNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	owner, err := c.feaNFT.OwnerOf(c.callOpts, tokenId)
 	if err != nil {
 		log.Fatal(err)
 	}
