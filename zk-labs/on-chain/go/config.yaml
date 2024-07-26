@@ -1,20 +1,30 @@
-rpc: http://127.0.0.1:8545
+# Erigon
+rpc: http://44.215.105.45:8545
 contracts:
-  egg: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  fea: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-  zkp: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+  egg: 0x1aCba3b35599ECc07c1f4aE429c42f76b74C0FAf
+  fea: 0x5922c170dBf35df00c05e805EbdD06690a9eD4B1
+  zkp: 0x454b4E216fA826727b480185e8c86C1E48e96735
 users:
-  owner: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-  user1: 59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-  user2: 5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
-  user3: 7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+  owner: 85b97ba3fd34f012d788415e0a6bfc506b3c4816d26f18602066f7e36e5f75df
+  user1: 5494ad4fb53f00bbfa18f4eabc72be4af3a7595bbdd232d92f5e461e04d5990d
+  user2: 31857fe2167cc4a7d923f83890c8923ad7a1fa42563e834a4b1d06b7c78f4136
+  user3: 77cc1914afe06fe17a70a064ee4242e557a2e06bacfa45c7c8ebee408ddd0348
 pubsub-config:
-	item-collected: 
-    to-push-endpoint: "/collect"
-    from-topic: "item-collected-topic"
-	onchain-transfer:
-    to-push-endpoint: "/transfer"
-    from-topic: "player-transfer-topic"
-  # item-collected-topic: item-collected-topic
-  # player-transfer-topic: player-transfer-topic
+  item-collected: item-collected-topic
 cloud-run-port: 8080
+
+# # Local
+# # rpc: http://127.0.0.1:8545
+# rpc: http://122.199.41.196:8545
+# contracts:
+#   egg: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+#   fea: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+#   zkp: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+# users:
+#   owner: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+#   user1: 59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+#   user2: 5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+#   user3: 7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+# pubsub-config:
+#   item-collected: item-collected-topic
+# cloud-run-port: 8080

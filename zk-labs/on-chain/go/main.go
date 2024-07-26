@@ -10,14 +10,15 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	_ "github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/account"
-	_ "github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/wallet"
+	"github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/wallet"
 	"github.com/finiteloopme/goutils/pkg/log"
 	"github.com/finiteloopme/goutils/pkg/os/env"
 	// store "./contracts" // for demo
@@ -37,14 +38,15 @@ type Keys struct {
 }
 
 type PubsubConfig struct {
-	Item4Collection PubsubConfigType `yaml:"item-collected"`
-	Transfer2Player PubsubConfigType `yaml:"onchain-transfer"`
+	Item4Collection string `yaml:"item-collected"`
+	// Item4Collection PubsubConfigType `yaml:"item-collected"`
+	// Transfer2Player PubsubConfigType `yaml:"onchain-transfer"`
 }
 
-type PubsubConfigType struct {
-	PushEndpoint string `yaml:"to-push-endpoint"`
-	TopicName    string `yaml:"from-topic"`
-}
+// type PubsubConfigType struct {
+// 	PushEndpoint string `yaml:"to-push-endpoint"`
+// 	TopicName    string `yaml:"from-topic"`
+// }
 
 type Config struct {
 	RPC               string       `envconfig:"RPC" required:"true" yaml:"rpc"`
@@ -55,11 +57,14 @@ type Config struct {
 }
 
 type ClientForChain struct {
-	ethClient *ethclient.Client
-	cfg       *Config
-	zkpToken  *token.Erc20
-	eggNFT    *nft.Erc721
-	feaNFT    *nft.Erc721
+	sync.Mutex
+	cfg       *Config           //Config for this micro service
+	ethClient *ethclient.Client //Client to ETH
+	zkpToken  *token.Erc20      //ZKProof token contract
+	eggNFT    *nft.Erc721       //EggNFT contract
+	feaNFT    *nft.Erc721       //FeatherNFT contract
+	owner     *Key              //Original owner of the contracts & assets on the chain
+	callOpts  *bind.CallOpts
 }
 
 func NewClient(_cfg *Config) *ClientForChain {
@@ -79,6 +84,12 @@ func NewClient(_cfg *Config) *ClientForChain {
 		log.Fatal(err)
 	}
 
+	// Connect to RPC with owner key
+	ownerKey := GetKeyFromHexPrivateKey(c.cfg.UserKeys.Owner)
+	c.callOpts = &bind.CallOpts{
+		From: ownerKey.Address,
+	}
+
 	// Load smart contracts
 	if c.zkpToken, err = token.NewErc20(common.HexToAddress(c.cfg.ContractAddresses.ZKPTokenAddress), c.ethClient); err != nil {
 		log.Warn("error loading ZKP token contract. ", err)
@@ -92,6 +103,12 @@ func NewClient(_cfg *Config) *ClientForChain {
 	}
 	if c.feaNFT, err = nft.NewErc721(common.HexToAddress(c.cfg.ContractAddresses.FeaAddress), c.ethClient); err != nil {
 		log.Warn("error loading feather NFT contract. ", err)
+		log.Fatal(err)
+	}
+
+	c.owner = GetKeyFromHexPrivateKey(c.cfg.UserKeys.Owner)
+	if c.owner == nil {
+		log.Warn("error getting the owner. ", err)
 		log.Fatal(err)
 	}
 
@@ -128,15 +145,20 @@ func (c *ClientForChain) NewTransactor(fromPrivateKey string) *bind.TransactOpts
 	key := GetKeyFromHexPrivateKey(fromPrivateKey)
 	nonce, err := c.ethClient.PendingNonceAt(context.Background(), key.Address)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("error getting pending nonce.", err)
+		// log.Fatal(err)
 	}
 
 	gasPrice, err := c.ethClient.SuggestGasPrice(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("error suggesting gas price.", err)
+		// log.Fatal(err)
 	}
 
+	c.Lock()
+	defer c.Unlock()
 	auth, _ := bind.NewKeyedTransactorWithChainID(key.PrivateKey, c.GetChainID())
+	// c.Unlock()
 	auth.Nonce = big.NewInt(int64(nonce))
 	auth.Value = big.NewInt(0)     // in wei
 	auth.GasLimit = uint64(300000) // in units
@@ -146,7 +168,8 @@ func (c *ClientForChain) NewTransactor(fromPrivateKey string) *bind.TransactOpts
 }
 
 func (c *ClientForChain) ZKPBalanceOf(hexAddress string) *big.Int {
-	if userBalance, err := c.zkpToken.BalanceOf(&bind.CallOpts{}, common.HexToAddress(hexAddress)); err != nil {
+	if userBalance, err := c.zkpToken.BalanceOf(c.callOpts, common.HexToAddress(hexAddress)); err != nil {
+		// if userBalance, err := c.zkpToken.BalanceOf(&bind.CallOpts{}, common.HexToAddress("0xd7BC8Ce7Fe81Ad8f4A22a714Cc13bed3396D44ef")); err != nil {
 		log.Warn("unable to retrieve user balance.", err)
 		return big.NewInt(-1)
 	} else {
@@ -155,11 +178,46 @@ func (c *ClientForChain) ZKPBalanceOf(hexAddress string) *big.Int {
 
 }
 
+func (c *ClientForChain) GetBlockNumber(txn *types.Transaction) *big.Int {
+	startCount := 1
+	maxCount := 10
+	sleepSec := 5
+
+	for {
+		tx, isPending, err := c.ethClient.TransactionByHash(context.Background(), txn.Hash())
+		if err != nil {
+			log.Warn("error getting block hash", err)
+			return nil
+		}
+		if isPending {
+			// backoff wai
+			if startCount < maxCount {
+				time.Sleep(time.Duration(startCount * sleepSec * int(time.Second)))
+				startCount++
+			} else {
+				log.Warn("stopping exponential backoff to get block hash", err)
+				return nil
+			}
+		} else {
+			if receipt, err := c.ethClient.TransactionReceipt(context.Background(), tx.Hash()); err != nil {
+				log.Warn("error getting block number", err)
+				return nil
+			} else {
+				return receipt.BlockNumber
+			}
+		}
+	}
+
+}
+
 func (c *ClientForChain) TransferZKP(fromPrivateKey string, toAddress common.Address, amount *big.Int) *types.Transaction {
 	auth := c.NewTransactor(fromPrivateKey)
 	tx, err := c.zkpToken.Transfer(auth, toAddress, amount)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("Unable to transfer tokens to address: "+toAddress.Hex(), err)
+		// log.Fatal(err)
+	} else {
+		go log.Info(fmt.Sprintf("Transfered [%v] tokens to address [%v] at block [%v]; txn [%v]", amount, toAddress.Hex(), c.GetBlockNumber(tx), tx.Hash().Hex()))
 	}
 
 	return tx
@@ -169,16 +227,20 @@ func (c *ClientForChain) AwardAnEgg(fromPrivateKey string, toAddress common.Addr
 	auth := c.NewTransactor(fromPrivateKey)
 	tx, err := c.eggNFT.AwardItem(auth, toAddress)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("Unable to mint an Egg to address: "+toAddress.Hex(), err)
+		// log.Fatal(err)
+	} else {
+		go log.Info(fmt.Sprintf("Minted an Egg to address [%v] at block [%v]; txn [%v]", toAddress.Hex(), c.GetBlockNumber(tx), tx.Hash().Hex()))
 	}
 
 	return tx
 }
 
 func (c *ClientForChain) WhoOwnsTheEgg(tokenId *big.Int) common.Address {
-	owner, err := c.eggNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	owner, err := c.eggNFT.OwnerOf(c.callOpts, tokenId)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("error retrieving owner of the egg", err)
+		// log.Fatal(err)
 	}
 
 	return owner
@@ -188,16 +250,20 @@ func (c *ClientForChain) AwardFeather(fromPrivateKey string, toAddress common.Ad
 	auth := c.NewTransactor(fromPrivateKey)
 	tx, err := c.feaNFT.AwardItem(auth, toAddress)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("Unable to mint a Feather to address: "+toAddress.Hex(), err)
+		// log.Fatal(err)
+	} else {
+		go log.Info(fmt.Sprintf("Minted an Egg to address [%v] at block [%v]; txn [%v]", toAddress.Hex(), c.GetBlockNumber(tx), tx.Hash().Hex()))
 	}
 
 	return tx
 }
 
 func (c *ClientForChain) WhoOwnsTheFeather(tokenId *big.Int) common.Address {
-	owner, err := c.feaNFT.OwnerOf(&bind.CallOpts{}, tokenId)
+	owner, err := c.feaNFT.OwnerOf(c.callOpts, tokenId)
 	if err != nil {
-		log.Fatal(err)
+		log.Warn("error retrieving owner of the Feather", err)
+		// log.Fatal(err)
 	}
 
 	return owner
@@ -221,6 +287,10 @@ type CollectItemRequest struct {
 	PlayerAddress string `json:"playerAddress,omitempty"`
 }
 
+func (c CollectItemRequest) ToString() string {
+	return fmt.Sprintf("{'action':'%v','itemType':'%v','playerID':'%v','points':'%v','playerAddress':'%v'}", c.Action, c.ItemType, c.PlayerID, c.Points, c.PlayerAddress)
+}
+
 // https://cloud.google.com/pubsub/docs/reference/rest/v1/PubsubMessage
 type PubSubMessage struct {
 	Message struct {
@@ -230,18 +300,18 @@ type PubSubMessage struct {
 	Subscription string `json:"subscription"`
 }
 
-func HandleCollectItemRequest(w http.ResponseWriter, r *http.Request) {
+func (c *ClientForChain) HandleCollectItemRequest(w http.ResponseWriter, r *http.Request) {
 	if body, err := io.ReadAll(r.Body); err != nil {
 		log.Warn(fmt.Sprintf("ioutil.ReadAll: %v", err), err)
 		// http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	} else {
-		go ProcessCollectItemRequest(body)
+		go c.ProcessCollectItemRequest(body)
 	}
 
 }
 
-func ProcessCollectItemRequest(data []byte) {
+func (c *ClientForChain) ProcessCollectItemRequest(data []byte) {
 	var m PubSubMessage
 	// byte slice unmarshalling handles base64 decoding.
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -250,37 +320,70 @@ func ProcessCollectItemRequest(data []byte) {
 		return
 	}
 	collectItemRequest := CollectItemRequest{}
+	// collectItemRequest.Action = "transfer"
+	// collectItemRequest.ItemType = ""
+	// collectItemRequest.PlayerID = "M5vq82vcJteMTr8YML1Bebo6qkR2"
+	// collectItemRequest.Points = "10"
+	log.Info("Processing request: " + string(m.Message.Data))
 	if err := json.Unmarshal(m.Message.Data, &collectItemRequest); err != nil {
 		log.Warn("error unmarshalling CollectItemRequest. ", err)
 	}
-	//
+	if collectItemRequest.PlayerID == "" {
+		log.Info("playerID not found. Not processing")
+		return
+	}
+	// log.Info("Converted message: " + collectItemRequest.ToString())
+	// Get User wallet
+	wh := &wallet.WalletHandler{}
+	wh.UserRepository = "users"
+	wh.GCPProject = "kunal-scratch"
+	// Creates a wallet if one does exists for the player
+	if wallet, err := wh.CreateWallet(collectItemRequest.PlayerID); err != nil {
+		log.Warn("error getting user wallet. ", err)
+		return
+	} else {
+		switch collectItemRequest.ItemType {
+		case "ItemType.egg":
+			c.AwardAnEgg(c.cfg.UserKeys.Owner, common.HexToAddress(wallet.Address))
+		case "ItemType.goldenFeather":
+			c.AwardFeather(c.cfg.UserKeys.Owner, common.HexToAddress(wallet.Address))
+		case "ItemType.acorn": //ignore. we don't mint nft for acorn
+		case "": //ignore
+		}
+		if collectItemRequest.Points != "" {
+			points := new(big.Int)
+			points, ok := points.SetString(collectItemRequest.Points, 10)
+			if !ok {
+				log.Warn("error reading points to transfer.", err)
+			} else {
+				c.TransferZKP(c.cfg.UserKeys.Owner, common.HexToAddress(wallet.Address), points)
+			}
+		}
+	}
 }
 
-func HandleTransferItemRequest(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func SendMessage(topic string, msg interface{}) {
-
+func (c *ClientForChain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c.HandleCollectItemRequest(w, r)
 }
 
 func main() {
 	cfg := &Config{}
-	http.HandleFunc(cfg.Pubsub.Item4Collection.PushEndpoint, HandleCollectItemRequest)
-	http.HandleFunc(cfg.Pubsub.Transfer2Player.PushEndpoint, HandleTransferItemRequest)
+	client := NewClient(cfg)
+	srv := &http.Server{
+		ReadTimeout:       59 * time.Minute,
+		WriteTimeout:      59 * time.Minute,
+		IdleTimeout:       59 * time.Minute,
+		ReadHeaderTimeout: 59 * time.Minute,
+		Handler:           client,
+		Addr:              ":" + cfg.CloudRunPort,
+	}
 
-	// client := NewClient(cfg)
-	// ownerKey := GetKeyFromHexPrivateKey(cfg.UserKeys.Owner)
-	// user1Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User1)
-	// user2Key := GetKeyFromHexPrivateKey(cfg.UserKeys.User2)
-	// log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
-	// log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
-	// client.TransferZKP(cfg.UserKeys.Owner, user1Key.Address, big.NewInt(10))
-	// log.Info(fmt.Sprintf("Balance of owner is: %v", client.ZKPBalanceOf(ownerKey.Address.Hex())))
-	// log.Info(fmt.Sprintf("Balance of user1 is: %v", client.ZKPBalanceOf(user1Key.Address.Hex())))
-	// client.AwardAnEgg(cfg.UserKeys.Owner, user1Key.Address)
-	// client.AwardFeather(cfg.UserKeys.Owner, user2Key.Address)
-
-	// log.Info((fmt.Sprintf("Owner of egg1 is: %v", client.WhoOwnsTheEgg(big.NewInt(1)))))
-	// log.Info((fmt.Sprintf("Owner of feather1 is: %v", client.WhoOwnsTheFeather(big.NewInt(1)))))
+	// srv.HandleFunc("/", client.HandleCollectItemRequest)
+	// http.HandleFunc(cfg.Pubsub.Transfer2Player.PushEndpoint, HandleTransferItemRequest)
+	// Start HTTP server.
+	log.Info(fmt.Sprintf("On chain microservice listening on port %s", cfg.CloudRunPort))
+	// if err := srv.ListenAndServe(":"+cfg.CloudRunPort, nil); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }

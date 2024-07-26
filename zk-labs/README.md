@@ -30,8 +30,11 @@ This section provides details of how all the components hang togther.
 ### Environment Variables
 
 ```bash
+# Default GCP Project to use
 export GCP_PROJECT=kunal-scratch
-
+# User repository/collection in Firestore
+export USER_REPO=users
+export ITEM_COLLECTED_TOPIC=item-collected-topic
 ```
 
 ------

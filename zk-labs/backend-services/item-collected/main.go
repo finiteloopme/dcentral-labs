@@ -81,7 +81,8 @@ func (wsh WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(message, msg); err != nil {
 			log.Warn("unable to read msg", err)
 		} else {
-			log.Info(fmt.Sprintf("Received a notification for player: %s", msg.PlayerID))
+			log.Info(fmt.Sprintf("Received item collection request for player: %s.  Sending to pubsub...", msg.PlayerID))
+			go wsh.SendToPubsub(*msg)
 		}
 
 	}
@@ -98,7 +99,11 @@ func (wsh WebSocketHandler) SendToPubsub(record SendToPubsubRequest) error {
 	msg := &pubsub.Message{
 		Data: data,
 	}
-	msgID, err := wsh.GetOrCreateTopic(cfg.ItemCollectedTopic).Publish(ctx, msg).Get(ctx)
+	topic := wsh.GetOrCreateTopic(cfg.ItemCollectedTopic)
+	if topic == nil {
+		return fmt.Errorf("expected topic %v doesn't exist. ", cfg.ItemCollectedTopic)
+	}
+	msgID, err := topic.Publish(ctx, msg).Get(ctx)
 	if msgID != "" {
 		log.Debug(fmt.Sprintf("published a msg with id: %v", msgID))
 	}
@@ -110,17 +115,18 @@ func (wsh WebSocketHandler) GetOrCreateTopic(topicName ...string) *pubsub.Topic 
 	if len(topicName) > 0 {
 		cfg.ItemCollectedTopic = topicName[0]
 	}
-	topic := wsh.pubsubClient.Topic(cfg.ItemCollectedTopic)
+	topic := wsh.pubsubClient.Topic(cfg.ItemCollectedTopic) // We need to assume topic exists
 	if exists, err := topic.Exists(context.Background()); err != nil {
 		log.Warn("error checking if topic exists.", err)
 		return nil
 	} else if !exists {
 		// create the topic
-		log.Info(fmt.Sprintf("Topic %v doesn't exist.  Creating it", cfg.ItemCollectedTopic))
-		if topic, err = wsh.pubsubClient.CreateTopic(context.Background(), cfg.ItemCollectedTopic); err != nil {
-			log.Warn("error creating topic.", err)
-			return nil
-		}
+		log.Warn(fmt.Sprintf("expected topic %v doesn't exist", cfg.ItemCollectedTopic), fmt.Errorf("Topic %v doesn't exist", cfg.ItemCollectedTopic))
+		return nil
+		// if topic, err = wsh.pubsubClient.CreateTopic(context.Background(), cfg.ItemCollectedTopic); err != nil {
+		// 	log.Warn("error creating topic.", err)
+		// 	return nil
+		// }
 	}
 	return topic
 }
