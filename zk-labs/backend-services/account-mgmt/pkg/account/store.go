@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"fmt"
 
 	"cloud.google.com/go/firestore"
 	"github.com/finiteloopme/goutils/pkg/log"
@@ -85,6 +86,8 @@ func (ar *AccountRepository) GetUser(id string) (*AccountInfo, error) {
 	docSnapshot, err := ar.GetOrCreateRepository().Doc(id).Get(context.Background())
 	if status.Code(err) == codes.NotFound {
 		return nil, err
+	} else if err != nil {
+		log.Warn(fmt.Sprintf("error creating user [%v] in user repo [%v]", id, ar.CollectionName), err)
 	}
 
 	_userInfo := &AccountInfo{}
