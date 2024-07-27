@@ -13,3 +13,7 @@ docs/
 # Dotenv file
 .env
 out
+# By KunalL
+broadcast
+go/data.json
+logs

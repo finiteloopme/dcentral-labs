@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/pubsub v1.36.1
 	github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt v0.0.0-20240726053155-64ae4276db5a
 	github.com/stretchr/testify v1.9.0
 )

@@ -1,16 +1,6 @@
 # Erigon
-rpc: http://44.215.105.45:8545
-contracts:
-  egg: 0x1aCba3b35599ECc07c1f4aE429c42f76b74C0FAf
-  fea: 0x5922c170dBf35df00c05e805EbdD06690a9eD4B1
-  zkp: 0x454b4E216fA826727b480185e8c86C1E48e96735
-users:
-  owner: 85b97ba3fd34f012d788415e0a6bfc506b3c4816d26f18602066f7e36e5f75df
-  user1: 5494ad4fb53f00bbfa18f4eabc72be4af3a7595bbdd232d92f5e461e04d5990d
-  user2: 31857fe2167cc4a7d923f83890c8923ad7a1fa42563e834a4b1d06b7c78f4136
-  user3: 77cc1914afe06fe17a70a064ee4242e557a2e06bacfa45c7c8ebee408ddd0348
+rpc: http://44.215.105.45:9030/fetch
 pubsub-config:
-  item-collected: item-collected-topic
   block-reader: block-reader-topic
 cloud-run-port: 8080
 

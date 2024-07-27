@@ -6,6 +6,7 @@ import (
 	nft "contracts/erc721"
 	"crypto/ecdsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -13,15 +14,16 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/pubsub"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/finiteloopme/dcentral-labs/zk-labs/backend-services/account-mgmt/pkg/wallet"
+	"github.com/finiteloopme/goutils/pkg/gcp"
 	"github.com/finiteloopme/goutils/pkg/log"
 	"github.com/finiteloopme/goutils/pkg/os/env"
-	// store "./contracts" // for demo
 )
 
 type Addresses struct {
@@ -39,6 +41,7 @@ type Keys struct {
 
 type PubsubConfig struct {
 	Item4Collection string `yaml:"item-collected"`
+	BlockReader     string `yaml:"block-reader"`
 	// Item4Collection PubsubConfigType `yaml:"item-collected"`
 	// Transfer2Player PubsubConfigType `yaml:"onchain-transfer"`
 }
@@ -58,13 +61,14 @@ type Config struct {
 
 type ClientForChain struct {
 	sync.Mutex
-	cfg       *Config           //Config for this micro service
-	ethClient *ethclient.Client //Client to ETH
-	zkpToken  *token.Erc20      //ZKProof token contract
-	eggNFT    *nft.Erc721       //EggNFT contract
-	feaNFT    *nft.Erc721       //FeatherNFT contract
-	owner     *Key              //Original owner of the contracts & assets on the chain
-	callOpts  *bind.CallOpts
+	cfg          *Config           //Config for this micro service
+	ethClient    *ethclient.Client //Client to ETH
+	zkpToken     *token.Erc20      //ZKProof token contract
+	eggNFT       *nft.Erc721       //EggNFT contract
+	feaNFT       *nft.Erc721       //FeatherNFT contract
+	owner        *Key              //Original owner of the contracts & assets on the chain
+	callOpts     *bind.CallOpts
+	pubsubClient *pubsub.Client
 }
 
 func NewClient(_cfg *Config) *ClientForChain {
@@ -110,6 +114,10 @@ func NewClient(_cfg *Config) *ClientForChain {
 	if c.owner == nil {
 		log.Warn("error getting the owner. ", err)
 		log.Fatal(err)
+	}
+	c.pubsubClient, err = pubsub.NewClient(context.Background(), gcp.GetProjectID())
+	if err != nil {
+		log.Warn("error creating client for pubsub.  Won't be retrieving proofs. ", err)
 	}
 
 	return c
@@ -203,6 +211,7 @@ func (c *ClientForChain) GetBlockNumber(txn *types.Transaction) *big.Int {
 				log.Warn("error getting block number", err)
 				return nil
 			} else {
+				go c.SendToBlockReader(receipt.BlockNumber.String())
 				return receipt.BlockNumber
 			}
 		}
@@ -359,6 +368,27 @@ func (c *ClientForChain) ProcessCollectItemRequest(data []byte) {
 				c.TransferZKP(c.cfg.UserKeys.Owner, common.HexToAddress(wallet.Address), points)
 			}
 		}
+	}
+}
+
+type SendToBlockReaderReqest struct {
+	BlockNumber string `json:"blockNumber"`
+}
+
+func (c *ClientForChain) SendToBlockReader(_blockNumber string) {
+	sendToBlockReader := &SendToBlockReaderReqest{
+		BlockNumber: _blockNumber,
+	}
+	if c.pubsubClient != nil {
+		if topic := c.pubsubClient.Topic(c.cfg.Pubsub.BlockReader); topic != nil {
+			data, _ := json.Marshal(sendToBlockReader)
+
+			topic.Publish(context.Background(), &pubsub.Message{
+				Data: data,
+			})
+		}
+	} else {
+		log.Warn("Can't retrieve proofs for block: "+_blockNumber, errors.New("invalid pubsub client"))
 	}
 }
 
