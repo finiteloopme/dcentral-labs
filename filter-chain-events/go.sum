@@ -99,8 +99,8 @@ github.com/ethereum/go-ethereum v1.13.14 h1:EwiY3FZP94derMCIam1iW4HFVrSgIcpsu0Hw
 github.com/ethereum/go-ethereum v1.13.14/go.mod h1:TN8ZiHrdJwSe8Cb6x+p0hs5CxhJZPbqB7hHkaUXcmIU=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/finiteloopme/goutils v0.0.0-20230430215118-ad3f877f84e9 h1:Fv95JafeP2Uz3/NTIENJAHMlkdRJN7xU8xhY6CPYSOg=
-github.com/finiteloopme/goutils v0.0.0-20230430215118-ad3f877f84e9/go.mod h1:i+pSBI9uFKe2nxFgxhp28CzBPxGj/24C+0Yp5R1/A10=
+github.com/finiteloopme/goutils v0.0.0-20240718033530-4dca4286ad6b h1:E8NOL+6IVoRc2ZS68i0jDMBx6uGS4L+F2aUqIEu/rIk=
+github.com/finiteloopme/goutils v0.0.0-20240718033530-4dca4286ad6b/go.mod h1:7H2+iXA0Pc1W2+cbB75jBU5pV53oI135j1e6x3oE75Q=
 github.com/fjl/memsize v0.0.2 h1:27txuSD9or+NZlnOWdKUxeBzTAUkWCVh+4Gf2dWFOzA=
 github.com/fjl/memsize v0.0.2/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
 github.com/frankban/quicktest v1.2.2/go.mod h1:Qh/WofXFeiAFII1aEBu529AtJo6Zg2VHscnEsbBnJ20=

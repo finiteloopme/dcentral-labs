@@ -2,8 +2,11 @@
 # config.env will not be available in the repo
 # This is env specific.
 # Includes config info, per the Config struct in pkg/config/config.go
-include config.env
-export 
+
+.PHONY: init
+init: 
+	go mod tidy
+	go fmt ./...
 
 .PHONY: run
 run:

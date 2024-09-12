@@ -106,6 +106,7 @@ func (blockReader *BlockReader) PrintZKProof(block BlockReaderReqest) {
 				message := string(body)
 				if !strings.Contains(message, "Error: block does not exist") {
 					log.Info(fmt.Sprintf("Proof for the block [%v] is here: %v", block.BlockNumber, blockReader.cfg.RPC+"/"+block.BlockNumber))
+					return
 				}
 			} else {
 				log.Warn("error reading response from the Jerigon RPC. ", err)

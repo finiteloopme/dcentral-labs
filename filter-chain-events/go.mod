@@ -6,8 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.37.0
 	github.com/apache/beam/sdks/v2 v2.55.1
 	github.com/ethereum/go-ethereum v1.13.14
-	github.com/finiteloopme/goutils v0.0.0-20230430215118-ad3f877f84e9
-	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/finiteloopme/goutils v0.0.0-20240718033530-4dca4286ad6b
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/api v0.167.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -58,6 +57,7 @@ require (
 	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
+	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -104,6 +104,7 @@ require (
 	google.golang.org/grpc v1.63.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/retry.v1 v1.0.3 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
