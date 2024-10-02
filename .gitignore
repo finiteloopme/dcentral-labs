@@ -1,0 +1,17 @@
+.DS_Store
+# Scratch pad items not worth commiting
+bots/
+chain-data-stream/api/gen/
+chain-replication/
+dex/
+filter-chain-events/config.yaml
+filter-chain-events/pkg/blockchainio/base/
+jupiter-core-example/
+meme-koins/
+nft/
+protocol-v2/
+reth-shenanigans/
+sol-dex-analytics/
+starknet-dataset/zkp-perf-test
+starknet-dataset
+zkp-perf-test
