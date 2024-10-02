@@ -3,7 +3,7 @@
 
 With _zkRollups_, there is a decent amount of discussion and opinions on
 which is the best **Zero Knowledge Proof** (_ZKP_) technology to use.  And
-fair enough too - there are many moving to consider like circuit design,
+fair enough too - there are many things to consider like circuit design,
 compute power required, finality time, cost, etc.  
 So while this debate is required, we face into the risk of _paralysis by
 analysis_.  
