@@ -1,0 +1,608 @@
+{
+    "contractName": "ImageProcessor",
+    "abi": [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "imageData",
+                    "type": "string"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "uploader",
+                    "type": "address"
+                }
+            ],
+            "name": "ImageUploaded",
+            "type": "event"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "name": "results",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "uploader",
+                    "type": "address"
+                },
+                {
+                    "internalType": "string",
+                    "name": "result",
+                    "type": "string"
+                }
+            ],
+            "name": "submitResult",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "imageData",
+                    "type": "string"
+                }
+            ],
+            "name": "uploadImage",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "metadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"imageData\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"uploader\",\"type\":\"address\"}],\"name\":\"ImageUploaded\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"results\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"uploader\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"result\",\"type\":\"string\"}],\"name\":\"submitResult\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"imageData\",\"type\":\"string\"}],\"name\":\"uploadImage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"This contract allows users to upload image data and stores results associated with each uploader\",\"events\":{\"ImageUploaded(string,address)\":{\"params\":{\"imageData\":\"The data of the uploaded image\",\"uploader\":\"The address of the user who uploaded the image\"}}},\"kind\":\"dev\",\"methods\":{\"submitResult(address,string)\":{\"details\":\"This function should be called by an authorized coprocessor\",\"params\":{\"result\":\"The analysis result for the uploaded image\",\"uploader\":\"The address of the user who uploaded the image\"}},\"uploadImage(string)\":{\"details\":\"Emits an ImageUploaded event\",\"params\":{\"imageData\":\"The data of the image to be uploaded\"}}},\"stateVariables\":{\"results\":{\"details\":\"Key is the uploader's address, value is the analysis result\"}},\"title\":\"ImageProcessor\",\"version\":1},\"userdoc\":{\"events\":{\"ImageUploaded(string,address)\":{\"notice\":\"Emitted when an image is uploaded\"}},\"kind\":\"user\",\"methods\":{\"results(address)\":{\"notice\":\"Mapping to store analysis results for each uploader\"},\"submitResult(address,string)\":{\"notice\":\"Submits the analysis result for a specific uploader\"},\"uploadImage(string)\":{\"notice\":\"Uploads an image to the contract\"}},\"notice\":\"A contract for uploading images and storing analysis results\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"/Users/kunall/scratchpad/dcentral-labs/coprocessor/image-processor/src/ImageProcessor.sol\":\"ImageProcessor\"},\"evmVersion\":\"shanghai\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[],\"viaIR\":true},\"sources\":{\"/Users/kunall/scratchpad/dcentral-labs/coprocessor/image-processor/src/ImageProcessor.sol\":{\"keccak256\":\"0x1f1dc8a4d5aa43b50c0dc7bee942a18a18e42e94f4e0c4b2bf4d43d6533d3e58\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://5d1a1d4dbd9fef3df7a853051463b128fd61504f513f2f81ffb86be5f42ddc32\",\"dweb:/ipfs/QmUZpgbY4A7diT5VaEeZhKPp3i5EjTt2gNhKaJW5vukBcM\"]}},\"version\":1}",
+    "bytecode": "608080604052346100165761042f908161001b8239f35b5f80fdfe6040608081526004361015610012575f80fd5b5f3560e01c80634ba8d4ba1461019a578063e740c8a0146101275763ef378f621461003b575f80fd5b3461012357602080600319360112610123576001600160a01b0361005d6102f5565b165f525f8152815f2091805180935f90805461007881610383565b91828552600191876001821691825f146100fc5750506001146100bc575b5050506100b892916100a991038561030b565b519282849384528301906103bb565b0390f35b8693505f92919252825f20915f925b8284106100e457505050820101816100a96100b8610096565b8054848a0186015288955087949093019281016100cb565b60ff19168782015293151560051b860190930193508492506100a991506100b89050610096565b5f80fd5b5034610123576020366003190112610123576004359067ffffffffffffffff82116101235761017b7f18404c8251d79808adb01c4389340e7af0e5aaac12cd0fef1cccadebc070840192369060040161032d565b9061018f81519282849384528301906103bb565b3360208301520390a1005b50346101235780600319360112610123576101b36102f5565b9067ffffffffffffffff602435818111610123576101d590369060040161032d565b9260018060a01b03165f526020915f83525f209183519182116102e1576101fc8354610383565b601f811161029e575b5080601f831160011461023f57508192935f92610234575b50505f19600383901b1c191660019190911b179055005b015190505f8061021d565b90601f19831694845f52825f20925f905b87821061028657505083600195961061026e575b505050811b019055005b01515f1960f88460031b161c191690555f8080610264565b80600185968294968601518155019501930190610250565b835f52815f20601f840160051c8101918385106102d7575b601f0160051c01905b8181106102cc5750610205565b5f81556001016102bf565b90915081906102b6565b634e487b7160e01b5f52604160045260245ffd5b600435906001600160a01b038216820361012357565b90601f8019910116810190811067ffffffffffffffff8211176102e157604052565b81601f820112156101235780359067ffffffffffffffff82116102e15760405192610362601f8401601f19166020018561030b565b8284526020838301011161012357815f926020809301838601378301015290565b90600182811c921680156103b1575b602083101461039d57565b634e487b7160e01b5f52602260045260245ffd5b91607f1691610392565b91908251928382525f5b8481106103e5575050825f602080949584010152601f8019910116010190565b6020818301810151848301820152016103c556fea2646970667358221220f4310012740ac3813f1f34dd033606d78133bcbf1121bf15140b40f173b3566164736f6c63430008180033",
+    "deployedBytecode": "6040608081526004361015610012575f80fd5b5f3560e01c80634ba8d4ba1461019a578063e740c8a0146101275763ef378f621461003b575f80fd5b3461012357602080600319360112610123576001600160a01b0361005d6102f5565b165f525f8152815f2091805180935f90805461007881610383565b91828552600191876001821691825f146100fc5750506001146100bc575b5050506100b892916100a991038561030b565b519282849384528301906103bb565b0390f35b8693505f92919252825f20915f925b8284106100e457505050820101816100a96100b8610096565b8054848a0186015288955087949093019281016100cb565b60ff19168782015293151560051b860190930193508492506100a991506100b89050610096565b5f80fd5b5034610123576020366003190112610123576004359067ffffffffffffffff82116101235761017b7f18404c8251d79808adb01c4389340e7af0e5aaac12cd0fef1cccadebc070840192369060040161032d565b9061018f81519282849384528301906103bb565b3360208301520390a1005b50346101235780600319360112610123576101b36102f5565b9067ffffffffffffffff602435818111610123576101d590369060040161032d565b9260018060a01b03165f526020915f83525f209183519182116102e1576101fc8354610383565b601f811161029e575b5080601f831160011461023f57508192935f92610234575b50505f19600383901b1c191660019190911b179055005b015190505f8061021d565b90601f19831694845f52825f20925f905b87821061028657505083600195961061026e575b505050811b019055005b01515f1960f88460031b161c191690555f8080610264565b80600185968294968601518155019501930190610250565b835f52815f20601f840160051c8101918385106102d7575b601f0160051c01905b8181106102cc5750610205565b5f81556001016102bf565b90915081906102b6565b634e487b7160e01b5f52604160045260245ffd5b600435906001600160a01b038216820361012357565b90601f8019910116810190811067ffffffffffffffff8211176102e157604052565b81601f820112156101235780359067ffffffffffffffff82116102e15760405192610362601f8401601f19166020018561030b565b8284526020838301011161012357815f926020809301838601378301015290565b90600182811c921680156103b1575b602083101461039d57565b634e487b7160e01b5f52602260045260245ffd5b91607f1691610392565b91908251928382525f5b8481106103e5575050825f602080949584010152601f8019910116010190565b6020818301810151848301820152016103c556fea2646970667358221220f4310012740ac3813f1f34dd033606d78133bcbf1121bf15140b40f173b3566164736f6c63430008180033",
+    "sourceMap": "263:1239:0:-:0;;;;;;;;;;;;;;;;;",
+    "deployedSourceMap": "263:1239:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;;263:1239:0;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;263:1239:0;;;;;;;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;;;-1:-1:-1;;263:1239:0;;;;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;-1:-1:-1;263:1239:0;;-1:-1:-1;263:1239:0;;-1:-1:-1;263:1239:0;;;;;;;;;;;;;-1:-1:-1;;263:1239:0;;;;;;;;;;;;;944:36;263:1239;;;;;;:::i;:::-;;;;;;;;;;;;;;;:::i;:::-;969:10;263:1239;;;;944:36;;;263:1239;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;263:1239:0;;;;;;;;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;263:1239:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;;263:1239:0;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;263:1239:0;;;;;:::i;:::-;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;-1:-1:-1;263:1239:0;;;;;;;;;;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;",
+    "sourcePath": "/Users/kunall/scratchpad/dcentral-labs/coprocessor/image-processor/src/ImageProcessor.sol",
+    "compiler": {
+        "name": "solc",
+        "version": "0.8.24+commit.e11b9ed9"
+    },
+    "ast": {
+        "absolutePath": "/Users/kunall/scratchpad/dcentral-labs/coprocessor/image-processor/src/ImageProcessor.sol",
+        "exportedSymbols": {
+            "ImageProcessor": [
+                43
+            ]
+        },
+        "id": 44,
+        "license": "MIT",
+        "nodeType": "SourceUnit",
+        "nodes": [
+            {
+                "id": 1,
+                "literals": [
+                    "solidity",
+                    "^",
+                    "0.8",
+                    ".13"
+                ],
+                "nodeType": "PragmaDirective",
+                "src": "32:24:0"
+            },
+            {
+                "abstract": false,
+                "baseContracts": [],
+                "canonicalName": "ImageProcessor",
+                "contractDependencies": [],
+                "contractKind": "contract",
+                "documentation": {
+                    "id": 2,
+                    "nodeType": "StructuredDocumentation",
+                    "src": "58:205:0",
+                    "text": "@title ImageProcessor\n @notice A contract for uploading images and storing analysis results\n @dev This contract allows users to upload image data and stores results associated with each uploader"
+                },
+                "fullyImplemented": true,
+                "id": 43,
+                "linearizedBaseContracts": [
+                    43
+                ],
+                "name": "ImageProcessor",
+                "nameLocation": "272:14:0",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "anonymous": false,
+                        "documentation": {
+                            "id": 3,
+                            "nodeType": "StructuredDocumentation",
+                            "src": "294:172:0",
+                            "text": "@notice Emitted when an image is uploaded\n @param imageData The data of the uploaded image\n @param uploader The address of the user who uploaded the image"
+                        },
+                        "eventSelector": "18404c8251d79808adb01c4389340e7af0e5aaac12cd0fef1cccadebc0708401",
+                        "id": 9,
+                        "name": "ImageUploaded",
+                        "nameLocation": "477:13:0",
+                        "nodeType": "EventDefinition",
+                        "parameters": {
+                            "id": 8,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 5,
+                                    "indexed": false,
+                                    "mutability": "mutable",
+                                    "name": "imageData",
+                                    "nameLocation": "498:9:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 9,
+                                    "src": "491:16:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 4,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "491:6:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                },
+                                {
+                                    "constant": false,
+                                    "id": 7,
+                                    "indexed": false,
+                                    "mutability": "mutable",
+                                    "name": "uploader",
+                                    "nameLocation": "517:8:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 9,
+                                    "src": "509:16:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_address",
+                                        "typeString": "address"
+                                    },
+                                    "typeName": {
+                                        "id": 6,
+                                        "name": "address",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "509:7:0",
+                                        "stateMutability": "nonpayable",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "490:36:0"
+                        },
+                        "src": "471:56:0"
+                    },
+                    {
+                        "constant": false,
+                        "documentation": {
+                            "id": 10,
+                            "nodeType": "StructuredDocumentation",
+                            "src": "533:136:0",
+                            "text": "@notice Mapping to store analysis results for each uploader\n @dev Key is the uploader's address, value is the analysis result"
+                        },
+                        "functionSelector": "ef378f62",
+                        "id": 14,
+                        "mutability": "mutable",
+                        "name": "results",
+                        "nameLocation": "708:7:0",
+                        "nodeType": "VariableDeclaration",
+                        "scope": 43,
+                        "src": "674:41:0",
+                        "stateVariable": true,
+                        "storageLocation": "default",
+                        "typeDescriptions": {
+                            "typeIdentifier": "t_mapping$_t_address_$_t_string_storage_$",
+                            "typeString": "mapping(address => string)"
+                        },
+                        "typeName": {
+                            "id": 13,
+                            "keyName": "",
+                            "keyNameLocation": "-1:-1:-1",
+                            "keyType": {
+                                "id": 11,
+                                "name": "address",
+                                "nodeType": "ElementaryTypeName",
+                                "src": "682:7:0",
+                                "typeDescriptions": {
+                                    "typeIdentifier": "t_address",
+                                    "typeString": "address"
+                                }
+                            },
+                            "nodeType": "Mapping",
+                            "src": "674:26:0",
+                            "typeDescriptions": {
+                                "typeIdentifier": "t_mapping$_t_address_$_t_string_storage_$",
+                                "typeString": "mapping(address => string)"
+                            },
+                            "valueName": "",
+                            "valueNameLocation": "-1:-1:-1",
+                            "valueType": {
+                                "id": 12,
+                                "name": "string",
+                                "nodeType": "ElementaryTypeName",
+                                "src": "693:6:0",
+                                "typeDescriptions": {
+                                    "typeIdentifier": "t_string_storage_ptr",
+                                    "typeString": "string"
+                                }
+                            }
+                        },
+                        "visibility": "public"
+                    },
+                    {
+                        "body": {
+                            "id": 26,
+                            "nodeType": "Block",
+                            "src": "929:58:0",
+                            "statements": [
+                                {
+                                    "eventCall": {
+                                        "arguments": [
+                                            {
+                                                "id": 21,
+                                                "name": "imageData",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 17,
+                                                "src": "958:9:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_string_memory_ptr",
+                                                    "typeString": "string memory"
+                                                }
+                                            },
+                                            {
+                                                "expression": {
+                                                    "id": 22,
+                                                    "name": "msg",
+                                                    "nodeType": "Identifier",
+                                                    "overloadedDeclarations": [],
+                                                    "referencedDeclaration": 4294967281,
+                                                    "src": "969:3:0",
+                                                    "typeDescriptions": {
+                                                        "typeIdentifier": "t_magic_message",
+                                                        "typeString": "msg"
+                                                    }
+                                                },
+                                                "id": 23,
+                                                "isConstant": false,
+                                                "isLValue": false,
+                                                "isPure": false,
+                                                "lValueRequested": false,
+                                                "memberLocation": "973:6:0",
+                                                "memberName": "sender",
+                                                "nodeType": "MemberAccess",
+                                                "src": "969:10:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_address",
+                                                    "typeString": "address"
+                                                }
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_string_memory_ptr",
+                                                    "typeString": "string memory"
+                                                },
+                                                {
+                                                    "typeIdentifier": "t_address",
+                                                    "typeString": "address"
+                                                }
+                                            ],
+                                            "id": 20,
+                                            "name": "ImageUploaded",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 9,
+                                            "src": "944:13:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_event_nonpayable$_t_string_memory_ptr_$_t_address_$returns$__$",
+                                                "typeString": "function (string memory,address)"
+                                            }
+                                        },
+                                        "id": 24,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "nameLocations": [],
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "944:36:0",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 25,
+                                    "nodeType": "EmitStatement",
+                                    "src": "939:41:0"
+                                }
+                            ]
+                        },
+                        "documentation": {
+                            "id": 15,
+                            "nodeType": "StructuredDocumentation",
+                            "src": "723:148:0",
+                            "text": "@notice Uploads an image to the contract\n @param imageData The data of the image to be uploaded\n @dev Emits an ImageUploaded event"
+                        },
+                        "functionSelector": "e740c8a0",
+                        "id": 27,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "uploadImage",
+                        "nameLocation": "885:11:0",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 18,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 17,
+                                    "mutability": "mutable",
+                                    "name": "imageData",
+                                    "nameLocation": "911:9:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 27,
+                                    "src": "897:23:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "memory",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 16,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "897:6:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "896:25:0"
+                        },
+                        "returnParameters": {
+                            "id": 19,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "929:0:0"
+                        },
+                        "scope": 43,
+                        "src": "876:111:0",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    },
+                    {
+                        "body": {
+                            "id": 41,
+                            "nodeType": "Block",
+                            "src": "1339:161:0",
+                            "statements": [
+                                {
+                                    "expression": {
+                                        "id": 39,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "lValueRequested": false,
+                                        "leftHandSide": {
+                                            "baseExpression": {
+                                                "id": 35,
+                                                "name": "results",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 14,
+                                                "src": "1467:7:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_mapping$_t_address_$_t_string_storage_$",
+                                                    "typeString": "mapping(address => string storage ref)"
+                                                }
+                                            },
+                                            "id": 37,
+                                            "indexExpression": {
+                                                "id": 36,
+                                                "name": "uploader",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 30,
+                                                "src": "1475:8:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_address",
+                                                    "typeString": "address"
+                                                }
+                                            },
+                                            "isConstant": false,
+                                            "isLValue": true,
+                                            "isPure": false,
+                                            "lValueRequested": true,
+                                            "nodeType": "IndexAccess",
+                                            "src": "1467:17:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_string_storage",
+                                                "typeString": "string storage ref"
+                                            }
+                                        },
+                                        "nodeType": "Assignment",
+                                        "operator": "=",
+                                        "rightHandSide": {
+                                            "id": 38,
+                                            "name": "result",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 32,
+                                            "src": "1487:6:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_string_memory_ptr",
+                                                "typeString": "string memory"
+                                            }
+                                        },
+                                        "src": "1467:26:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage",
+                                            "typeString": "string storage ref"
+                                        }
+                                    },
+                                    "id": 40,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "1467:26:0"
+                                }
+                            ]
+                        },
+                        "documentation": {
+                            "id": 28,
+                            "nodeType": "StructuredDocumentation",
+                            "src": "993:272:0",
+                            "text": "@notice Submits the analysis result for a specific uploader\n @param uploader The address of the user who uploaded the image\n @param result The analysis result for the uploaded image\n @dev This function should be called by an authorized coprocessor"
+                        },
+                        "functionSelector": "4ba8d4ba",
+                        "id": 42,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [],
+                        "name": "submitResult",
+                        "nameLocation": "1279:12:0",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 33,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 30,
+                                    "mutability": "mutable",
+                                    "name": "uploader",
+                                    "nameLocation": "1300:8:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 42,
+                                    "src": "1292:16:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_address",
+                                        "typeString": "address"
+                                    },
+                                    "typeName": {
+                                        "id": 29,
+                                        "name": "address",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "1292:7:0",
+                                        "stateMutability": "nonpayable",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                },
+                                {
+                                    "constant": false,
+                                    "id": 32,
+                                    "mutability": "mutable",
+                                    "name": "result",
+                                    "nameLocation": "1324:6:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 42,
+                                    "src": "1310:20:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "memory",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_string_memory_ptr",
+                                        "typeString": "string"
+                                    },
+                                    "typeName": {
+                                        "id": 31,
+                                        "name": "string",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "1310:6:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_string_storage_ptr",
+                                            "typeString": "string"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "1291:40:0"
+                        },
+                        "returnParameters": {
+                            "id": 34,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "1339:0:0"
+                        },
+                        "scope": 43,
+                        "src": "1270:230:0",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    }
+                ],
+                "scope": 44,
+                "src": "263:1239:0",
+                "usedErrors": [],
+                "usedEvents": [
+                    9
+                ]
+            }
+        ],
+        "src": "32:1470:0"
+    },
+    "functionHashes": {
+        "results(address)": "ef378f62",
+        "submitResult(address,string)": "4ba8d4ba",
+        "uploadImage(string)": "e740c8a0"
+    },
+    "gasEstimates": {
+        "creation": {
+            "codeDepositCost": "214200",
+            "executionCost": "263",
+            "totalCost": "214463"
+        },
+        "external": {
+            "results(address)": "infinite",
+            "submitResult(address,string)": "infinite",
+            "uploadImage(string)": "infinite"
+        }
+    }
+}
