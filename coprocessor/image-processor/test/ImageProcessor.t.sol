@@ -17,68 +17,64 @@ contract ImageProcessorTest is Test {
         coprocessor = address(0x3);
     }
 
-    /// @notice Test uploading an image
-    function testUploadImage() public {
-        string memory imageData = "base64encodedimagedata";
+    function testCreateIcon() public {
+        string memory prompt = "A beautiful sunset over the ocean";
         
         vm.prank(user1);
         vm.expectEmit(true, true, false, true);
-        emit ImageProcessor.ImageUploaded(imageData, user1);
-        imageProcessor.uploadImage(imageData);
+        emit ImageProcessor.GenerateIcon(prompt, user1);
+        imageProcessor.createIcon(prompt);
     }
 
-    /// @notice Test submitting a result for an uploaded image
-    function testSubmitResult() public {
-        string memory result = "Analysis result for user1's image";
+    function testSubmitIcon() public {
+        string memory iconData = "base64encodedicondata";
         
         vm.prank(coprocessor);
-        imageProcessor.submitResult(user1, result);
+        imageProcessor.submitIcon(user1, iconData);
         
-        assertEq(imageProcessor.results(user1), result, "Result not correctly stored");
+        assertEq(imageProcessor.icons(user1), iconData, "Icon not correctly stored");
     }
 
-    /// @notice Test submitting results for multiple users
-    function testSubmitMultipleResults() public {
-        string memory result1 = "Analysis result for user1's image";
-        string memory result2 = "Analysis result for user2's image";
+    function testMultipleUsersCreateIcons() public {
+        string memory prompt1 = "A majestic mountain range";
+        string memory prompt2 = "A serene lake at dawn";
+        
+        vm.prank(user1);
+        vm.expectEmit(true, true, false, true);
+        emit ImageProcessor.GenerateIcon(prompt1, user1);
+        imageProcessor.createIcon(prompt1);
+        
+        vm.prank(user2);
+        vm.expectEmit(true, true, false, true);
+        emit ImageProcessor.GenerateIcon(prompt2, user2);
+        imageProcessor.createIcon(prompt2);
+    }
+
+    function testSubmitMultipleIcons() public {
+        string memory iconData1 = "base64encodedicondata1";
+        string memory iconData2 = "base64encodedicondata2";
         
         vm.startPrank(coprocessor);
-        imageProcessor.submitResult(user1, result1);
-        imageProcessor.submitResult(user2, result2);
+        imageProcessor.submitIcon(user1, iconData1);
+        imageProcessor.submitIcon(user2, iconData2);
         vm.stopPrank();
         
-        assertEq(imageProcessor.results(user1), result1, "Result for user1 not correctly stored");
-        assertEq(imageProcessor.results(user2), result2, "Result for user2 not correctly stored");
+        assertEq(imageProcessor.icons(user1), iconData1, "Icon for user1 not correctly stored");
+        assertEq(imageProcessor.icons(user2), iconData2, "Icon for user2 not correctly stored");
     }
 
-    /// @notice Test overwriting an existing result
-    function testOverwriteResult() public {
-        string memory result1 = "Initial analysis result";
-        string memory result2 = "Updated analysis result";
+    function testOverwriteIcon() public {
+        string memory iconData1 = "base64encodedicondata1";
+        string memory iconData2 = "base64encodedicondata2";
         
-        vm.startPrank(coprocessor);
-        imageProcessor.submitResult(user1, result1);
-        imageProcessor.submitResult(user1, result2);
-        vm.stopPrank();
+        vm.prank(coprocessor);
+        imageProcessor.submitIcon(user1, iconData1);
         
-        assertEq(imageProcessor.results(user1), result2, "Result not correctly overwritten");
-    }
-
-    /// @notice Test uploading multiple images from the same user
-    function testMultipleUploadsFromSameUser() public {
-        string memory imageData1 = "base64encodedimagedata1";
-        string memory imageData2 = "base64encodedimagedata2";
+        assertEq(imageProcessor.icons(user1), iconData1, "Initial icon not correctly stored");
         
-        vm.startPrank(user1);
+        vm.prank(coprocessor);
+        imageProcessor.submitIcon(user1, iconData2);
         
-        vm.expectEmit(true, true, false, true);
-        emit ImageProcessor.ImageUploaded(imageData1, user1);
-        imageProcessor.uploadImage(imageData1);
-        
-        vm.expectEmit(true, true, false, true);
-        emit ImageProcessor.ImageUploaded(imageData2, user1);
-        imageProcessor.uploadImage(imageData2);
-        
-        vm.stopPrank();
+        assertEq(imageProcessor.icons(user1), iconData2, "Icon not correctly overwritten");
     }
 }

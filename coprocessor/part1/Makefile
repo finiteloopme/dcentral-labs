@@ -1,9 +1,13 @@
 
 include envconfig.properties
 
+clean:
+	cd ../basic; cargo clean
+	cd ../image-processor; forge clean
+
 build:
-	cd ../basic; cargo build
 	cd ../image-processor; forge build
+	cd ../basic; cargo build
 
 gen-abi:
 	cd ../image-processor; forge build --silent && jq '.abi' ./out/ImageProcessor.sol/ImageProcessor.json > ./out/ImageProcessor.abi
