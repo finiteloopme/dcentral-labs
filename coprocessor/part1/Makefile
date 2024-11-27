@@ -13,7 +13,7 @@ gen-abi:
 	cd ../image-processor; forge build --silent && jq '.abi' ./out/ImageProcessor.sol/ImageProcessor.json > ./out/ImageProcessor.abi
 	echo "ABI written to ../image-processor/out/ImageProcessor.abi"
 
-test:
+test: build
 	cd ../basic; cargo test
 	cd ../image-processor; forge test
 

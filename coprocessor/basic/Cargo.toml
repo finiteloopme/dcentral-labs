@@ -8,9 +8,12 @@ ethers = { version = "2.0", features = ["abigen",  "ws"] }
 tokio = { version = "1.0", features = ["full"] }
 serde_json = "1.0"
 dotenv = "0.15.0"
-serde = "1.0.215"
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0.215", features = ["derive"] }
+base64 = "0.22.1"
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.0", features = ["full", "test-util", "macros", "rt-multi-thread"] }
 anvil = "0.1"
 ethers-solc = "2.0"
+httpmock = "0.7.0-rc.1"
