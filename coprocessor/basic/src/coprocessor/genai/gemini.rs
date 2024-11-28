@@ -17,7 +17,7 @@ struct Content {
 #[derive(Deserialize, Serialize)]
 struct Part {
     #[serde(default)]
-    text: Option<String>,  // Added the missing 'text' field
+    text: Option<String>,
     #[serde(default)]
     inline_data: Option<InlineData>,
 }
@@ -38,14 +38,10 @@ struct GeminiResponse {
     candidates: Vec<Candidate>,
 }
 
-/// Creates a GeminiRequest from the given image data, ready to be sent to the
+/// Creates a GeminiRequest from the given image URL, ready to be sent to the
 /// Gemini API. The request will contain two parts: a text part with the string
-/// "Identify all objects in this image.", and an inline_data part with the image
-/// data encoded as base64.
-async fn create_genai_request(image_data: &[u8]) -> Result<GeminiRequest, Box<dyn Error>> {
-    // Encode the image data to base64
-    let base64_image = general_purpose::STANDARD.encode(image_data);
-
+/// "Identify all objects in this image.", and a text part with the image URL.
+async fn create_genai_request(image_url: &str) -> Result<GeminiRequest, Box<dyn Error>> {
     Ok(GeminiRequest {
         contents: vec![Content {
             parts: vec![
@@ -54,11 +50,8 @@ async fn create_genai_request(image_data: &[u8]) -> Result<GeminiRequest, Box<dy
                     inline_data: None,
                 },
                 Part {
-                    text: None,
-                    inline_data: Some(InlineData {
-                        mime_type: "image/png".to_string(),
-                        data: base64_image,
-                    }),
+                    text: Some(image_url.to_string()),
+                    inline_data: None,
                 },
             ],
         }],
@@ -69,7 +62,6 @@ async fn create_genai_request(image_data: &[u8]) -> Result<GeminiRequest, Box<dy
 /// response as a GeminiResponse. The Gemini API URL is taken from the GEMINI_API_URL
 /// environment variable, or defaults to the URL for the 'gemini-pro-vision' model.
 async fn call_genai_api(gemini_request: &GeminiRequest, api_key: &str) -> Result<GeminiResponse, Box<dyn Error>> {
-    // Send request to Gemini API
     let client = Client::new();
     let api_url = std::env::var("GEMINI_API_URL")
         .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent".to_string());
@@ -84,16 +76,7 @@ async fn call_genai_api(gemini_request: &GeminiRequest, api_key: &str) -> Result
 }
 
 /// Extracts the identified objects from the Gemini API response.
-///
-/// # Arguments
-///
-/// * `response` - A reference to the GeminiResponse containing the identified objects.
-///
-/// # Returns
-///
-/// Returns a Result containing a Vec of String with identified objects, or an error.
 async fn process_genai_response(response: &GeminiResponse) -> Result<Vec<String>, Box<dyn Error>> {
-    // Extract the identified objects from the response
     let objects = response
         .candidates
         .first()
@@ -114,20 +97,19 @@ async fn process_genai_response(response: &GeminiResponse) -> Result<Vec<String>
     Ok(objects)
 }
 
-/// Analyzes a PNG image using the Gemini API to identify objects in the image.
+/// Analyzes an image using the Gemini API to identify objects in the image.
 ///
 /// # Arguments
 ///
-/// * `image_data` - A byte slice containing the raw PNG image data.
+/// * `image_url` - A string slice containing the URL of the image to analyze.
 /// * `api_key` - A string slice that holds the Gemini API key.
 ///
 /// # Returns
 ///
 /// Returns a Result containing a Vec of String with identified objects, or an error.
-async fn analyze_image(image_data: &[u8], api_key: &str) -> Result<Vec<String>, Box<dyn Error>> {
-       
+pub async fn analyze_image(image_url: &str, api_key: &str) -> Result<Vec<String>, Box<dyn Error>> {
     // Prepare the request payload
-    let request = create_genai_request(image_data).await?;
+    let request = create_genai_request(image_url).await?;
 
     // Send request to Gemini API
     let response: GeminiResponse = call_genai_api(&request, api_key).await?;
@@ -138,22 +120,16 @@ async fn analyze_image(image_data: &[u8], api_key: &str) -> Result<Vec<String>, 
     Ok(objects)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use httpmock::MockServer;
     use httpmock::Method::POST;
 
-    /// Tests the analyze_image function with a mock Gemini API response.
     #[tokio::test]
     async fn test_analyze_image() {
-        // Set the maximum number of mock servers to 1
-        std::env::set_var("HTTPMOCK_MAX_SERVERS", "1");
-        // Create a mock server
         let server = MockServer::start();
 
-        // Create a mock for the Gemini API endpoint
         let mock = server.mock(|when, then| {
             when.method(POST)
                 .path("/v1beta/models/gemini-pro-vision:generateContent")
@@ -176,20 +152,14 @@ mod tests {
                 }));
         });
 
-        // Create a dummy PNG image
-        let image_data = vec![137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130];
-
-        // Override the Gemini API URL with our mock server URL
         let api_url = format!("{}/v1beta/models/gemini-pro-vision:generateContent", server.base_url());
         std::env::set_var("GEMINI_API_URL", api_url);
 
-        // Call the analyze_image function
-        let result = analyze_image(&image_data, "test_api_key").await;
+        let image_url = "https://example.com/test-image.jpg";
+        let result = analyze_image(image_url, "test_api_key").await;
 
-        // Assert that the mock was called
         mock.assert();
 
-        // Check the result
         assert!(result.is_ok());
         let objects = result.unwrap();
         assert_eq!(objects, vec!["Cat", "Sofa", "Plant"]);
@@ -197,33 +167,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_genai_request() {
-        // Create a dummy image data
-        let image_data = vec![1, 2, 3, 4, 5];
+        let image_url = "https://example.com/test-image.jpg";
+        let result = create_genai_request(image_url).await;
 
-        // Call the function
-        let result = create_genai_request(&image_data).await;
-
-        // Check the result
         assert!(result.is_ok());
         let request = result.unwrap();
 
-        // Verify the structure of the request
         assert_eq!(request.contents.len(), 1);
         assert_eq!(request.contents[0].parts.len(), 2);
 
-        // Check the text part
         assert_eq!(
             request.contents[0].parts[0].text,
             Some("Identify all objects in this image.".to_string())
         );
         assert!(request.contents[0].parts[0].inline_data.is_none());
 
-        // Check the inline_data part
-        assert!(request.contents[0].parts[1].text.is_none());
-        let inline_data = request.contents[0].parts[1].inline_data.as_ref().unwrap();
-        assert_eq!(inline_data.mime_type, "image/png");
-        assert_eq!(inline_data.data, general_purpose::STANDARD.encode(&image_data));
+        assert_eq!(request.contents[0].parts[1].text, Some(image_url.to_string()));
+        assert!(request.contents[0].parts[1].inline_data.is_none());
     }
+
 
     #[tokio::test]
     async fn test_call_genai_api() {
@@ -324,5 +286,4 @@ mod tests {
         let objects = result.unwrap();
         assert!(objects.is_empty());
     }
-
 }

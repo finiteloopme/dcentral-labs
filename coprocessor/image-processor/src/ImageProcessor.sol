@@ -2,33 +2,33 @@
 pragma solidity ^0.8.13;
 
 /// @title ImageProcessor
-/// @notice A contract for using GenAI to generate icons and storing them onchain
-/// @dev This contract allows users to upload pompts for generating an icon and store the icon onchain
+/// @notice A contract for uploading image URIs and storing analysis results
+/// @dev This contract allows users to upload image URIs and stores results associated with each uploader
 contract ImageProcessor {
 
-    /// @notice Emitted when a generate icon request is received
-    /// @param imagePrompt The prompt for generating an icon
-    /// @param uploader The address of the user who requested the icon
-    event GenerateIcon(string imagePrompt, address uploader);
+    /// @notice Emitted when an image URI is uploaded
+    /// @param imageUri The URI of the uploaded image
+    /// @param uploader The address of the user who uploaded the image URI
+    event ImageUploaded(string imageUri, address uploader);
 
-    /// @notice Mapping to store icons for each uploader
-    /// @dev Key is the uploader's address, value is the icon
-    mapping(address => string) public icons; 
+    /// @notice Mapping to store analysis results for each uploader
+    /// @dev Key is the uploader's address, value is the analysis result
+    mapping(address => string) public results; 
 
-    /// @notice Receives a request to generate an icon
-    /// @param imagePrompt The prompt for generating an icon
+    /// @notice Uploads an image URI to the contract
+    /// @param imageUri The URI of the image to be uploaded
     /// @dev Emits an ImageUploaded event
-    function createIcon(string memory imagePrompt) public {
-        emit GenerateIcon(imagePrompt, msg.sender);
+    function uploadImage(string memory imageUri) public {
+        emit ImageUploaded(imageUri, msg.sender);
     }
 
-    /// @notice Stores the generated icon onchain
-    /// @param uploader The address of the user who uploaded the image
-    /// @param iconData file content representing the generated icon
+    /// @notice Submits the analysis result for a specific uploader
+    /// @param uploader The address of the user who uploaded the image URI
+    /// @param result The analysis result for the uploaded image
     /// @dev This function should be called by an authorized coprocessor
-    function submitIcon(address uploader, string memory iconData) public {
+    function submitResult(address uploader, string memory result) public {
         // Add authentication or authorization here to ensure only the 
         // coprocessor can call this function
-        icons[uploader] = iconData;
+        results[uploader] = result;
     }
 }

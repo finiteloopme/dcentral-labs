@@ -55,7 +55,7 @@ async fn call_smart_contract(
     );
     let contract = get_signed_contract_instance(signer, contract_address);
     // Call the submitResult function
-    let submit_result_method = contract.submit_icon(uploader, result);
+    let submit_result_method = contract.submit_result(uploader, result);
     // Call the submitResult function
     let tx = submit_result_method
         .send()
