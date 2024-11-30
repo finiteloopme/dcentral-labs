@@ -4,6 +4,8 @@ use ethers::{
 };
 use std::sync::Arc;
 
+use crate::coprocessor::genai;
+
 abigen!(ImageProcessor, "../image-processor/out/ImageProcessor.sol/ImageProcessor.json");
 
 async fn listen_ethereum_events(
@@ -20,8 +22,18 @@ async fn listen_ethereum_events(
     // Event loop
     while let Some(event) = events.next().await {
         match event {
-            Ok(log) => {
-                println!("New Event {:?}", log);
+            Ok(evt) => {
+                println!("Image URL {:?} and uploader {:?}", evt.image_uri, evt.uploader);
+                let results = genai::gemini::analyze_image(
+                    &evt.image_uri, 
+                    "AIzaSyBM4HA7A16duToFhwzVUycbpVMngimh6Dw").await;
+                if results.is_err() {
+                    println!("Error analyzing image: {}", results.unwrap_err());
+                    // return Err(results.unwrap_err().into());
+                } else {
+                    let objects = results.unwrap();
+                    println!("Objects in the image: {:#?}", objects);
+                }
                 // Trigger your image analysis and smart contract callback
                 // For example:
                 // let image_path = get_image_path_from_event(&log);

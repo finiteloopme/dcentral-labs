@@ -1,6 +1,14 @@
 mod coprocessor;
 use dotenv::dotenv;
 
+/// Runs the chain listener, which listens for `ImageUploaded` events and
+/// stores the hashes in the database.
+///
+/// Listens on the "HOST" and "PORT" environment variables, or 0.0.0.0:8545 if
+/// those are not set.
+///
+/// The contract address is hardcoded for now, but should be environment
+/// variable or otherwise configurable.
 #[tokio::main]
 async fn main() {
     dotenv().ok();
