@@ -2,22 +2,37 @@ use ethers::{
     prelude::*,
     providers::{Provider, Ws},
 };
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use crate::coprocessor::genai;
 
 abigen!(ImageProcessor, "../image-processor/out/ImageProcessor.sol/ImageProcessor.json");
 
+    /// Listens for events emitted by the ImageProcessor contract
+    ///
+    /// Given a local Ethereum node URL and the address of the ImageProcessor contract,
+    /// listen for events emitted by the contract and trigger your image analysis
+    /// and smart contract callback for each event.
+    ///
+    /// The callback is a function from `(contract_address, detected_objects)` to
+    /// `Result<(), Box<dyn std::error::Error>>`. This function should call the
+    /// `submitResult` function of the ImageProcessor contract with the detected
+    /// objects as the argument.
+    ///
+    /// # Example
+    ///
+    /// 
 async fn listen_ethereum_events(
     provider: Provider<Ws>,
     contract_address: Address
 ) -> Result<(), Box<dyn std::error::Error>> {
 
     // Load the contract instance
-    let contract = get_contract_instance(provider, contract_address);
+    let contract = get_contract_instance(provider.clone(), contract_address);
     // Listen for events emitted by the contract
     let events = contract.events();
     let mut events = events.subscribe().await.unwrap();
+    let api_key = get_api_key();
     println!("In the event loop...");   
     // Event loop
     while let Some(event) = events.next().await {
@@ -26,13 +41,19 @@ async fn listen_ethereum_events(
                 println!("Image URL {:?} and uploader {:?}", evt.image_uri, evt.uploader);
                 let results = genai::gemini::analyze_image(
                     &evt.image_uri, 
-                    "AIzaSyBM4HA7A16duToFhwzVUycbpVMngimh6Dw").await;
+                    &api_key).await;
                 if results.is_err() {
                     println!("Error analyzing image: {}", results.unwrap_err());
                     // return Err(results.unwrap_err().into());
                 } else {
                     let objects = results.unwrap();
-                    println!("Objects in the image: {:#?}", objects);
+                    // println!("Objects in the image: {:#?}", objects);
+                    call_smart_contract(
+                        provider.clone(), 
+                        contract_address, 
+                        evt.uploader, 
+                        objects.concat(), 
+                        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap()).await.unwrap();
                 }
                 // Trigger your image analysis and smart contract callback
                 // For example:
@@ -45,6 +66,19 @@ async fn listen_ethereum_events(
     }
 
     Ok(())
+}
+
+    /// Returns the Gemini API key stored in the GEMINI_API_KEY environment variable.
+    /// 
+    /// If the variable is not set, prints an error message and exits the program.
+pub fn get_api_key() -> String {
+    match env::var("GEMINI_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            eprintln!("Error: GEMINI_API_KEY environment variable is not set");
+            std::process::exit(1)
+        }
+    }
 }
 
 async fn call_smart_contract(
