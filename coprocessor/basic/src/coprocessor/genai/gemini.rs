@@ -107,7 +107,7 @@ async fn process_genai_response(response: &GeminiResponse) -> Result<Vec<String>
         .and_then(|candidate| candidate.content.parts.first())
         .and_then(|part| part.text.as_ref())
         .unwrap();
-    println!("JSON string: {}", json_str);
+    // println!("JSON string: {}", json_str);
     let mut lines: Vec<&str> = json_str.lines().collect();
     // Remove the first line if it starts with "```json"
     if lines.first().map_or(false, |&line| line.trim().starts_with("```json")) {
@@ -133,7 +133,7 @@ async fn process_genai_response(response: &GeminiResponse) -> Result<Vec<String>
     // Convert each object to a String
     let object_list: Vec<String> = objects
         .iter()
-        .filter_map(|obj| obj.as_str().map(String::from))
+        .filter_map(|obj| Some(obj.as_str().unwrap().to_string() + ", ").map(String::from))
         .collect();
 
     // Return the list of objects
@@ -217,7 +217,7 @@ mod tests {
     
         assert!(result.is_ok());
         let objects = result.unwrap();
-        assert_eq!(objects, vec!["Cat", "Sofa", "Plant"]);
+        assert_eq!(objects, vec!["Cat, ", "Sofa, ", "Plant, "]);
     }
     
     #[tokio::test]
@@ -333,7 +333,7 @@ mod tests {
         // Check the result
         assert!(result.is_ok());
         let objects = result.unwrap();
-        assert_eq!(objects, vec!["Cat", "Dog", "Bird"]);
+        assert_eq!(objects, vec!["Cat, ", "Dog, ", "Bird, "]);
     }
     
     #[tokio::test]

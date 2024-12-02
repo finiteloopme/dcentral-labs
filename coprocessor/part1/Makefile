@@ -1,6 +1,5 @@
 
 include envconfig.properties
-ENCODED_IMG_DATA := $(shell cat unsplash-photo.png | base64 )
 
 clean:
 	cd ../basic; cargo clean
