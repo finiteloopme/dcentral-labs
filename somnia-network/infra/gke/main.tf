@@ -9,6 +9,8 @@ resource "google_container_cluster" "gke_cluster" {
 
   network = var.network
   subnetwork = data.google_compute_subnetwork.gke-subnetwork.self_link
+
+  deletion_protection = false
 }
 
 data "google_compute_subnetwork" "gke-subnetwork" {

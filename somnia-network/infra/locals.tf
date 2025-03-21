@@ -12,4 +12,7 @@ locals {
         "logging.googleapis.com",
   ]
 
+  # Default zone to use
+  gcp_zone = "${var.gcp_region}-a"
+
 }
