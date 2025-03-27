@@ -1,0 +1,23 @@
+{
+	"dependencies": {
+		"@google/generative-ai": "^0.24.0",
+		"cors": "^2.8.5",
+		"dotenv": "^16.4.7",
+		"ethers": "^6",
+		"express": "^4.21.2",
+		"web3-utils": "^4.3.3"
+	},
+	"devDependencies": {
+		"@types/cors": "^2.8.17",
+		"@types/express": "^5.0.1",
+		"@types/node": "^22.13.13",
+		"nodemon": "^3.1.9",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.8.2"
+	},
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/server.js",
+		"dev": "nodemon src/server.ts"
+	}
+}

@@ -1,0 +1,18 @@
+/* src/App.css - Basic Styling */
+.App { text-align: center; }
+.App-header { background-color: #282c34; padding: 10px; color: white; margin-bottom: 20px; }
+.App-header p { margin: 5px 0; }
+.App-main { max-width: 800px; margin: 0 auto; padding: 10px; }
+.error { color: red; font-weight: bold; }
+.attestation-status { margin: 10px 0; font-style: italic; }
+.attestation-status .timestamp { font-size: 0.8em; color: #aaa; }
+.chat-area { border: 1px solid #ccc; padding: 15px; margin-top: 20px; text-align: left; }
+.message-list { height: 400px; overflow-y: auto; border: 1px solid #eee; margin-bottom: 10px; padding: 10px; }
+.message { margin-bottom: 8px; padding: 5px; border-radius: 4px; word-wrap: break-word; }
+.message.user { background-color: #e1f5fe; text-align: right; margin-left: 40px; }
+.message.agent { background-color: #f1f8e9; margin-right: 40px; }
+.message.info { background-color: #eee; color: #555; font-style: italic; text-align: center; }
+.input-area { display: flex; margin-top: 10px; }
+.input-area input { flex-grow: 1; padding: 8px; margin-right: 5px; }
+.input-area button { padding: 8px 12px; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.6; }
