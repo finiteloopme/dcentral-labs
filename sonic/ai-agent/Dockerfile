@@ -1,5 +1,5 @@
 # Use a Node.js 20 base image
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
 # Set working directory
 WORKDIR /app
 # Copy node config files
@@ -13,17 +13,23 @@ COPY ./src ./src
 RUN pnpm run build
 
 # Use a slimmer Node.js 20 runtime image
-FROM node:20-alpine
+FROM node:20-slim
 # Set working directory
 WORKDIR /app
-RUN npm install -g pnpm
 # Copy only the built application from the builder stage
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json .
+COPY --from=builder /app/node_modules ./node_modules
 # KunalL specific config
 COPY .env /app/.env
 COPY ./dist/AIAgentRegistry.json /app/dist/AIAgentRegistry.json
 # Expose the port your application listens on (adjust as needed)
 EXPOSE 3000
+RUN npm install -g pnpm
+# Create startup script
+RUN echo '#!/bin/bash\n\
+cd /app/ && pnpm start & \n\
+wait' > /app/start.sh && chmod +x /app/start.sh
 
 # Define the command to run your application
-CMD ["pnpm", "start"] # Adjust based on your entry point
+CMD ["/app/start.sh"]
