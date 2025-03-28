@@ -26,7 +26,7 @@ EXPOSE 3000
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
-cd /app && serve -s build -l 3000 \n\
+cd /app && serve -s . -l 3000 \n\
 wait' > /app/start.sh && chmod +x /app/start.sh
 
 CMD ["/app/start.sh"]
