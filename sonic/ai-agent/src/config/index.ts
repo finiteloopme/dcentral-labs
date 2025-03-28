@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-    port: process.env.PORT || 5001,
+    port: process.env.PORT || 3000,
     sonicRpcUrl: process.env.SONIC_RPC_URL!,
     agentPrivateKey: process.env.AGENT_WALLET_PRIVATE_KEY!,
     contractAddress: process.env.CONTRACT_ADDRESS!,
