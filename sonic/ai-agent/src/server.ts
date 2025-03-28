@@ -51,6 +51,10 @@ setInterval(submitAttestation, config.attestationIntervalHours * 60 * 60 * 1000)
 // Using setInterval is simple; for production consider node-schedule or external cron jobs
 
 // --- Start Server ---
+if (config.port == 3000) {
+    config.port = 5001
+}
+console.log(`AI Agent backend server will be running at http://localhost:${config.port}`);
 app.listen(config.port, () => {
     console.log(`AI Agent backend server running at http://localhost:${config.port}`);
     // Display current date/time context
