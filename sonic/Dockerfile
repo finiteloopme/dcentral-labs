@@ -39,7 +39,7 @@ EXPOSE 3000
 # Create startup script
 RUN echo '#!/bin/bash\n\
 cd /app/ai-agent && pnpm start & \
-cd /app && serve -s frontend/build -l 3000 \n\
+cd /app && serve -s frontend/build -l 3001 \n\
 wait' > /app/start.sh && chmod +x /app/start.sh
 
 CMD ["/app/start.sh"]

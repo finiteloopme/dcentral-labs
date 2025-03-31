@@ -83,7 +83,7 @@ export function hashMessage(message: string): string {
 
 export function getLogKey(sessionId: string): string {
     // Consistent log key generation matching contract
-    return ethers.solidityPackedKeccak256(['address', 'bytes32'], [agentWallet.address, ethers.toUtf8Bytes(sessionId)]);
+    return ethers.solidityPackedKeccak256(['address', 'bytes'], [agentWallet.address, ethers.toUtf8Bytes(sessionId)]);
 }
 
 // --- Off-Chain Store Simulation ---

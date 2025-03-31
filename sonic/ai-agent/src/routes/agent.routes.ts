@@ -85,11 +85,12 @@ agentRouter.post('/chat', authenticateUser, async (req: express.Request, res: ex
 
         // Record Hashes On-Chain (fire and forget for API response speed)
         // TODO: Record on-chain
-        // const logKey = getLogKey(sessionId);
-        // sendAgentTx(
-        //     contract.recordInteraction(logKey, userAddress, promptHash, responseHash),
-        //     `Record Interaction session ${sessionId}`
-        // ).catch(e => console.error("Error submitting interaction TX:", e)); // Log async error
+        const logKey = getLogKey(sessionId);
+        console.log(`Prompt hash: ${promptHash}, response hash: ${responseHash}`),
+        sendAgentTx(
+            contract.recordInteraction(logKey, userAddress, promptHash, responseHash),
+            `Record Interaction session ${sessionId}`
+        ).catch(e => console.error("Error submitting interaction TX:", e)); // Log async error
 
         // Return response to frontend
         res.status(200).json({ response: aiResponseText });
