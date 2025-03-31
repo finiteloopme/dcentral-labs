@@ -8,6 +8,7 @@ export const config = {
     contractAddress: process.env.CONTRACT_ADDRESS!,
     geminiApiKey: process.env.GEMINI_API_KEY!,
     agentDob: process.env.AGENT_DOB!,
+    agentDeveloperWalletAddress: process.env.AGENT_DEPLOYER_WALLET_ADDRESS!,
     attestationIntervalHours: parseInt(process.env.ATTESTATION_INTERVAL_HOURS || '1', 10),
     // Add path to ABI file if loading dynamically
     contractAbiPath: process.env.CONTRACT_ABI_PATH || '../AIAgentRegistry.json', // Adjust path relative to dist/config

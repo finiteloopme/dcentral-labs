@@ -30,6 +30,30 @@ console.log(`Agent Wallet Address: ${agentWallet.address}`);
 console.log(`Connected to RPC: ${config.sonicRpcUrl}`);
 console.log(`Registry Contract: ${config.contractAddress}`);
 
+
+/**
+ * Registers the agent with the AIAgentRegistry contract
+ * @param agentWallet The wallet address to register as an agent
+ * @param endpointUrl The public API endpoint URL for the agent
+ * @returns The transaction response or null if the transaction failed
+ */
+export async function sendAgentRegistration(
+    agentWallet: string,
+    endpointUrl: string
+): Promise<ethers.ContractTransactionResponse | null> {
+    try {
+        // Only the contract owner can call registerAgent
+        // Make sure agentSigner has owner privileges
+        return await sendAgentTx(
+            contract.registerAgent(agentWallet, endpointUrl),
+            `Register Agent ${agentWallet} with endpoint ${endpointUrl}`,
+        );
+    } catch (error: any) {
+        console.error(`ERROR registering agent ${agentWallet}:`, error.message);
+        return null;
+    }
+}
+
 // --- Transaction Sending Helper ---
 export async function sendAgentTx(
     contractMethodCall: Promise<ContractTransactionResponse>, // The result of contract.functionName(...)

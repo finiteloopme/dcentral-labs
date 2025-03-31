@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { agentRouter } from './routes/agent.routes';
-import { contract, sendAgentTx, agentWallet } from './services/web3.service';
+import { contract, sendAgentRegistration, sendAgentTx, agentWallet } from './services/web3.service';
 import { generateAttestationReport } from './services/attestation.service';
 import { hashMessage } from './services/web3.service';
 // import schedule from 'node-schedule'; // Use for background tasks
@@ -46,6 +46,8 @@ async function submitAttestation() {
 }
 
 // Run once on startup and then periodically
+// TODO: need a better way to register agent including endpoint url
+sendAgentRegistration(config.agentDeveloperWalletAddress, `http://0.0.0.0:${config.port}/api/agent`); 
 submitAttestation(); // Initial submission
 setInterval(submitAttestation, config.attestationIntervalHours * 60 * 60 * 1000);
 // Using setInterval is simple; for production consider node-schedule or external cron jobs
