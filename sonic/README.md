@@ -7,4 +7,12 @@ docker build -t local-onchain-agent .
 docker run --rm --net=host local-onchain-agent
 ```
 
+## Local dev
+```bash
+# ai-agent
+pnpm dev
+# frontend
+npm start
+```
+
 The two applications `ai-agent` and `frontend` should be deployed as separate apps.

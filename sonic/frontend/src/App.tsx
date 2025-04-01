@@ -151,7 +151,7 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                <h1>Sonic AI Agent Game</h1>
+                <h1>What is my date of birth?</h1>
                 {/* Wallet Connection */}
                 <div>
                     {!isConnected ? (
@@ -210,7 +210,9 @@ function App() {
                                     }
                                 }}
                             />
-                            <button onClick={isGuessing ? handleSendGuess : handleSendMessage} disabled={isLoading || !inputValue.trim()}>
+                        </div>
+                        <div className="input-area">
+                        <button onClick={isGuessing ? handleSendGuess : handleSendMessage} disabled={isLoading || !inputValue.trim()}>
                                 {isLoading ? "Sending..." : (isGuessing ? "Submit Guess" : "Send")}
                             </button>
                             <button onClick={() => setIsGuessing(!isGuessing)} disabled={isLoading}>
