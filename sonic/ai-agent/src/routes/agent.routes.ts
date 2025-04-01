@@ -120,7 +120,7 @@ agentRouter.post('/guess', authenticateUser, async (req: express.Request, res: e
         // TODO: Record on-chain
         const logKey = getLogKey(sessionId);
         await sendAgentTx(
-            contract.recordGuessResult(logKey, userAddress, wasCorrect),
+            await contract.recordGuessResult(logKey, userAddress, wasCorrect),
             `Record Guess session ${sessionId}`
         ).catch(e => console.error("Error submitting guess record TX:", e));
 
@@ -128,16 +128,16 @@ agentRouter.post('/guess', authenticateUser, async (req: express.Request, res: e
         if (wasCorrect) {
             try {
                 // Amount needs to be BigInt in wei
-                const amountWei = ethers.parseUnits("200", 18); // Assuming 18 decimals for Sonic token
+                const amountWei = ethers.parseUnits("2", 18); // Assuming 18 decimals for Sonic token
                 // TODO: Record on-chain
-                // const rewardTx = await sendRewardTx(userAddress, amountWei);
-                // rewardTxHash = rewardTx?.hash ?? null;
-                // if (!rewardTxHash) {
-                //     console.error(`[Session ${sessionId}] Reward transfer FAILED!`);
-                //     // How to handle? User might lose reward. Maybe mark wasCorrect as false?
-                //     // For MVP, we just log the error. Needs robust handling.
-                //     wasCorrect = false; // Revert correctness if reward failed? Risky.
-                // }
+                const rewardTx = await sendRewardTx(userAddress, amountWei);
+                rewardTxHash = rewardTx?.hash ?? null;
+                if (!rewardTxHash) {
+                    console.error(`[Session ${sessionId}] Reward transfer FAILED!`);
+                    // How to handle? User might lose reward. Maybe mark wasCorrect as false?
+                    // For MVP, we just log the error. Needs robust handling.
+                    wasCorrect = false; // Revert correctness if reward failed? Risky.
+                }
             } catch (rewardError) {
                 console.error(`[Session ${sessionId}] Reward transfer threw error:`, rewardError);
                 wasCorrect = false; // Revert?
@@ -146,8 +146,8 @@ agentRouter.post('/guess', authenticateUser, async (req: express.Request, res: e
 
          // Clean up session after guess? Maybe keep for logs?
          // delete sessions[sessionId];
-        res.json({ correct: wasCorrect, rewardTxHash: "{TBC: Placeholder Txn Hash}" });
-        // res.json({ correct: wasCorrect, rewardTxHash: rewardTxHash });
+        // res.json({ correct: wasCorrect, rewardTxHash: "{TBC: Placeholder Txn Hash}" });
+        res.json({ correct: wasCorrect, rewardTxHash: rewardTxHash });
 
     } catch (error: any) {
         console.error(`[Session ${sessionId}] Error processing guess:`, error);

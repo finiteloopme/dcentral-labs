@@ -45,7 +45,7 @@ export async function sendAgentRegistration(
         // Only the contract owner can call registerAgent
         // Make sure agentSigner has owner privileges
         return await sendAgentTx(
-            contract.registerAgent(agentWallet, endpointUrl),
+            await contract.registerAgent(agentWallet, endpointUrl),
             `Register Agent ${agentWallet} with endpoint ${endpointUrl}`,
         );
     } catch (error: any) {
