@@ -47,10 +47,13 @@ async function submitAttestation() {
 
 // Run once on startup and then periodically
 // TODO: need a better way to register agent including endpoint url
-sendAgentRegistration(config.agentDeveloperWalletAddress, `http://0.0.0.0:${config.port}/api/agent`); 
-submitAttestation(); // Initial submission
-setInterval(submitAttestation, config.attestationIntervalHours * 60 * 60 * 1000);
-// Using setInterval is simple; for production consider node-schedule or external cron jobs
+async function setupAgent() {
+    // await sendAgentRegistration(config.agentDeveloperWalletAddress, `http://0.0.0.0:${config.port}/api/agent`); 
+    await submitAttestation(); // Initial submission
+    setInterval(submitAttestation, config.attestationIntervalHours * 60 * 60 * 1000);
+    // Using setInterval is simple; for production consider node-schedule or external cron jobs        
+}
+setupAgent();
 
 // --- Start Server ---
 console.log(`AI Agent backend server will be running at http://localhost:${config.port}`);

@@ -67,8 +67,8 @@ export async function sendAgentTx(
 
         console.log(`Sent TX ${txResponse.hash} for ${txDescription}, waiting for confirmation...`);
         // Optional: Wait for 1 confirmation for better assurance, but slows API response
-        // const receipt = await txResponse.wait(1);
-        // console.log(`TX ${txResponse.hash} confirmed in block ${receipt?.blockNumber}`);
+        const receipt = await txResponse.wait(1);
+        console.log(`TX ${txResponse.hash} confirmed in block ${receipt?.blockNumber}`);
         return txResponse;
     } catch (error: any) {
         console.error(`ERROR sending agent TX for ${txDescription}:`, error.message);

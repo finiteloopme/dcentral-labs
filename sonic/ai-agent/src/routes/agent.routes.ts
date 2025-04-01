@@ -87,8 +87,8 @@ agentRouter.post('/chat', authenticateUser, async (req: express.Request, res: ex
         // TODO: Record on-chain
         const logKey = getLogKey(sessionId);
         console.log(`Prompt hash: ${promptHash}, response hash: ${responseHash}`),
-        sendAgentTx(
-            contract.recordInteraction(logKey, userAddress, promptHash, responseHash),
+        await sendAgentTx(
+            await contract.recordInteraction(logKey, userAddress, promptHash, responseHash),
             `Record Interaction session ${sessionId}`
         ).catch(e => console.error("Error submitting interaction TX:", e)); // Log async error
 
@@ -118,11 +118,11 @@ agentRouter.post('/guess', authenticateUser, async (req: express.Request, res: e
 
         // Record guess result On-Chain (fire and forget)
         // TODO: Record on-chain
-        // const logKey = getLogKey(sessionId);
-        // sendAgentTx(
-        //     contract.recordGuessResult(logKey, userAddress, wasCorrect),
-        //     `Record Guess session ${sessionId}`
-        // ).catch(e => console.error("Error submitting guess record TX:", e));
+        const logKey = getLogKey(sessionId);
+        await sendAgentTx(
+            contract.recordGuessResult(logKey, userAddress, wasCorrect),
+            `Record Guess session ${sessionId}`
+        ).catch(e => console.error("Error submitting guess record TX:", e));
 
         // If correct, send reward
         if (wasCorrect) {
