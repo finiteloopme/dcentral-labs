@@ -7,3 +7,9 @@
 [submodule "zk-labs/super_dash"]
 	path = zk-labs/super_dash
 	url = https://github.com/kunallimaye/super_dash
+[submodule "sonic/smart-contract/lib/forge-std"]
+	path = sonic/smart-contract/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "sonic/smart-contract/lib/openzeppelin-contracts"]
+	path = sonic/smart-contract/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

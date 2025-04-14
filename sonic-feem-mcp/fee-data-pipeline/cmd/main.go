@@ -53,8 +53,6 @@ func main() {
 	log.Infof(ctx, "Pipeline constructed, setting Dataflow options...")
 
 	// Set Dataflow runner options
-	// Go doesn't support programatic setting of Dataflow runner options
-	// Needs to be done via CLI: https://cloud.google.com/dataflow/docs/guides/setting-pipeline-options#go
 	// beamx.SetPipelineOptions(p,
 	// 	jobopts.Project(cfg.ProjectID),
 	// 	jobopts.Region(cfg.Region),
@@ -62,7 +60,7 @@ func main() {
 	// 	jobopts.StagingLocation(cfg.StagingLocation),
 	// 	jobopts.WorkerMachineType(cfg.WorkerMachineType),
 	// 	jobopts.MaxNumWorkers(cfg.MaxNumWorkers),
-	// 	jobopts.JobName(fmt.Sprintf("sonic-event-pipeline-%s", uuid.New().String()[:8])),
+	// 	jobopts.JobName(fmt.Sprintf("sonic-event-pubsub-pipeline-%s", uuid.New().String()[:8])), // Updated job name
 	// 	// jobopts.EnableStreamingEngine(), // Consider uncommenting for true streaming
 	// )
 
