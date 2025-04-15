@@ -23,6 +23,7 @@ run: build
 	${BUILD_FOLDER}/${APP_BIN}   \
 		--project=${GCP_PROJECT} \
 		--runner=dataflow \
+		--region=${GCP_REGION} \
 		--temp_location="gs://${GCP_PROJECT}/temp/" \
 		--max_num_workers=3 \
 		--worker_machine_type=n2-standard-4 \
