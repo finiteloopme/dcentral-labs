@@ -47,6 +47,10 @@ serde_json = "1.0.132"
 tracing = "0.1.0"
 
 sqlx = { version = "0.7", features = [ "runtime-tokio", "sqlite", "postgres" ] }
+# sp1-core = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0"}
+sp1-lib = { version = "3.1.0", features = ["verify"] }
+sp1-zkvm = { version = "3.1.0", features = ["verify"] }
+rsp = { git= "https://github.com/succinctlabs/rsp" }
 
 ethereum-types = "0.15.1"
 serde = { version = "1.0.213", features=["derive"]}

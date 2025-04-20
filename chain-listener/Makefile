@@ -1,5 +1,6 @@
 OUTPUT_DIR = ./bin
 OUTPUT_BINARY=chain-log-listener
+SONIC_ENDPOINT=wss://sonic-rpc.publicnode.com
 
 .PHONY: init
 init:
@@ -21,7 +22,9 @@ build:
 
 .PHONY: run
 run:
-	go run cmd/main.go
+	go run cmd/main.go \
+		--endpoint=$(SONIC_ENDPOINT) \
+		--runner=direct
 
 .PHONY: build-prod
 build-prod: clean init build

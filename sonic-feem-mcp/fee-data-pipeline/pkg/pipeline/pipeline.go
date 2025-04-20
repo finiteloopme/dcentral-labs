@@ -10,53 +10,38 @@ import (
 	"math/big"
 	"reflect"
 
-	"cloud.google.com/go/bigquery"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/io/avroio"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/io/bigqueryio"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/log"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/debug"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/swaggest/jsonschema-go"
 
-	// "github.com/finiteloopme/dcentral-dev/sonic-feem-mcp/fee-data-pipeline/pkg/bigquery" // Remove bigquery import
-	"github.com/finiteloopme/dcentral-dev/sonic-feem-mcp/fee-data-pipeline/pkg/chain"
 	"github.com/finiteloopme/dcentral-dev/sonic-feem-mcp/fee-data-pipeline/pkg/config"
+	t "github.com/finiteloopme/dcentral-dev/sonic-feem-mcp/fee-data-pipeline/pkg/types"
 )
 
 // Build constructs the Beam pipeline graph.
 func Build(s beam.Scope, cfg *config.Config, abiString string, parsedABI *abi.ABI) {
-	ctx := context.Background()
-	reflector := jsonschema.Reflector{}
-	schema, err := reflector.Reflect(chain.DecodedEvent{})
-	if err != nil {
-		log.Errorf(ctx, "Error reflecting schema: %v", err)
-		return
-	}
-
-	schemaToString, err := json.Marshal(schema)
-	if err != nil {
-		log.Errorf(ctx, "Error marshaling schema: %v", err)
-		return
-	}
-	// log.Infof(ctx, "Schema: %v", string(schemaToString))
-
 	s = s.Scope("SonicEventPipeline") // Add scope for clarity in UI
+	ctx := context.Background()
 
-	// 1. Start with an impulse to trigger the source DoFn
-	impulse := beam.Impulse(s)
+	// 1. Read logs from Src BQ
+	selectLogs := fmt.Sprintf(
+		`SELECT * FROM %s.%s.%s WHERE block_number > %d ORDER BY block_number DESC LIMIT %d`,
+		cfg.SrcBQProject,
+		cfg.SrcBQDataset,
+		cfg.SrcBQTable,
+		cfg.StartFromBlock,
+		1)
+	rawLogs := bigqueryio.Query(s, cfg.SrcBQProject, selectLogs, reflect.TypeOf(t.BQLog{}), bigqueryio.UseStandardSQL())
+	// debug.Printf(s, "Logs: %v", rawLogs)
 
-	// 2. Read logs from Ethereum WebSocket (Custom Source)
-	rawLogs := beam.ParDo(s.Scope("ReadLogs"), chain.NewEthLogStreamFn(cfg.WebsocketURL, cfg.ContractAddress), impulse)
-
-	debug.Printf(s, "Logs: %v", rawLogs)
 	// 3. Decode logs into events
-	feemEvents := beam.ParDo(s.Scope("EncodeEvent"), func(ethLog types.Log, emit func(string)) {
-		log.Infof(ctx, "In Dofn Log: %v", ethLog)
+	feemEvents := beam.ParDo(s.Scope("EncodeEvent"), func(ethLog t.BQLog, emit func(string)) {
+		log.Infof(ctx, "In EncodeEvent for Block Hash: %s, Block Number: %d, Tx Hash: %s, Topics: %v", ethLog.BlockHash, ethLog.BlockNumber, ethLog.TransactionHash, ethLog.Topics)
 		if len(ethLog.Topics) == 0 {
-			log.Warnf(ctx, "Decoder: Log entry %s:%d has no topics, cannot decode event.", ethLog.TxHash.Hex(), ethLog.Index)
+			log.Warnf(ctx, "Decoder: Log entry %s:%d has no topics, cannot decode event.", ethLog.TransactionHash, ethLog.LogIndex)
 
 			return // Skip logs without topics
 		}
@@ -71,52 +56,62 @@ func Build(s beam.Scope, cfg *config.Config, abiString string, parsedABI *abi.AB
 		return
 	}, rawLogs)
 
-	debug.Printf(s, "Events: %v", feemEvents)
+	debug.Printf(s, "Decoded Events: %v", feemEvents)
+	// _ = schemaToString
 	// avroio.Write(s, "/tmp/temp.avro", string(schemaToString), feemEvents)
-	avroio.Write(s, "gs://kunal-scratch/sonic-raw-events/raw-logs.avro", string(schemaToString), feemEvents)
-	debug.Printf(s, "Write to BQ: %v", feemEvents)
-	e := beam.ParDo(s, func(decodedEventInString string, emit func(chain.DecodedEvent)) {
-		decodedEvent := chain.DecodedEvent{}
-		err := json.Unmarshal([]byte(decodedEventInString), &decodedEvent)
-		if err != nil {
-			log.Errorf(ctx, "Error unmarshaling decoded event: %v", err)
-			return
-		}
-		emit(decodedEvent)
-	}, feemEvents)
-	debug.Printf(s, "Decoded events: %v", e)
-	bigqueryio.Write(s,
-		"kunal-scratchpad",
-		fmt.Sprintf("%s:%s.%s", "kunal-scratch", "sonic_feem", "feem_events"), //"kunal-scratch.sonic_feem.feem_events",
-		e,
-		bigqueryio.WithCreateDisposition(bigquery.CreateIfNeeded),
-	)
+	// avroio.Write(s, "gs://kunal-scratch/sonic-raw-events/raw-logs.avro", string(schemaToString), feemEvents)
+	// debug.Printf(s, "Write to BQ: %v", feemEvents)
+	// e := beam.ParDo(s, func(decodedEventInString string, emit func(chain.DecodedEvent)) {
+	// 	decodedEvent := chain.DecodedEvent{}
+	// 	err := json.Unmarshal([]byte(decodedEventInString), &decodedEvent)
+	// 	if err != nil {
+	// 		log.Errorf(ctx, "Error unmarshaling decoded event: %v", err)
+	// 		return
+	// 	}
+	// 	emit(decodedEvent)
+	// }, feemEvents)
+	// debug.Printf(s, "Decoded events: %v", e)
+	// bigqueryio.Write(s,
+	// 	"kunal-scratchpad",
+	// 	fmt.Sprintf("%s:%s.%s", "kunal-scratch", "sonic_feem", "feem_events"), //"kunal-scratch.sonic_feem.feem_events",
+	// 	e,
+	// 	bigqueryio.WithCreateDisposition(bigquery.CreateIfNeeded),
+	// )
 }
 
 // MapLogToEvent attempts to map a types.Log to its corresponding event struct
 // based on the provided ABI. It returns the populated struct as a DecodedEvent,
 // or an error if mapping fails.
-func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEvent, error) {
-	if len(logEntry.Topics) == 0 {
-		return &chain.DecodedEvent{}, fmt.Errorf("log has no topics, cannot identify event")
+func MapLogToEvent(contractABI *abi.ABI, bqLog t.BQLog) (*t.DecodedEvent, error) {
+	ctx := context.Background()
+	for _, event := range contractABI.Events {
+		log.Infof(ctx, "Event:: ID: %v, Name: %v, Hex: %v", event.ID, event.Name, event.ID.Hex())
 	}
-
+	logEntry := bqLog.ToEthLog() //&types.Log{}
+	//json.Unmarshal([]byte(bqLog.Data.String()), logEntry)
+	if len(logEntry.Topics) == 0 {
+		err := fmt.Errorf("Decoder: Log %s:%d has no topics, cannot decode event.", logEntry.TxHash.Hex(), logEntry.Index)
+		log.Warnf(ctx, err.Error())
+		return nil, err
+	}
 	eventSig := logEntry.Topics[0] // First topic is usually the event signature hash
 
 	event, err := contractABI.EventByID(eventSig)
 	if err != nil {
 		err := fmt.Errorf("Decoder: Log %s:%d: No matching event found in ABI for signature %s", logEntry.TxHash.Hex(), logEntry.Index, eventSig.Hex())
+		log.Warnf(ctx, err.Error())
 		return nil, err // Skip logs for events not in the ABI
 	}
+	log.Infof(context.Background(), "Event name: %v", event.Name)
 
 	// Found matching event in ABI
-	rawBytes, err := logEntry.MarshalJSON()
-	if err != nil {
-		err := fmt.Errorf("Decoder: Failed to marshal raw log Entry for event '%s' (log %s:%d): %v", event.Name, logEntry.TxHash.Hex(), logEntry.Index, err)
-		return nil, err
-	}
-	decoded := chain.DecodedEvent{
-		Log:       string(rawBytes),
+	// rawBytes, err := logEntry.MarshalJSON()
+	// if err != nil {
+	// 	err := fmt.Errorf("Decoder: Failed to marshal raw log Entry for event '%s' (log %s:%d): %v", event.Name, logEntry.TxHash.Hex(), logEntry.Index, err)
+	// 	return nil, err
+	// }
+	decoded := t.DecodedEvent{
+		Log:       *logEntry, //string(rawBytes),
 		EventName: event.Name,
 	}
 
@@ -179,14 +174,14 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 	switch decoded.EventName {
 	case "FundsAdded":
 		if v, ok := unpackedData["funder"].(common.Address); ok {
-			decoded.Funder = v.String()
+			decoded.Funder = &v //v.String()
 		}
 		if v, ok := unpackedData["amount"].(*big.Int); ok {
 			decoded.Amount = v
 		}
 	case "FundsWithdrawn":
 		if v, ok := unpackedData["recipient"].(common.Address); ok {
-			decoded.Recipient = v.String()
+			decoded.Recipient = &v //v.String()
 		}
 		if v, ok := unpackedData["amount"].(*big.Int); ok {
 			decoded.Amount = v
@@ -215,37 +210,37 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 			decoded.ProjectId = v
 		}
 		if v, ok := unpackedData["owner"].(common.Address); ok {
-			decoded.Owner = v.String()
+			decoded.Owner = &v //v.String()
 		}
 		if v, ok := unpackedData["rewardsRecipient"].(common.Address); ok {
-			decoded.RewardsRecipient = v.String()
+			decoded.RewardsRecipient = &v //v.String()
 		}
 		if v, ok := unpackedData["metadataUri"].(string); ok {
-			decoded.MetadataUri = v
+			decoded.MetadataUri = &v
 		}
 		if v, ok := unpackedData["activeFromEpoch"].(*big.Int); ok {
 			decoded.ActiveFromEpoch = v
 		}
 		if v, ok := unpackedData["contracts"].([]common.Address); ok {
-			contractsCopy := make([]string, len(v))
-			//copy(contractsCopy, v)
-			for i, addr := range v {
-				contractsCopy[i] = addr.String()
-			}
-			decoded.Contracts = contractsCopy
+			contractsCopy := make([]common.Address, len(v))
+			copy(contractsCopy, v)
+			// for i, addr := range v {
+			// 	contractsCopy[i] = addr.String()
+			// }
+			decoded.Contracts = &contractsCopy
 		} else if vSlice, okSlice := unpackedData["contracts"].([]interface{}); okSlice {
-			contracts := make([]string, 0, len(vSlice))
+			contracts := make([]common.Address, 0, len(vSlice))
 			valid := true
 			for _, item := range vSlice {
 				if addr, addrOk := item.(common.Address); addrOk {
-					contracts = append(contracts, addr.String())
+					contracts = append(contracts, addr) //addr.String())
 				} else {
 					valid = false
 					break
 				}
 			}
 			if valid {
-				decoded.Contracts = contracts
+				decoded.Contracts = &contracts
 			} else {
 				return nil, fmt.Errorf("Decoder: Could not cast 'contracts' slice elements to common.Address for ProjectAdded event (log %s:%d)", logEntry.TxHash.Hex(), logEntry.Index)
 			}
@@ -255,7 +250,7 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 			decoded.ProjectId = v
 		}
 		if v, ok := unpackedData["contractAddress"].(common.Address); ok {
-			decoded.ContractAddress = v.String()
+			decoded.ContractAddress = &v //v.String()
 		}
 	case "ProjectEnabled":
 		if v, ok := unpackedData["projectId"].(*big.Int); ok {
@@ -269,21 +264,21 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 			decoded.ProjectId = v
 		}
 		if v, ok := unpackedData["metadataUri"].(string); ok {
-			decoded.MetadataUri = v
+			decoded.MetadataUri = &v
 		}
 	case "ProjectOwnerUpdated":
 		if v, ok := unpackedData["projectId"].(*big.Int); ok {
 			decoded.ProjectId = v
 		}
 		if v, ok := unpackedData["owner"].(common.Address); ok {
-			decoded.Owner = v.String()
+			decoded.Owner = &v //v.String()
 		}
 	case "ProjectRewardsRecipientUpdated":
 		if v, ok := unpackedData["projectId"].(*big.Int); ok {
 			decoded.ProjectId = v
 		}
 		if v, ok := unpackedData["recipient"].(common.Address); ok {
-			decoded.Recipient = v.String()
+			decoded.Recipient = &v //v.String()
 		}
 	case "ProjectSuspended":
 		if v, ok := unpackedData["projectId"].(*big.Int); ok {
@@ -323,30 +318,30 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 	case "RoleAdminChanged":
 		if v, ok := unpackedData["role"].([32]byte); ok {
 			h := common.BytesToHash(v[:])
-			decoded.Role = h.String()
+			decoded.Role = &h //h.String()
 		}
 		if v, ok := unpackedData["previousAdminRole"].([32]byte); ok {
 			h := common.BytesToHash(v[:])
-			decoded.PreviousAdminRole = h.String()
+			decoded.PreviousAdminRole = &h //h.String()
 		}
 		if v, ok := unpackedData["newAdminRole"].([32]byte); ok {
 			h := common.BytesToHash(v[:])
-			decoded.NewAdminRole = h.String()
+			decoded.NewAdminRole = &h //h.String()
 		}
 	case "RoleGranted", "RoleRevoked":
 		if v, ok := unpackedData["role"].([32]byte); ok {
 			h := common.BytesToHash(v[:])
-			decoded.Role = h.String()
+			decoded.Role = &h //h.String()
 		}
 		if v, ok := unpackedData["account"].(common.Address); ok {
-			decoded.Account = v.String()
+			decoded.Account = &v //v.String()
 		}
 		if v, ok := unpackedData["sender"].(common.Address); ok {
-			decoded.Sender = v.String()
+			decoded.Sender = &v //v.String()
 		}
 	case "SfcAddressUpdated":
 		if v, ok := unpackedData["sfcAddress"].(common.Address); ok {
-			decoded.SfcAddress = v.String()
+			decoded.SfcAddress = &v //v.String()
 		}
 	case "SfcFeeUpdated":
 		if v, ok := unpackedData["fee"].(*big.Int); ok {
@@ -354,7 +349,7 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 		}
 	case "Upgraded":
 		if v, ok := unpackedData["implementation"].(common.Address); ok {
-			decoded.Implementation = v.String()
+			decoded.Implementation = &v //v.String()
 		}
 	case "ProjectCreated":
 		if v, ok := unpackedData["projectId"].(*big.Int); ok {
@@ -367,51 +362,52 @@ func MapLogToEvent(contractABI *abi.ABI, logEntry types.Log) (*chain.DecodedEven
 		return nil, fmt.Errorf("Decoder: Event '%s' unpacked (log %s:%d), but no specific mapping logic implemented.", decoded.EventName, logEntry.TxHash.Hex(), logEntry.Index)
 	}
 	return &decoded, nil
-	// // START OF CHANGES
-	// // The first topic is the event signature hash
-	// eventSigHash := log.Topics[0]
-
-	// // Find the event definition in the ABI using the signature hash
-	// event, err := contractABI.EventByID(eventSigHash)
-	// if err != nil {
-	// 	return chain.DecodedEvent{}, fmt.Errorf("event not found in ABI for signature %s: %w", eventSigHash.Hex(), err)
-	// }
-
-	// // Create a new map to hold the unpacked data
-	// unpackedData := make(map[string]interface{})
-
-	// // Unpack log data into the map
-	// err = contractABI.UnpackIntoMap(unpackedData, event.Name, log.Data)
-	// if err != nil {
-	// 	return chain.DecodedEvent{}, fmt.Errorf("error unpacking log for event %s: %w", event.Name, err)
-	// }
-	// jsonData, err := json.Marshal(unpackedData)
-	// if err != nil {
-	// 	return chain.DecodedEvent{}, fmt.Errorf("error marshaling unpacked data in JSON: %w", err)
-	// }
-	// var eventData chain.DecodedEvent
-	// err = json.Unmarshal(jsonData, &eventData)
-	// if err != nil {
-	// 	return chain.DecodedEvent{}, fmt.Errorf("error unmarshaling JSON into DecodedEvent: %w", err)
-	// }
-	// eventData.Log = log
-	// eventData.EventName = event.Name
-	// // DONE CHANGES
-
-	// Create a new DecodedEvent and set its fields based on the unpacked data
-	// eventData := chain.DecodedEvent{
-	// 	Log:       log,
-	// 	EventName: event.Name,
-	// 	// Set other fields based on the unpacked data
-	// 	// For example:
-	// 	// Amount:      unpackedData["amount"].(*big.Int),
-	// 	// ProjectId:   unpackedData["projectId"].(*big.Int),
-	// 	// ...
-	// }
-
-	// return eventData, nil
 }
 
+// 	// // START OF CHANGES
+// 	// // The first topic is the event signature hash
+// 	// eventSigHash := log.Topics[0]
+
+// 	// // Find the event definition in the ABI using the signature hash
+// 	// event, err := contractABI.EventByID(eventSigHash)
+// 	// if err != nil {
+// 	// 	return chain.DecodedEvent{}, fmt.Errorf("event not found in ABI for signature %s: %w", eventSigHash.Hex(), err)
+// 	// }
+
+// 	// // Create a new map to hold the unpacked data
+// 	// unpackedData := make(map[string]interface{})
+
+// 	// // Unpack log data into the map
+// 	// err = contractABI.UnpackIntoMap(unpackedData, event.Name, log.Data)
+// 	// if err != nil {
+// 	// 	return chain.DecodedEvent{}, fmt.Errorf("error unpacking log for event %s: %w", event.Name, err)
+// 	// }
+// 	// jsonData, err := json.Marshal(unpackedData)
+// 	// if err != nil {
+// 	// 	return chain.DecodedEvent{}, fmt.Errorf("error marshaling unpacked data in JSON: %w", err)
+// 	// }
+// 	// var eventData chain.DecodedEvent
+// 	// err = json.Unmarshal(jsonData, &eventData)
+// 	// if err != nil {
+// 	// 	return chain.DecodedEvent{}, fmt.Errorf("error unmarshaling JSON into DecodedEvent: %w", err)
+// 	// }
+// 	// eventData.Log = log
+// 	// eventData.EventName = event.Name
+// 	// // DONE CHANGES
+
+// 	// Create a new DecodedEvent and set its fields based on the unpacked data
+// 	// eventData := chain.DecodedEvent{
+// 	// 	Log:       log,
+// 	// 	EventName: event.Name,
+// 	// 	// Set other fields based on the unpacked data
+// 	// 	// For example:
+// 	// 	// Amount:      unpackedData["amount"].(*big.Int),
+// 	// 	// ProjectId:   unpackedData["projectId"].(*big.Int),
+// 	// 	// ...
+// 	// }
+
+// 	// return eventData, nil
+// }
+
 func init() {
-	beam.RegisterType(reflect.TypeOf(chain.DecodedEvent{}))
 }

@@ -52,18 +52,6 @@ func main() {
 
 	log.Infof(ctx, "Pipeline constructed, setting Dataflow options...")
 
-	// Set Dataflow runner options
-	// beamx.SetPipelineOptions(p,
-	// 	jobopts.Project(cfg.ProjectID),
-	// 	jobopts.Region(cfg.Region),
-	// 	jobopts.TempLocation(cfg.TempLocation),
-	// 	jobopts.StagingLocation(cfg.StagingLocation),
-	// 	jobopts.WorkerMachineType(cfg.WorkerMachineType),
-	// 	jobopts.MaxNumWorkers(cfg.MaxNumWorkers),
-	// 	jobopts.JobName(fmt.Sprintf("sonic-event-pubsub-pipeline-%s", uuid.New().String()[:8])), // Updated job name
-	// 	// jobopts.EnableStreamingEngine(), // Consider uncommenting for true streaming
-	// )
-
 	// Execute the pipeline using the Dataflow runner
 	log.Infof(ctx, "Submitting pipeline to Dataflow...")
 	if err := beamx.Run(ctx, p); err != nil {

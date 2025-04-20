@@ -1,4 +1,5 @@
 use ethereum_types::{H256, U256};
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::block::{BlockHeaderWitness, BlockWitness};

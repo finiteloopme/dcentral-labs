@@ -8,7 +8,6 @@ import (
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/log"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	// "github.com/ethereum/go-ethereum/common" // No longer needed here
 )
 
 // LoadABIFromFile reads a contract ABI JSON from a local file path.

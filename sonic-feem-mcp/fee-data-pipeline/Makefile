@@ -26,7 +26,7 @@ run: build
 		--region=${GCP_REGION} \
 		--temp_location="gs://${GCP_PROJECT}/temp/" \
 		--max_num_workers=3 \
-		--worker_machine_type=n2-standard-4 \
+		--worker_machine_type=n1-standard-2 \
 		--staging_location="gs://${GCP_PROJECT}/staging/" \
 		--contract_address="0x0b5f073135df3f5671710f08b08c0c9258aecc35" \
 		--websocket_url=${SONIC_RPC_URL} \
@@ -42,8 +42,4 @@ r:
 		--staging_location="gs://${GCP_PROJECT}/staging/" \
 		--contract_address="0x0b5f073135df3f5671710f08b08c0c9258aecc35" \
 		--websocket_url=${SONIC_RPC_URL} \
-		--pubsub_topic="projects/${GCP_PROJECT}/topics/sonic_feem_mcp_events" \
 		--abi_file_path="./feem-abi.json"
-
-datagen:
-	go run internal/test/datagen/ethlogs.go
