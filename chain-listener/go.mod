@@ -2,7 +2,7 @@ module github.com/finiteloopme/dcentral-labs/chain-listener
 
 go 1.24.2
 
-// replace github.com/finiteloopme/goutils => /Users/kunall/scratchpad/gcp/goutils
+replace github.com/finiteloopme/goutils => /Users/kunall/scratchpad/gcp/goutils
 
 require (
 	github.com/apache/beam/sdks/v2 v2.64.0
@@ -58,6 +58,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect

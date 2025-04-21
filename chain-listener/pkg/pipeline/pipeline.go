@@ -14,7 +14,7 @@ import (
 func Build(s beam.Scope, ctx context.Context, cfg *config.Config) {
 	s = s.Scope("ListenToChainLogs")
 
-	ethLogStreamFn := listener.NewEthLogStreamFn(cfg.Endpoint, cfg.ContractAddress)
+	ethLogStreamFn := listener.NewEthLogStreamFn(*cfg.Endpoint, *cfg.ContractAddress)
 	log.Infof(ctx, "Building pipeline with DoFn: %T", ethLogStreamFn)
 
 	rawLogs := beam.ParDo(s, ethLogStreamFn, beam.Impulse(s.Scope("Impulse")))

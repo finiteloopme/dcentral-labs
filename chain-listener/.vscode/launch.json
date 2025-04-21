@@ -10,9 +10,6 @@
             "request": "launch",
             "mode": "auto",
             "program": "${fileDirname}",
-            "args": [
-                "--endpoint=wss://sonic-rpc.publicnode.com",
-            ]
         }
     ]
 }
