@@ -7,7 +7,8 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY config/ ./config/
 COPY pkg/ ./pkg/
-COPY metadata.json .
+# COPY metadata.json .
+COPY config.toml .
 COPY Makefile .
 RUN make build-prod
 

@@ -10,6 +10,10 @@
             "request": "launch",
             "mode": "auto",
             "program": "${fileDirname}",
+            "args": [
+                "--evm-rpc-endpoint=wss://rpc.soniclabs.com",
+                "--evm-filter-contract-address=0x29219dd400f2Bf60E5a23d13Be72B486D4038894"
+            ]
         }
     ]
 }

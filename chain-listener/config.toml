@@ -1,0 +1,12 @@
+[evm]
+    endpoint = "wss://rpc.soniclabs.com"
+    # endpoint = "wss://sonic-rpc.publicnode.com"
+[evm.filter]
+    contractAddress = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894" # USDC Sonic
+[solana]
+    # gRPC endpoint
+    endpoint = "laserstream-mainnet.helius-rpc.com:443"
+[solana.filter.accounts.account_sub]
+    account = ["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"] #USDC
+[solana.filter]
+    commitment = 2

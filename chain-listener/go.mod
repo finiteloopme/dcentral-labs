@@ -2,12 +2,14 @@ module github.com/finiteloopme/dcentral-labs/chain-listener
 
 go 1.24.2
 
-replace github.com/finiteloopme/goutils => /Users/kunall/scratchpad/gcp/goutils
+// replace github.com/finiteloopme/goutils => /Users/kunall/scratchpad/gcp/goutils
 
 require (
 	github.com/apache/beam/sdks/v2 v2.64.0
 	github.com/ethereum/go-ethereum v1.15.8
 	github.com/finiteloopme/goutils v0.0.0-20250420053044-09127ead51b7
+	github.com/golobby/config/v3 v3.4.2
+	github.com/rpcpool/yellowstone-grpc/examples/golang v0.0.0-20250409203454-bb3a44a2f723
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -20,8 +22,8 @@ require (
 	cloud.google.com/go/iam v1.5.0 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
 	cloud.google.com/go/profiler v0.4.2 // indirect
-	cloud.google.com/go/secretmanager v1.14.7 // indirect
 	cloud.google.com/go/storage v1.51.0 // indirect
+	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
@@ -52,6 +54,9 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golobby/cast v1.3.3 // indirect
+	github.com/golobby/dotenv v1.3.2 // indirect
+	github.com/golobby/env/v2 v2.2.4 // indirect
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -60,7 +65,6 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

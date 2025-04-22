@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/finiteloopme/dcentral-labs/chain-listener/pkg/pipeline"
 
 	"github.com/finiteloopme/dcentral-labs/chain-listener/config"
@@ -8,6 +10,7 @@ import (
 )
 
 func main() {
+	log.Infof("args %+v", os.Args)
 	cfg, err := config.ParseAndValidate()
 	if err != nil {
 		log.Fatal(err)

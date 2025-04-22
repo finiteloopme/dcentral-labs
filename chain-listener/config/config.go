@@ -2,36 +2,77 @@ package config
 
 import (
 	"flag"
-	// "github.com/finiteloopme/goutils/pkg/v2/os/env"
+	"io"
+	"net/http"
+	"os"
+
+	"github.com/finiteloopme/goutils/pkg/log"
+	goconfig "github.com/golobby/config/v3"
+	"github.com/golobby/config/v3/pkg/feeder"
+	pb "github.com/rpcpool/yellowstone-grpc/examples/golang/proto"
 )
 
-// Config holds the application configuration parsed from flags.
 type Config struct {
-	Endpoint *string `flag:"chain-rpc-endpoint" env:"ENDPOINT" required:"true"`
-	// ContractAddress string `flag:"contract_address" default:"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"` // USDC contract on Eth
-	ContractAddress *string `flag:"contract-address" env:"CONTRACT_ADDRESS" default:"0x29219dd400f2Bf60E5a23d13Be72B486D4038894"` // USDC.e bridged token on Sonic
-	ChainType       *string `flag:"chain-type" env:"CHAIN_TYPE" default:"EVM"`
+	Evm    *EVMConfig
+	Solana *SolanaConfig
 }
 
-// ParseAndValidateArgs parses & validates config:
-// 1. Default values
-// 2. .env file
-// 3. Environment variables
-// 4. Google Secret Manager
-// 5. CLI flags
-// It returns a Config struct or an error.
-func ParseAndValidate() (*Config, error) {
-	// TODO: fix the config/env library
-	// // --- Create Config ---
-	// config := &Config{}
-	// // --- Load Config ---
-	// err := env.ProcessConfig(context.Background(), "", config, "../.env")
+type EVMConfig struct {
+	Endpoint *string
+	Filter   struct {
+		ContractAddress *string
+	}
+}
 
+type SolanaConfig struct {
+	Endpoint *string
+	Filter   *pb.SubscribeRequest
+	Token    *string
+}
+
+func ParseAndValidate() (*Config, error) {
 	// Only works with CLI flags
 	config := &Config{}
-	config.Endpoint = flag.String("chain-rpc-endpoint", "", "Endpoint to connect to")
-	config.ContractAddress = flag.String("contract-address", "0x29219dd400f2Bf60E5a23d13Be72B486D4038894", "Contract address")
-	config.ChainType = flag.String("chain-type", "default", "Chain type")
+	localConfigfile := "/tmp/chain-listener-config.toml"
+	FetchConfigFile(
+		//TODO: make this configurable via CLI arguments
+		"https://gist.githubusercontent.com/kunallimaye/b3da1edac117b15c50885f2940e9aacb/raw/f4525a9335f46b94f4e0b2444076df45aebac32e/chain-listener-config.toml",
+		localConfigfile,
+	)
+	if err := config.ParseToml(localConfigfile); err != nil {
+		log.Warnf("Error parsing config.toml: %v", err)
+		return nil, err
+	}
 	flag.Parse()
 	return config, nil
+}
+
+func FetchConfigFile(fileURL string, localFilepath string) error {
+	log.Debugf("Fetching config file from: %s", fileURL)
+	resp, err := http.Get(fileURL)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil || resp.StatusCode != 200 {
+		log.Warnf("Error fetching config file: %v", err)
+		return err
+	}
+
+	log.Debugf("Writing config file to: %s", localFilepath)
+	out, err := os.Create(localFilepath)
+	if err != nil {
+		log.Warnf("Error creating config file: %v", err)
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		log.Warnf("Error copying config file: %v", err)
+	}
+	return err
+}
+
+func (c *Config) ParseToml(filename string) error {
+	feeder := feeder.Toml{Path: filename}
+	return goconfig.New().AddFeeder(feeder).AddStruct(c).Feed()
 }

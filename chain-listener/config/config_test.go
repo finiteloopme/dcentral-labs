@@ -1,13 +1,62 @@
 package config
 
-// import (
-// 	"flag"
-// 	"os"
-// 	"testing"
+import (
+	"os"
+	"testing"
 
-// 	"github.com/stretchr/testify/assert"
-// 	"github.com/stretchr/testify/require"
-// )
+	"github.com/stretchr/testify/assert"
+	// "github.com/stretchr/testify/require"
+)
+
+func setupTest(t *testing.T, filenameToCreate string, fileContentToCreate string) func() {
+	// --- Setup ---
+	os.WriteFile(filenameToCreate, []byte(fileContentToCreate), 0644)
+
+	return func() {
+		os.Remove(filenameToCreate)
+	}
+}
+
+func TestParseToml(t *testing.T) {
+	// --- Setup ---
+	filename := "test.toml"
+	cleanUp := setupTest(t, filename, "")
+	defer cleanUp()
+
+	// --- Test ---
+	c := &Config{}
+	err := c.ParseToml(filename)
+	assert.NoError(t, err, "Unexpected error. ", err)
+}
+
+func TestSolanaConfig(t *testing.T) {
+	solanaToml := `
+	[evm]
+		endpoint = "http://localhost:8545"
+	[evm.filter]
+		contractAddress = "0x1234567890123456789012345678901234567890"
+	[solana]
+		endpoint = "http://localhost:8899"
+	[solana.filter.accounts.account_sub]
+		account=["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]
+	[solana.filter]
+		commitment=2
+		# commitment=CommitmentLevel_FINALIZED
+	`
+	cleanUp := setupTest(t, "solToml.toml", solanaToml)
+	defer cleanUp()
+	config := &Config{}
+	err := config.ParseToml("solToml.toml")
+	assert.NoError(t, err, "Unexpected error. ", err)
+
+	// Test Ethereum Config
+	assert.Equal(t, "http://localhost:8545", *config.Evm.Endpoint)
+	assert.Equal(t, "0x1234567890123456789012345678901234567890", *config.Evm.Filter.ContractAddress)
+	// Test Solana Config
+	assert.Equal(t, "http://localhost:8899", *config.Solana.Endpoint)
+	assert.Contains(t, config.Solana.Filter.GetAccounts()["account_sub"].Account, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	assert.Equal(t, 2, int(config.Solana.Filter.Commitment.Number()))
+}
 
 // // Helper function to set environment variables for a test
 // func setEnvVars(t *testing.T, vars map[string]string) {
