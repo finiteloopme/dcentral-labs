@@ -29,12 +29,16 @@ build-prod: clean init build
 .PHONY: run
 run:
 	go run cmd/main.go \
+		--temp-local-config-filepath="/tmp/chain-listener-config.toml" \
+		--remote-config-file-url="https://raw.githubusercontent.com/kunal-scratch/chain-listener-config/master/chain-listener-config.toml" \
 		--runner=direct
 
 .PHONY: run-df
 run-df:
 	go run cmd/main.go \
 		--runner=dataflow \
+		--temp-local-config-filepath="/tmp/chain-listener-config.toml" \
+		--remote-config-file-url="https://raw.githubusercontent.com/kunal-scratch/chain-listener-config/master/chain-listener-config.toml" \
 		--project=${GCP_PROJECT} \
 		--region=${GCP_REGION} \
 		--temp_location="gs://${GCP_PROJECT}/temp/" \

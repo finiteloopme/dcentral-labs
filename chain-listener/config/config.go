@@ -33,17 +33,24 @@ type SolanaConfig struct {
 func ParseAndValidate() (*Config, error) {
 	// Only works with CLI flags
 	config := &Config{}
-	localConfigfile := "/tmp/chain-listener-config.toml"
+	// tempLocalConfigfile := "/tmp/chain-listener-config.toml"
+	// remoteConfigfile := "https://gist.githubusercontent.com/kunallimaye/b3da1edac117b15c50885f2940e9aacb/raw/f4525a9335f46b94f4e0b2444076df45aebac32e/chain-listener-config.toml"
+	tempLocalConfigfile := flag.String("temp-local-config-filepath",
+		"/tmp/chain-listener-config.toml",
+		"Temp path to config file")
+	remoteConfigfile := flag.String("remote-config-file-url",
+		"https://gist.githubusercontent.com/kunallimaye/b3da1edac117b15c50885f2940e9aacb/raw/f4525a9335f46b94f4e0b2444076df45aebac32e/chain-listener-config.toml",
+		"URL to remote config file")
+	flag.Parse()
 	FetchConfigFile(
 		//TODO: make this configurable via CLI arguments
-		"https://gist.githubusercontent.com/kunallimaye/b3da1edac117b15c50885f2940e9aacb/raw/f4525a9335f46b94f4e0b2444076df45aebac32e/chain-listener-config.toml",
-		localConfigfile,
+		*remoteConfigfile,
+		*tempLocalConfigfile,
 	)
-	if err := config.ParseToml(localConfigfile); err != nil {
+	if err := config.ParseToml(*tempLocalConfigfile); err != nil {
 		log.Warnf("Error parsing config.toml: %v", err)
 		return nil, err
 	}
-	flag.Parse()
 	return config, nil
 }
 
