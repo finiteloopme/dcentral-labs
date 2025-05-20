@@ -4,16 +4,19 @@ pragma solidity ^0.8.19;
 import { Script } from "forge-std/Script.sol";
 import { HelperConfig } from "./HelperConfig.s.sol";
 import { AAPL } from "../src/AAPL.sol";
+import {console} from "forge-std/console.sol";
 
 contract DeployAAPL is Script {
-    function run() external {
+    function run() external returns (address applAssetContract) {
         // Get params
         (address aaplFeed, address ethFeed, uint256 deployerKey) = getAaplRequirements();
 
         // Actually deploy
         vm.startBroadcast(deployerKey);
-        deployAAPL(aaplFeed, ethFeed);
+        AAPL aapl = deployAAPL(aaplFeed, ethFeed);
         vm.stopBroadcast();
+
+        return address(aapl);
     }
 
     function getAaplRequirements() public returns (address, address, uint256) {
