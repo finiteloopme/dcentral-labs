@@ -15,12 +15,30 @@ clean:
 
 .PHONY: sim-deployment
 sim-deployment:
-	forge script script/DeployAAPL.s.sol
-	forge script script/DeployRWAAssetManager.s.sol
+	forge script script/DeployRWA_Manager.s.sol \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeployStockERC1155.s.sol \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeployStableCoinERC1155.s.sol \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeploySovereignBondERC1155.s.sol \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 .PHONY: deploy
 deploy:
-	forge script script/DeployAAPL.s.sol \
+	forge script script/DeployRWA_Manager.s.sol \
+		--fork-url 127.0.0.1:8545 \
+		--broadcast \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeployStockERC1155.s.sol \
+		--fork-url 127.0.0.1:8545 \
+		--broadcast \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeployStableCoinERC1155.s.sol \
+		--fork-url 127.0.0.1:8545 \
+		--broadcast \
+		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script script/DeploySovereignBondERC1155.s.sol \
 		--fork-url 127.0.0.1:8545 \
 		--broadcast \
 		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -36,5 +54,7 @@ start-chain:
 .PHONY: abi
 abi: build
 	mkdir -p abi
-	jq '.abi' out/DeployRWAAssetManager.s.sol/DeployRWAAssetManager.json > ${ABI_FOLDER}/RWAAssetManager.json
-	jq '.abi' out/DeployAAPL.s.sol/DeployAAPL.json > ${ABI_FOLDER}/AAPL.json
+	jq '.abi' out/SovereignBondERC1155.sol/SovereignBond.json > ${ABI_FOLDER}/SovereignBond.json
+	jq '.abi' out/StableCoinERC1155.sol/StableCoin.json > ${ABI_FOLDER}/StableCoin.json
+	jq '.abi' out/RWA_Manager.sol/RWA_Manager.json > ${ABI_FOLDER}/RWA_Manager.json
+	jq '.abi' out/StockERC1155.sol/StockERC1155.json > ${ABI_FOLDER}/StockERC1155.json
