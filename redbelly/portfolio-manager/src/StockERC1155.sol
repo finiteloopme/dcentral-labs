@@ -20,9 +20,12 @@ contract StockERC1155 is ERC1155, Ownable {
     string public stockName;
     string public stockSymbol;
     uint256 public totalSupply; // Total supply of the stock shares
+    uint256 public stockPrice; // Price per share in wei
 
     // --- Events ---
     event StockIssued(uint256 indexed tokenId, address indexed to, uint256 amount);
+    event StockPriceChanged(uint256 oldPrice, uint256 newPrice);
+
 
     /**
      * @dev Constructor to initialize the stock token.
@@ -30,6 +33,7 @@ contract StockERC1155 is ERC1155, Ownable {
      * @param _symbol The symbol of the stock (e.g., "ACME").
      * @param _initialSupply The total number of shares to be issued.
      * @param _initialOwner The address that will receive the initial supply of shares.
+     * @param _initialPrice The initial price per share in wei.
      *
      * The URI is set to a placeholder. In a production environment, this should point
      * to a metadata JSON file compliant with the ERC1155 metadata URI JSON Schema.
@@ -38,14 +42,17 @@ contract StockERC1155 is ERC1155, Ownable {
         string memory _name,
         string memory _symbol,
         uint256 _initialSupply,
-        address _initialOwner
+        address _initialOwner,
+        uint256 _initialPrice
     ) ERC1155("ipfs://placeholder/{id}.json") Ownable(_initialOwner) { // Ownable's initialOwner is set here
         require(_initialOwner != address(0), "StockERC1155: Initial owner cannot be the zero address");
         require(_initialSupply > 0, "StockERC1155: Initial supply must be greater than zero");
+        require(_initialPrice > 0, "StockERC1155: Initial price must be greater than zero");
 
         stockName = _name;
         stockSymbol = _symbol;
         totalSupply = _initialSupply;
+        stockPrice = _initialPrice;
 
         // Mint the initial supply of stock tokens (ID 0) to the initial owner
         _mint(_initialOwner, STOCK_TOKEN_ID, _initialSupply, "");
@@ -107,8 +114,9 @@ contract StockERC1155 is ERC1155, Ownable {
      * @param _amount The number of shares to mint.
      * @param _data Additional data with no specified format.
      */
-    function mintShares(address _to, uint256 _amount, bytes memory _data) public onlyOwner {
+    function mintShares(address _to, uint256 _amount, bytes memory _data) public payable onlyOwner {
         require(_to != address(0), "StockERC1155: Mint to the zero address");
+        require(msg.value == _amount * stockPrice, "StockERC1155: Incorrect payment amount");
         require(_amount > 0, "StockERC1155: Mint amount must be greater than zero");
 
         _mint(_to, STOCK_TOKEN_ID, _amount, _data);
@@ -147,6 +155,31 @@ contract StockERC1155 is ERC1155, Ownable {
         totalSupply -= _amount; // Update total supply
     }
 
+    // --- Owner Functions ---
+
+    /**
+     * @dev Sets a new price for the stock shares. Only callable by the owner.
+     * @param _newPrice The new price per share in wei.
+     */
+    function setPrice(uint256 _newPrice) public onlyOwner {
+        require(_newPrice > 0, "StockERC1155: Price must be greater than zero");
+        uint256 oldPrice = stockPrice;
+        stockPrice = _newPrice;
+        emit StockPriceChanged(oldPrice, _newPrice);
+    }
+
+    /**
+     * @dev Allows the owner to withdraw accumulated Ether from stock sales.
+     */
+    function withdrawFunds() public onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "StockERC1155: No funds to withdraw");
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = owner().call{value: balance}("");
+        require(success, "StockERC1155: Withdrawal failed");
+    }
+
+
 
     // --- ERC1155 Overrides ---
 
@@ -173,8 +206,8 @@ contract StockERC1155 is ERC1155, Ownable {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal virtual{ /* override {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);*/
+    ) internal virtual { //} override {
+        //super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
 
         // Additional check: ensure only STOCK_TOKEN_ID is being transferred
         for (uint256 i = 0; i < ids.length; ++i) {

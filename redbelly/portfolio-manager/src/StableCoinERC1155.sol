@@ -33,6 +33,9 @@ contract StableCoin is ERC1155, Ownable {
     /// @dev Tracks the total supply of the stablecoin.
     uint256 private _totalSupply;
 
+    /// @notice The price of one stablecoin token in Wei. Set by the owner.
+    uint256 public tokenPriceInWei;
+
     // --- Events ---
 
     /**
@@ -69,6 +72,8 @@ contract StableCoin is ERC1155, Ownable {
         name = _name;
         symbol = _symbol;
         fiatPeggedTo = _fiatPeggedTo;
+        tokenPriceInWei = 1_000_000;
+        _totalSupply = 1_000_000_000;
     }
 
     // --- URI Management ---
@@ -95,6 +100,40 @@ contract StableCoin is ERC1155, Ownable {
     function setURI(string memory newuri) public onlyOwner {
         _setURI(newuri);
     }
+
+    // --- Token Purchase ---
+
+    /**
+     * @dev Allows the owner to set the price for purchasing stablecoins.
+     * @param _priceInWei The price of one token in Wei.
+     */
+    function setTokenPrice(uint256 _priceInWei) public onlyOwner {
+        require(_priceInWei > 0, "StableCoin: token price must be greater than zero");
+        tokenPriceInWei = _priceInWei;
+    }
+
+    /**
+     * @dev Allows users to purchase stablecoins by sending Ether.
+     * Tokens are minted to msg.sender.
+     * @param _amountToPurchase The amount of stablecoins to purchase.
+     * @param _data Additional data with no specified format (as per ERC1155).
+     */
+    function purchaseTokens(uint256 _amountToPurchase, bytes memory _data) public payable {
+        require(tokenPriceInWei > 0, "StableCoin: token price has not been set");
+        require(_amountToPurchase > 0, "StableCoin: purchase amount must be greater than zero");
+
+        uint256 requiredPayment = _amountToPurchase * tokenPriceInWei;
+        require(msg.value == requiredPayment, "StableCoin: incorrect Ether sent for purchase");
+
+        // Reuse the internal _mint logic, which also handles _beforeTokenTransfer hook
+        _mint(msg.sender, STABLECOIN_ID, _amountToPurchase, _data);
+        _totalSupply += _amountToPurchase; // _totalSupply is managed here as _mint doesn't know about stablecoin specifics
+        emit TokensMinted(msg.sender, _amountToPurchase);
+    }
+
+    // --- Administrative Minting (Owner Only) ---
+    // This mint function is for the owner, e.g., when collateral is received off-chain.
+    // It does not require on-chain ETH payment to this contract at the time of minting.
 
     // --- Minting ---
 
@@ -190,7 +229,7 @@ contract StableCoin is ERC1155, Ownable {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal virtual {// override {
+    ) internal virtual { // override {
         // super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
 
         // Additional logic can be added here if needed for all transfers.
@@ -211,5 +250,16 @@ contract StableCoin is ERC1155, Ownable {
      */
     function totalSupply() public view returns (uint256) {
         return _totalSupply;
+    }
+
+    // --- Fund Management ---
+
+    /**
+     * @dev Allows the owner to withdraw Ether collected from token sales.
+     */
+    function withdrawEther() public onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "StableCoin: no Ether to withdraw");
+        payable(owner()).transfer(balance);
     }
 }

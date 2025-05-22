@@ -25,6 +25,9 @@ contract RWA_Manager is Ownable {
     // The 'owner' variable and 'onlyOwner' modifier are inherited from Ownable.sol
 
     /// @notice An array storing all registered assets.
+    string public name;
+
+    /// @notice An array storing all registered assets.
     Asset[] public assets;
 
     /// @notice Mapping from an asset's contract address to its index (plus 1) in the `assets` array.
@@ -44,11 +47,13 @@ contract RWA_Manager is Ownable {
 
     /**
      * @notice Sets the deployer of the contract as the owner.
+     * @param _name The name of the RWA Manager.
      * @dev The Ownable constructor handles setting the initial owner to msg.sender.
      * The initialOwner parameter for Ownable (Solidity 0.8.20+) is used here.
      */
-    constructor() Ownable(msg.sender) {
+    constructor(string memory _name) Ownable(msg.sender) {
         // The owner is set by the Ownable constructor.
+        name = _name;
         // No need for: owner = msg.sender;
     }
 

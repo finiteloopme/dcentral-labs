@@ -81,7 +81,8 @@ contract DeployStockERC1155 is Script {
             STOCK_NAME,
             STOCK_SYMBOL,
             INITIAL_SUPPLY,
-            initialOwner
+            initialOwner,
+            uint256(100)
         );
 
         vm.stopBroadcast();

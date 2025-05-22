@@ -17,14 +17,17 @@ contract DeployRWA_Manager is Script {
         // uint256 deployerPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
         // vm.startBroadcast(deployerPrivateKey);
+        string memory mngrName = "Redbelly Asset Magician";
+
         vm.startBroadcast();
 
-        RWA_Manager rwaManager = new RWA_Manager();
+        RWA_Manager rwaManager = new RWA_Manager(mngrName);
 
         vm.stopBroadcast();
 
         console.log("RWA_Manager deployed to:", address(rwaManager));
         console.log("Owner of RWA_Manager:", rwaManager.owner());
+        console.log("Name of RWA_Manager:", rwaManager.name());
         
         return rwaManager;
     }
