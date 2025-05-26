@@ -1,165 +1,245 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interface/IAssetManager.sol"; // Make sure IAssetManager.sol is in the same directory or provide the correct path
 
-/**
- * @title RWA_Manager
- * @author Gemini
- * @notice This contract manages a catalog of Real World Assets (RWAs),
- * where each asset is represented by a smart contract address and has a category.
- * The owner of this contract (as defined by OpenZeppelin's Ownable) can register
- * new assets, list all registered assets, and delete assets from the catalog.
- */
-contract RWA_Manager is Ownable {
-    /**
-     * @notice Represents a registered Real World Asset.
-     * @param contractAddress The address of the smart contract representing the RWA.
-     * @param category A string describing the category of the RWA (e.g., "Real Estate", "Art", "Bonds").
-     */
-    struct Asset {
-        address contractAddress;
-        string category;
+/// @title RWA_Manager
+/// @notice Implementation of the IAssetManager interface for managing Real World Assets.
+/// @dev This contract allows for registration of assets and management of user portfolios.
+/// It stores asset details and portfolio compositions, providing views for querying this data.
+/// The actual calculation of portfolio values, risk analysis, and updates to category values
+/// are assumed to be handled by other mechanisms or off-chain processes, which would then
+/// call appropriate functions to update the state and emit events.
+contract RWA_Manager is IAssetManager {
+
+    // --- State Variables ---
+
+    /// @notice The publicly visible name of this asset manager.
+    string public managerName;
+
+    /// @dev Array storing all registered assets. Primarily used for the getAllAssets() function.
+    Asset[] internal _registeredAssetsArray;
+
+    /// @dev Mapping from an asset ID to its Asset struct. Asset IDs start from 1.
+    /// An ID of 0 is considered invalid or non-existent.
+    mapping(uint256 => Asset) internal _assetsById;
+
+    /// @dev Counter to generate unique asset IDs for newly registered assets. Starts at 1.
+    uint256 internal _nextAssetId;
+
+    /// @dev Internal struct to store detailed portfolio data for a user.
+    /// This is the actual storage representation. The IAssetManager.Portfolio struct
+    /// serves more as a conceptual model and a structure for return types.
+    struct PortfolioStorage {
+        mapping(uint256 => uint256) assetQuantities; // Mapping of asset ID to quantity owned
+        RiskProfile userRiskProfile;                 // User-selected risk profile
+        uint256 currentValue;                        // Auto-calculated by manager (e.g., via oracle prices)
+        uint256 lastUpdated;                         // Timestamp of last auto-update by manager
+        RiskProfile riskAnalysis;                    // Auto-calculated by manager (e.g., based on diversification)
+        mapping(string => uint256) categoryTotalValues; // Auto-calculated: category name => total value in portfolio
+
+        // Helper arrays to efficiently construct the return value for getPortfolio.
+        // These arrays are assumed to be maintained by functions that add/remove assets
+        // from the portfolio (which are not part of the IAssetManager interface itself).
+        uint256[] ownedAssetIds;    // List of asset IDs currently held in the portfolio
+        string[] activeCategories;  // List of category names that have a non-zero value in the portfolio
     }
 
-    // The 'owner' variable and 'onlyOwner' modifier are inherited from Ownable.sol
+    /// @dev Mapping from a user's address to their portfolio data.
+    mapping(address => PortfolioStorage) internal _userPortfolios;
 
-    /// @notice An array storing all registered assets.
-    string public name;
+    // --- Constructor ---
 
-    /// @notice An array storing all registered assets.
-    Asset[] public assets;
-
-    /// @notice Mapping from an asset's contract address to its index (plus 1) in the `assets` array.
-    /// @dev We store index + 1 to distinguish between a non-existent asset (value 0) and an asset at index 0.
-    mapping(address => uint256) public assetIndex;
-
-    /// @notice Emitted when a new asset is successfully registered.
-    /// @param assetContract The address of the registered asset contract.
-    /// @param category The category of the registered asset.
-    /// @param registrar The address that performed the registration (the owner).
-    event AssetRegistered(address indexed assetContract, string category, address indexed registrar);
-
-    /// @notice Emitted when an asset is successfully deleted.
-    /// @param assetContract The address of the deleted asset contract.
-    /// @param remover The address that performed the deletion (the owner).
-    event AssetDeleted(address indexed assetContract, address indexed remover);
-
-    /**
-     * @notice Sets the deployer of the contract as the owner.
-     * @param _name The name of the RWA Manager.
-     * @dev The Ownable constructor handles setting the initial owner to msg.sender.
-     * The initialOwner parameter for Ownable (Solidity 0.8.20+) is used here.
-     */
-    constructor(string memory _name) Ownable(msg.sender) {
-        // The owner is set by the Ownable constructor.
-        name = _name;
-        // No need for: owner = msg.sender;
+    /// @dev Initializes the RWA_Manager contract with a specific name.
+    /// @param initialName The desired name for this asset manager (e.g., "Redbelly RWA Portfolio Manager").
+    constructor(string memory initialName) {
+        require(bytes(initialName).length > 0, "RWA_Manager: Name cannot be empty");
+        managerName = initialName;
+        _nextAssetId = 1; // Asset IDs will start from 1.
     }
 
-    // The custom onlyOwner modifier is removed as we use the one from Ownable.sol
+    // --- IAssetManager External View Functions ---
 
-    /**
-     * @notice Registers a new RWA smart contract.
-     * @dev Only the owner can call this function (enforced by Ownable's onlyOwner modifier).
-     * The asset contract address must not be the zero address.
-     * The asset contract must not already be registered.
-     * @param _assetContract The address of the RWA's smart contract.
-     * @param _category The category of the RWA.
-     */
-    function registerAsset(address _assetContract, string calldata _category) external onlyOwner {
-        require(_assetContract != address(0), "RWA_Manager: Asset contract address cannot be zero");
-        require(assetIndex[_assetContract] == 0, "RWA_Manager: Asset already registered");
-        require(bytes(_category).length > 0, "RWA_Manager: Category cannot be empty");
-
-        assets.push(Asset({contractAddress: _assetContract, category: _category}));
-        assetIndex[_assetContract] = assets.length; // Store index + 1
-
-        emit AssetRegistered(_assetContract, _category, msg.sender);
+    /// @inheritdoc IAssetManager
+    function name() external view virtual override returns (string memory) {
+        return managerName;
     }
 
-    /**
-     * @notice Deletes an RWA from the catalog.
-     * @dev Only the owner can call this function (enforced by Ownable's onlyOwner modifier).
-     * The asset contract must be already registered.
-     * Uses the "swap and pop" method for efficient array element removal.
-     * @param _assetContract The address of the RWA's smart contract to delete.
-     */
-    function deleteAsset(address _assetContract) external onlyOwner {
-        require(assetIndex[_assetContract] != 0, "RWA_Manager: Asset not found");
+    /// @inheritdoc IAssetManager
+    function getAsset(uint256 assetId) external view virtual override returns (Asset memory) {
+        require(assetId > 0 && assetId < _nextAssetId, "RWA_Manager: Invalid asset ID or asset not yet registered");
+        // Additional check to ensure the asset at this ID actually has data,
+        // though the _nextAssetId check largely covers registration.
+        require(_assetsById[assetId].contractAddress != address(0), "RWA_Manager: Asset data not found for ID");
+        return _assetsById[assetId];
+    }
 
-        uint256 indexToRemove = assetIndex[_assetContract] - 1; // Convert to 0-based index
-        uint256 lastIndex = assets.length - 1;
+    /// @inheritdoc IAssetManager
+    function getAllAssets() external view virtual override returns (Asset[] memory) {
+        return _registeredAssetsArray;
+    }
 
-        if (indexToRemove != lastIndex) {
-            // If the asset to remove is not the last one, swap it with the last one
-            Asset memory lastAsset = assets[lastIndex];
-            assets[indexToRemove] = lastAsset;
-            assetIndex[lastAsset.contractAddress] = indexToRemove + 1; // Update index of the moved asset
+    /// @inheritdoc IAssetManager
+    function getPortfolio(address user) external view virtual override returns (
+        uint256[] memory assetIds,
+        uint256[] memory quantities,
+        RiskProfile userRiskProfile,
+        uint256 currentValue,
+        uint256 lastUpdated,
+        RiskProfile riskAnalysis,
+        CategoryValue[] memory categoryValuesReturn
+    ) {
+        PortfolioStorage storage portfolio = _userPortfolios[user];
+
+        // If a user has no portfolio (e.g., createPortfolio was never called for them,
+        // or their portfolio is genuinely empty), this will return default/zero values
+        // for value types and empty arrays for dynamic arrays. This is standard behavior.
+
+        uint256 numOwnedAssets = portfolio.ownedAssetIds.length;
+        assetIds = new uint256[](numOwnedAssets);
+        quantities = new uint256[](numOwnedAssets);
+
+        for (uint256 i = 0; i < numOwnedAssets; i++) {
+            uint256 id = portfolio.ownedAssetIds[i];
+            assetIds[i] = id;
+            quantities[i] = portfolio.assetQuantities[id]; // Assumes assetQuantities[id] is populated
         }
 
-        // Remove the last element (either the original last or the one swapped into place)
-        assets.pop();
-        // Clear the index mapping for the removed asset
-        delete assetIndex[_assetContract];
+        uint256 numActiveCategories = portfolio.activeCategories.length;
+        categoryValuesReturn = new CategoryValue[](numActiveCategories);
+        for (uint256 i = 0; i < numActiveCategories; i++) {
+            string memory categoryName = portfolio.activeCategories[i];
+            categoryValuesReturn[i] = CategoryValue({
+                category: categoryName,
+                totalValue: portfolio.categoryTotalValues[categoryName] // Assumes categoryTotalValues[categoryName] is populated
+            });
+        }
 
-        emit AssetDeleted(_assetContract, msg.sender);
+        userRiskProfile = portfolio.userRiskProfile;
+        currentValue = portfolio.currentValue;
+        lastUpdated = portfolio.lastUpdated;
+        riskAnalysis = portfolio.riskAnalysis;
+
+        return (
+            assetIds,
+            quantities,
+            userRiskProfile,
+            currentValue,
+            lastUpdated,
+            riskAnalysis,
+            categoryValuesReturn
+        );
     }
 
-    /**
-     * @notice Retrieves all registered RWAs.
-     * @return An array of Asset structs, each containing the contract address and category.
-     */
-    function getAllAssets() external view returns (Asset[] memory) {
-        return assets;
+    // --- IAssetManager External State-Modifying Functions ---
+
+    /// @inheritdoc IAssetManager
+    /// @dev In a production system, this function should be restricted (e.g., onlyOwner or role-based access).
+    function registerAsset(
+        string memory assetName,
+        address contractAddress,
+        string memory category
+    ) external virtual override returns (uint256) {
+        // Access Control: Consider adding `onlyOwner` or a similar modifier.
+        require(bytes(assetName).length > 0, "RWA_Manager: Asset name cannot be empty");
+        require(contractAddress != address(0), "RWA_Manager: Contract address cannot be the zero address");
+        require(bytes(category).length > 0, "RWA_Manager: Category cannot be empty");
+
+        uint256 newAssetId = _nextAssetId;
+
+        // Ensure we don't overflow _nextAssetId, though extremely unlikely with uint256.
+        require(newAssetId > 0, "RWA_Manager: Asset ID overflow (highly unlikely)");
+
+        Asset memory newAsset = Asset({
+            name: assetName,
+            contractAddress: contractAddress,
+            category: category
+        });
+
+        _assetsById[newAssetId] = newAsset;
+        _registeredAssetsArray.push(newAsset); // Stores a copy of the Asset struct.
+
+        _nextAssetId++;
+
+        // As per IAssetManager.sol, the AssetRegistered event does not include the category.
+        emit AssetRegistered(newAssetId, assetName, contractAddress);
+        return newAssetId;
     }
 
-    /**
-     * @notice Retrieves the details of a specific RWA.
-     * @param _assetContract The address of the RWA's smart contract.
-     * @return contractAddress_ The address of the asset contract.
-     * @return category_ The category of the asset.
-     */
-    function getAssetDetails(address _assetContract) external view returns (address contractAddress_, string memory category_) {
-        require(assetIndex[_assetContract] != 0, "RWA_Manager: Asset not found");
-        uint256 index = assetIndex[_assetContract] - 1;
-        Asset memory asset = assets[index];
-        return (asset.contractAddress, asset.category);
+    /// @inheritdoc IAssetManager
+    function createPortfolio(RiskProfile riskProfile) external virtual override {
+        address user = msg.sender;
+        PortfolioStorage storage portfolio = _userPortfolios[user];
+
+        // This function sets or updates the user's chosen risk profile.
+        // If the portfolio is new, other fields (currentValue, lastUpdated, riskAnalysis,
+        // assetQuantities, categoryTotalValues, ownedAssetIds, activeCategories)
+        // will remain at their default (zero/empty) values until updated by other
+        // processes (e.g., asset deposits, periodic re-evaluations by the manager).
+        portfolio.userRiskProfile = riskProfile;
+
+        // The PortfolioUpdated event is specifically for when currentValue and riskAnalysis change.
+        // Since createPortfolio only sets the user's preference and doesn't perform these
+        // calculations, the event is not emitted here. It would be emitted by whatever
+        // mechanism updates those calculated values.
     }
 
-    /**
-     * @notice Gets the current count of registered assets.
-     * @return The total number of registered assets.
-     */
-    function getAssetCount() external view returns (uint256) {
-        return assets.length;
+    /// @inheritdoc IAssetManager
+    /// @dev In a production system, this function should be restricted (e.g., onlyOwner, role-based access, or specific authorized updater contract).
+    function refreshPortfolio(
+        address user,
+        uint256[] memory newAssetIds,
+        uint256[] memory newQuantities,
+        uint256 newCurrentValue,
+        RiskProfile newRiskAnalysis,
+        CategoryValue[] memory newCategoryValues
+    ) external virtual override {
+        // Access Control: CRITICAL - This function should be heavily restricted.
+        // For example, add `onlyOwner` or a role-based access control modifier.
+        // As it's implemented now, anyone can call it to change any user's portfolio.
+
+        require(newAssetIds.length == newQuantities.length, "RWA_Manager: Asset IDs and quantities length mismatch");
+
+        PortfolioStorage storage portfolio = _userPortfolios[user];
+
+        // Clear existing dynamic portfolio data before repopulating
+        // Note: This clears the mappings and arrays. If an asset ID from newAssetIds
+        // was previously in assetQuantities but is not in newAssetIds, its quantity will become 0.
+        // For ownedAssetIds and activeCategories, we are rebuilding them from scratch.
+
+        // Clear and rebuild asset holdings
+        // First, clear old quantities for assets that might be removed.
+        // A more gas-efficient way for assetQuantities might be to iterate newAssetIds and update,
+        // then iterate old ownedAssetIds to zero out any not in newAssetIds.
+        // However, for simplicity and given this is an external "full refresh", clearing and repopulating is straightforward.
+        for (uint i = 0; i < portfolio.ownedAssetIds.length; i++) {
+            delete portfolio.assetQuantities[portfolio.ownedAssetIds[i]];
+        }
+        delete portfolio.ownedAssetIds; // Deletes the array elements, sets length to 0
+
+        portfolio.ownedAssetIds = newAssetIds; // Assign the new array of asset IDs
+        for (uint256 i = 0; i < newAssetIds.length; i++) {
+            portfolio.assetQuantities[newAssetIds[i]] = newQuantities[i];
+        }
+
+        // Clear and rebuild category values
+        for (uint i = 0; i < portfolio.activeCategories.length; i++) {
+            delete portfolio.categoryTotalValues[portfolio.activeCategories[i]];
+        }
+        delete portfolio.activeCategories; // Deletes the array elements, sets length to 0
+        
+        portfolio.activeCategories = new string[](newCategoryValues.length);
+        for (uint256 i = 0; i < newCategoryValues.length; i++) {
+            portfolio.categoryTotalValues[newCategoryValues[i].category] = newCategoryValues[i].totalValue;
+            portfolio.activeCategories[i] = newCategoryValues[i].category;
+        }
+
+        // Update portfolio summary figures
+        portfolio.currentValue = newCurrentValue;
+        portfolio.riskAnalysis = newRiskAnalysis;
+        portfolio.lastUpdated = block.timestamp;
+
+        emit PortfolioUpdated(user, newCurrentValue, newRiskAnalysis);
     }
 
-    /**
-     * @notice Returns the address of the current owner.
-     * @dev This function is inherited from Ownable.sol.
-     * This is just an explicit declaration for clarity if needed, but not strictly necessary
-     * as `owner()` is already public in Ownable.
-     */
-    // function owner() public view virtual override returns (address) {
-    //     return super.owner();
-    // }
-
-    /**
-     * @notice Transfers ownership of the contract to a new account (`newOwner`).
-     * @dev Can only be called by the current owner. This function is inherited from Ownable.sol.
-     */
-    // function transferOwnership(address newOwner) public virtual override onlyOwner {
-    //     super.transferOwnership(newOwner);
-    // }
-
-    /**
-     * @notice Renounces ownership of the contract.
-     * @dev Can only be called by the current owner.
-     * Leaves the contract without an owner, thereby removing any functionality that is only available to the owner.
-     * This function is inherited from Ownable.sol.
-     */
-    // function renounceOwnership() public virtual override onlyOwner {
-    //     super.renounceOwnership();
-    // }
 }

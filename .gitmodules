@@ -13,3 +13,12 @@
 [submodule "sonic/smart-contract/lib/openzeppelin-contracts"]
 	path = sonic/smart-contract/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "redbelly/portfolio-manager/lib/forge-std"]
+	path = redbelly/portfolio-manager/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "redbelly/portfolio-manager/lib/chainlink-evm"]
+	path = redbelly/portfolio-manager/lib/chainlink-evm
+	url = https://github.com/smartcontractkit/chainlink-evm
+[submodule "redbelly/portfolio-manager/lib/openzeppelin-contracts"]
+	path = redbelly/portfolio-manager/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

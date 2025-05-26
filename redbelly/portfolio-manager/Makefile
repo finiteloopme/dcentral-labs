@@ -11,7 +11,7 @@ test:
 .PHONY: clean
 clean:
 	forge clean
-	rm -fr ${ABI_FOLDER}
+	rm -fr ${ABI_FOLDER} broadcast cache
 
 .PHONY: sim-deployment
 sim-deployment:
@@ -40,14 +40,14 @@ deploy-stock:
 
 .PHONY:deploy-stable
 deploy-stable:
-	forge script script/DeployStableCoinERC1155.s.sol \
+	forge script script/DeployStablecoins.s.sol \
 		--fork-url 127.0.0.1:8545 \
 		--broadcast \
 		--private-key=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
 
 .PHONY:deploy-sovereign
 deploy-sovereign:
-	forge script script/DeploySovereignBondERC1155.s.sol \
+	forge script script/DeployAndRegisterSovereignBonds.s.sol \
 		--fork-url 127.0.0.1:8545 \
 		--broadcast \
 		--private-key=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
