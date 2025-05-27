@@ -22,25 +22,12 @@ import "./interface/IAsset.sol";
  */
 contract SovereignBond is IAsset, ERC1155, Ownable {
     uint256 SOVEREIGN_BOND_ID = 0;
-    /**
-     * @dev Struct to store metadata for each bond series (token ID).
-     */
-    struct BondSeriesData {
-        string name;                // Full descriptive name of the bond series
-        string symbol;              // Ticker symbol for the bond series
-        uint256 valuePerUnit;       // Value of one indivisible unit of the bond
-        uint256 currentTotalSupply; // Current total supply of indivisible units for this bond ID
-        uint256 fractionalFactor;   // How many indivisible units make one conceptual "whole" bond (e.g., 100 for cents in a dollar)
-        bool initialized;           // Flag to check if the bond series has been created and metadata set
-    }
-
-    // Mapping from token ID (bond series ID) to its specific data
-    // mapping(uint256 => BondSeriesData) private _bondSeriesData;
-    BondSeriesData private _bondSeriesData;
-
-    // --- Events ---
-    // OwnershipTransferred event is inherited from Ownable.
-    // ERC1155 events (TransferSingle, TransferBatch, ApprovalForAll, URI) are inherited from ERC1155.
+    string _name;                // Full descriptive name of the bond series
+    string _symbol;              // Ticker symbol for the bond series
+    uint256 _valuePerUnit;       // Value of one indivisible unit of the bond
+    uint256 _currentTotalSupply; // Current total supply of indivisible units for this bond ID
+    uint256 _fractionalFactor;   // How many indivisible units make one conceptual "whole" bond (e.g., 100 for cents in a dollar)
+    bool initialized;           // Flag to check if the bond series has been created and metadata set
 
     /**
      * @dev See {Ownable-owner}.
@@ -67,7 +54,7 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * @param initialUnitSupply The initial total supply of indivisible units for this bond series.
      * @param seriesFractionalFactor The fractional factor for this bond series.
      */
-    event BondSeriesCreated(
+    event BondIssued(
         uint256 indexed id,
         string seriesName,
         string seriesSymbol,
@@ -78,16 +65,19 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
 
     /**
      * @dev Constructor to initialize the SovereignBond contract.
-     * @param initialOwner The address that will initially own the contract and have
-     *                     administrative privileges (e.g., creating new bond series).
-     * @param uri_ The base URI for token metadata, as per ERC1155 standards.
-     *             It should contain '{id}' as a placeholder for the token ID,
-     *             which will be replaced by the actual token ID (e.g., "https://api.example.com/tokens/{id}").
+     * 
      */
-    constructor(address initialOwner, string memory uri_) ERC1155(uri_) Ownable(initialOwner) {
+    constructor(
+        string memory seriesName,
+        string memory seriesSymbol,
+        uint256 unitValue,
+        uint256 initialUnitSupply,
+        uint256 seriesFractionalFactor
+    ) ERC1155(string.concat("https://global.bonds/", seriesSymbol)) Ownable(msg.sender){
         // The Ownable constructor sets the initial owner.
         // The ERC1155 constructor sets the base URI for token metadata.
-        
+        initialized = true;
+        createBondSeries(seriesName, seriesSymbol, unitValue, initialUnitSupply, seriesFractionalFactor);
     }
 
     // --- IAsset Implementation ---
@@ -98,8 +88,8 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * Reverts if the bond series ID has not been initialized.
      */
     function name() public view virtual override returns (string memory) {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
-        return _bondSeriesData.name;
+        require(initialized, "SovereignBond: Bond series not initialized");
+        return _name;
     }
 
     /**
@@ -108,8 +98,8 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * Reverts if the bond series ID has not been initialized.
      */
     function symbol() public view virtual override returns (string memory) {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
-        return _bondSeriesData.symbol;
+        require(initialized, "SovereignBond: Bond series not initialized");
+        return _symbol;
     }
 
     /**
@@ -119,8 +109,8 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * Reverts if the bond series ID has not been initialized.
      */
     function value() public view virtual override returns (uint256) {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
-        return _bondSeriesData.valuePerUnit;
+        require(initialized, "SovereignBond: Bond series not initialized");
+        return _valuePerUnit;
     }
 
     /**
@@ -129,8 +119,8 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * Reverts if the bond series ID has not been initialized.
      */
     function totalSupply() public view virtual override returns (uint256) {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
-        return _bondSeriesData.currentTotalSupply;
+        require(initialized, "SovereignBond: Bond series not initialized");
+        return _currentTotalSupply;
     }
 
     /**
@@ -142,8 +132,8 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * Reverts if the bond series ID has not been initialized.
      */
     function fractionalFactor() public view virtual override returns (uint256) {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
-        return _bondSeriesData.fractionalFactor;
+        require(initialized, "SovereignBond: Bond series not initialized");
+        return _fractionalFactor;
     }
 
     // owner() and transferOwnership(address newOwner) are inherited from Ownable and satisfy IAsset.
@@ -178,26 +168,32 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
         uint256 unitValue,
         uint256 initialUnitSupply,
         uint256 seriesFractionalFactor
-    ) external onlyOwner {
-        require(!_bondSeriesData.initialized, "SovereignBond: Bond series ID already exists");
+    ) internal onlyOwner {
+        require(initialized, "SovereignBond: Bond series ID already exists");
         require(bytes(seriesName).length > 0, "SovereignBond: Name cannot be empty");
         require(bytes(seriesSymbol).length > 0, "SovereignBond: Symbol cannot be empty");
         require(seriesFractionalFactor >= 1, "SovereignBond: Fractional factor must be at least 1");
 
-        _bondSeriesData = BondSeriesData({
-            name: seriesName,
-            symbol: seriesSymbol,
-            valuePerUnit: unitValue,
-            currentTotalSupply: initialUnitSupply,
-            fractionalFactor: seriesFractionalFactor,
-            initialized: true
-        });
+        // _bondSeriesData = BondSeriesData({
+        //     name: seriesName,
+        //     symbol: seriesSymbol,
+        //     valuePerUnit: unitValue,
+        //     currentTotalSupply: initialUnitSupply,
+        //     fractionalFactor: seriesFractionalFactor,
+        //     initialized: true
+        // });
+        _name = seriesName;
+        _symbol = seriesSymbol;
+        _valuePerUnit = unitValue;
+        _currentTotalSupply = initialUnitSupply;
+        _fractionalFactor = seriesFractionalFactor;
+
 
         if (initialUnitSupply > 0) {
             super._mint(owner(), SOVEREIGN_BOND_ID, initialUnitSupply, ""); // Mint initial supply to the contract owner
         }
 
-        emit BondSeriesCreated(SOVEREIGN_BOND_ID, seriesName, seriesSymbol, unitValue, initialUnitSupply, seriesFractionalFactor);
+        emit BondIssued(SOVEREIGN_BOND_ID, seriesName, seriesSymbol, unitValue, initialUnitSupply, seriesFractionalFactor);
     }
 
     /**
@@ -208,10 +204,10 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * @param data Optional data to pass to the `_mint` hook (relevant for ERC1155Receiver).
      */
     function mintAdditional(uint256 amount, bytes memory data) external onlyOwner {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
+        require(initialized, "SovereignBond: Bond series not initialized");
         require(amount > 0, "SovereignBond: Amount must be greater than zero");
 
-        _bondSeriesData.currentTotalSupply += amount;
+        _currentTotalSupply += amount;
         super._mint(owner(), SOVEREIGN_BOND_ID, amount, data); // Mint additional supply to the contract owner
     }
 
@@ -223,11 +219,11 @@ contract SovereignBond is IAsset, ERC1155, Ownable {
      * @param amount The number of indivisible units to burn. Must be greater than zero.
      */
     function burn(address from, uint256 amount) external virtual {
-        require(_bondSeriesData.initialized, "SovereignBond: Bond series not initialized");
+        require(initialized, "SovereignBond: Bond series not initialized");
         require(amount > 0, "SovereignBond: Amount must be greater than zero");
         // ERC1155's _burn function will check if `msg.sender` is `from` or approved by `from`.
 
         super._burn(from, SOVEREIGN_BOND_ID, amount);
-        _bondSeriesData.currentTotalSupply -= amount;
+        _currentTotalSupply -= amount;
     }
 }
