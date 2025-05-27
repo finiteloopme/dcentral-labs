@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	assetmanager "github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/actions"
+	assetmanager "github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/resources"
 
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -101,19 +101,21 @@ func main() {
 		fmt.Printf("Owner Address derived from private key: %s\n", cfg.OwnerAddress.Hex())
 	}
 	r, err := rwaManager.GetAllAssets(context.Background())
-	_, _ = r, err
 	fmt.Println(r)
 	err = server.RegisterTool(
-		"list-assets",
-		"Get all the assets available and managed by the asset manager",
-		func() (*mcp.ToolResponse, error) {
+		"list-assets", "Get all the on chain assets available and managed by the asset manager",
+		func(sample *HelloArguments) (*mcp.ToolResponse, error) {
 			assets, _ := rwaManager.GetAllAssets(context.Background())
 			return mcp.NewToolResponse(
 				mcp.NewTextContent(fmt.Sprintf("%v", assets)),
 			), nil
 		})
+	if err != nil {
+		log.Fatalf("Failed to register tool: %v", err)
+	}
 
-	if server.Serve() != nil {
+	err = server.Serve()
+	if err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
 	_ = client
@@ -125,4 +127,8 @@ func main() {
 	// 	log.Fatalf("Failed to get latest block header: %v", err)
 	// }
 	// fmt.Printf("Latest block number: %s\n", header.Number.String())
+}
+
+type HelloArguments struct {
+	Submitter string `json:"submitter" jsonschema:"optional,description=The name of the person calling this tool'"`
 }

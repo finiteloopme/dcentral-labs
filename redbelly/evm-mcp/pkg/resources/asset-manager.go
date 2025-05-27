@@ -16,8 +16,9 @@ import (
 // The field names must be exported (start with an uppercase letter)
 // and should correspond to the Solidity struct field names for automatic unmarshalling.
 type Asset struct {
-	ContractAddress common.Address
-	Category        string
+	Name            string         `json:"name"`
+	ContractAddress common.Address `json:"contractAddress"`
+	Category        string         `json:"category"`
 }
 
 // RWAManager provides methods to interact with the RWA_Manager smart contract.
@@ -71,6 +72,5 @@ func (m *RWAManager) GetAllAssets(ctx context.Context) ([]Asset, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unpack getAllAssets output: %w", err)
 	}
-
 	return assets, nil
 }
