@@ -1,4 +1,4 @@
-package assetmanager
+package resources
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum" // For ethereum.CallMsg
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
 )
 
 // Asset mirrors the RWA_Manager.Asset struct in Solidity.
@@ -23,14 +23,14 @@ type Asset struct {
 
 // RWAManager provides methods to interact with the RWA_Manager smart contract.
 type RWAManager struct {
-	client   *ethclient.Client
+	chain    *evm.Chain
 	contract abi.ABI // Changed to store the parsed ABI directly
 	address  common.Address
 }
 
 // NewRWAManager creates a new instance of RWAManager.
 // It requires an Ethereum client, the contract address, and the path to the ABI JSON file.
-func NewRWAManager(client *ethclient.Client, contractAddress common.Address, abiPath string) (*RWAManager, error) {
+func NewRWAManager(client *evm.Chain, contractAddress common.Address, abiPath string) (*RWAManager, error) {
 	abiBytes, err := os.ReadFile(abiPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ABI file from %s: %w", abiPath, err)
@@ -42,7 +42,7 @@ func NewRWAManager(client *ethclient.Client, contractAddress common.Address, abi
 	}
 
 	return &RWAManager{
-		client:   client,
+		chain:    client,
 		contract: parsedABI,
 		address:  contractAddress,
 	}, nil
@@ -61,7 +61,7 @@ func (m *RWAManager) GetAllAssets(ctx context.Context) ([]Asset, error) {
 		To:   &m.address,
 		Data: callData,
 	}
-	outputBytes, err := m.client.CallContract(ctx, msg, nil) // nil for blockNumber means latest
+	outputBytes, err := m.chain.Client.CallContract(ctx, msg, nil) // nil for blockNumber means latest
 	if err != nil {
 		return nil, fmt.Errorf("failed to call getAllAssets on contract %s: %w", m.address.Hex(), err)
 	}
