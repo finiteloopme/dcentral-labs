@@ -1,5 +1,6 @@
 BINARY_FOLDER=bin
 BINARY_NAME=evm-mcp-rwa
+ABI_FOLDER=../portfolio-manager/abi
 
 .PHONY: init
 init:
@@ -21,3 +22,9 @@ run:
 .PHONY: test
 test:
 	go test -cover -v
+
+.PHONY: abi2go
+abi2go:
+	mkdir -p generated/contract
+	abigen --abi ${ABI_FOLDER}/RWA_Manager.json --pkg contract --type AssetManagerRWA --out generated/contract/asset_manager_rwa.go
+	abigen --abi ${ABI_FOLDER}/StockAsset.json --pkg contract --type StockAsset --out generated/contract/stock_asset.go

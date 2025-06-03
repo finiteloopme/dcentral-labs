@@ -61,6 +61,6 @@ start-chain:
 abi: build
 	mkdir -p abi
 	jq '.abi' out/RWA_Manager.sol/RWA_Manager.json > ${ABI_FOLDER}/RWA_Manager.json
-	jq '.abi' out/SovereignBond.sol/SovereignBond.json > ${ABI_FOLDER}/SovereignBond.json
-	jq '.abi' out/StableCoin.sol/Stablecoin.json > ${ABI_FOLDER}/StableCoin.json
-	# jq '.abi' out/StockERC1155.sol/StockERC1155.json > ${ABI_FOLDER}/StockERC1155.json
+	# jq '.abi' out/SovereignBond.sol/SovereignBond.json > ${ABI_FOLDER}/SovereignBond.json
+	# jq '.abi' out/StableCoin.sol/Stablecoin.json > ${ABI_FOLDER}/StableCoin.json
+	jq '.abi' out/StockRWA.sol/StockAsset.json > ${ABI_FOLDER}/StockAsset.json
