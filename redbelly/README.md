@@ -15,3 +15,15 @@
 3. Copy the address of RWA contract into `script/DeploySovereginBondERC1155.s.sol`
 4. `make deploy-sovereign`
 5. 
+
+# User stories
+
+1. Ashley deploys a contract for Asset Manager - Super Fund
+2. Sam uses wallet (key) to subscribe to Super Fund
+3. Sam selects risk profile for the agent: low, medium, high
+4. Sam can list assets registered in Super Fund
+5. Sam can buy or sell specific assets registered in Super
+6. Sam can view current portfolio
+7. Sam can rebalance the portfolio based on the selected risk profile
+8. When a new asset is registered, Sam is notified
+9. Sam's portfolio is automatically rebalanced when a new asset is registered
