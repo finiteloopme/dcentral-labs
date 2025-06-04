@@ -18,7 +18,6 @@ func main() {
 	cfg, err := config.ParseFlags()
 	oserr.PanicIfError("error parsing flags", err)
 
-	done := make(chan struct{})
 	server := mcp.NewServer()
 
 	client := evm.NewClient(cfg.RPCEndpoint, cfg.Signer)
@@ -38,5 +37,4 @@ func main() {
 	)
 
 	server.Serve()
-	<-done
 }
