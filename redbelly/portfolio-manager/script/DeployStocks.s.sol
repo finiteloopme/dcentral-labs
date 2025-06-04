@@ -30,7 +30,7 @@ contract DeployStocks is Script {
     ];
     // For simplicity, we'll use a base price and increment it.
     // In a real scenario, these would be fetched or defined more accurately.
-    uint256 basePrice = 150 * 1 ether; // e.g., $150
+    uint256 basePrice = 1 * 1 ether; // e.g., $1
 
     function run() external {
         // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -52,7 +52,7 @@ contract DeployStocks is Script {
             string memory stockName = stockNames[i];
             string memory stockSymbol = stockSymbols[i];
             // Using arbitrary values for price and supply
-            uint256 initialBuyPrice = basePrice + (i * 5 * 1 ether); // Increment price slightly for each stock
+            uint256 initialBuyPrice = basePrice + (i * 2 * 1 ether); // Increment price slightly for each stock
             uint256 initialSellPrice = initialBuyPrice - (1 * 1 ether); // Sell price slightly lower than buy
             uint256 initialTotalSupply = (1000000 + (i * 100000));    // Number of shares/tokens
 
@@ -96,7 +96,7 @@ contract DeployStocks is Script {
                 address(stockAssetContract),// Address of the single StockAsset contract
                 category
             );
-            console.log(" - Registered in RWA_Manager: %s | RWA_Manager Asset ID: %s | Category: %s", stockInfo.name, rwaManagerAssetId, category);
+            console.log(" - Registered in RWA_Manager: %s | Asset ID: %s | Category: %s", stockInfo.name, rwaManagerAssetId, category);
         }
 
         vm.stopBroadcast();

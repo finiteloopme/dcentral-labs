@@ -8,6 +8,7 @@ interface IAssetManager {
     /// @dev Struct representing the details of a registered asset.
     struct Asset {
         string name;
+        uint256 assetId;
         address contractAddress;
         string category;
     }

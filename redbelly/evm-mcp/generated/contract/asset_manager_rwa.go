@@ -32,6 +32,7 @@ var (
 // IAssetManagerAsset is an auto generated low-level Go binding around an user-defined struct.
 type IAssetManagerAsset struct {
 	Name            string
+	AssetId         *big.Int
 	ContractAddress common.Address
 	Category        string
 }
@@ -44,7 +45,7 @@ type IAssetManagerCategoryValue struct {
 
 // AssetManagerRWAMetaData contains all meta data concerning the AssetManagerRWA contract.
 var AssetManagerRWAMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"initialName\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createPortfolio\",\"inputs\":[{\"name\":\"riskProfile\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getAllAssets\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.Asset[]\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAsset\",\"inputs\":[{\"name\":\"assetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIAssetManager.Asset\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getPortfolio\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"assetIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"quantities\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"userRiskProfile\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"currentValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lastUpdated\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"riskAnalysis\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"categoryValuesReturn\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.CategoryValue[]\",\"components\":[{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"totalValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"managerName\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"refreshPortfolio\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"newAssetIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"newQuantities\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"newCurrentValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"newRiskAnalysis\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"newCategoryValues\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.CategoryValue[]\",\"components\":[{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"totalValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerAsset\",\"inputs\":[{\"name\":\"assetName\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"AssetRegistered\",\"inputs\":[{\"name\":\"assetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"name\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"PortfolioUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"currentValue\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"riskAnalysis\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"enumIAssetManager.RiskProfile\"}],\"anonymous\":false}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"initialName\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createPortfolio\",\"inputs\":[{\"name\":\"riskProfile\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getAllAssets\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.Asset[]\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"assetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAsset\",\"inputs\":[{\"name\":\"assetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIAssetManager.Asset\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"assetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getPortfolio\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"assetIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"quantities\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"userRiskProfile\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"currentValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lastUpdated\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"riskAnalysis\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"categoryValuesReturn\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.CategoryValue[]\",\"components\":[{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"totalValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"managerName\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"refreshPortfolio\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"newAssetIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"newQuantities\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"newCurrentValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"newRiskAnalysis\",\"type\":\"uint8\",\"internalType\":\"enumIAssetManager.RiskProfile\"},{\"name\":\"newCategoryValues\",\"type\":\"tuple[]\",\"internalType\":\"structIAssetManager.CategoryValue[]\",\"components\":[{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"totalValue\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerAsset\",\"inputs\":[{\"name\":\"assetName\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"category\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"AssetRegistered\",\"inputs\":[{\"name\":\"assetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"name\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"contractAddress\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"PortfolioUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"currentValue\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"riskAnalysis\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"enumIAssetManager.RiskProfile\"}],\"anonymous\":false}]",
 }
 
 // AssetManagerRWAABI is the input ABI used to generate the binding from.
@@ -195,7 +196,7 @@ func (_AssetManagerRWA *AssetManagerRWATransactorRaw) Transact(opts *bind.Transa
 
 // GetAllAssets is a free data retrieval call binding the contract method 0x2acada4d.
 //
-// Solidity: function getAllAssets() view returns((string,address,string)[])
+// Solidity: function getAllAssets() view returns((string,uint256,address,string)[])
 func (_AssetManagerRWA *AssetManagerRWACaller) GetAllAssets(opts *bind.CallOpts) ([]IAssetManagerAsset, error) {
 	var out []interface{}
 	err := _AssetManagerRWA.contract.Call(opts, &out, "getAllAssets")
@@ -212,21 +213,21 @@ func (_AssetManagerRWA *AssetManagerRWACaller) GetAllAssets(opts *bind.CallOpts)
 
 // GetAllAssets is a free data retrieval call binding the contract method 0x2acada4d.
 //
-// Solidity: function getAllAssets() view returns((string,address,string)[])
+// Solidity: function getAllAssets() view returns((string,uint256,address,string)[])
 func (_AssetManagerRWA *AssetManagerRWASession) GetAllAssets() ([]IAssetManagerAsset, error) {
 	return _AssetManagerRWA.Contract.GetAllAssets(&_AssetManagerRWA.CallOpts)
 }
 
 // GetAllAssets is a free data retrieval call binding the contract method 0x2acada4d.
 //
-// Solidity: function getAllAssets() view returns((string,address,string)[])
+// Solidity: function getAllAssets() view returns((string,uint256,address,string)[])
 func (_AssetManagerRWA *AssetManagerRWACallerSession) GetAllAssets() ([]IAssetManagerAsset, error) {
 	return _AssetManagerRWA.Contract.GetAllAssets(&_AssetManagerRWA.CallOpts)
 }
 
 // GetAsset is a free data retrieval call binding the contract method 0xeac8f5b8.
 //
-// Solidity: function getAsset(uint256 assetId) view returns((string,address,string))
+// Solidity: function getAsset(uint256 assetId) view returns((string,uint256,address,string))
 func (_AssetManagerRWA *AssetManagerRWACaller) GetAsset(opts *bind.CallOpts, assetId *big.Int) (IAssetManagerAsset, error) {
 	var out []interface{}
 	err := _AssetManagerRWA.contract.Call(opts, &out, "getAsset", assetId)
@@ -243,14 +244,14 @@ func (_AssetManagerRWA *AssetManagerRWACaller) GetAsset(opts *bind.CallOpts, ass
 
 // GetAsset is a free data retrieval call binding the contract method 0xeac8f5b8.
 //
-// Solidity: function getAsset(uint256 assetId) view returns((string,address,string))
+// Solidity: function getAsset(uint256 assetId) view returns((string,uint256,address,string))
 func (_AssetManagerRWA *AssetManagerRWASession) GetAsset(assetId *big.Int) (IAssetManagerAsset, error) {
 	return _AssetManagerRWA.Contract.GetAsset(&_AssetManagerRWA.CallOpts, assetId)
 }
 
 // GetAsset is a free data retrieval call binding the contract method 0xeac8f5b8.
 //
-// Solidity: function getAsset(uint256 assetId) view returns((string,address,string))
+// Solidity: function getAsset(uint256 assetId) view returns((string,uint256,address,string))
 func (_AssetManagerRWA *AssetManagerRWACallerSession) GetAsset(assetId *big.Int) (IAssetManagerAsset, error) {
 	return _AssetManagerRWA.Contract.GetAsset(&_AssetManagerRWA.CallOpts, assetId)
 }

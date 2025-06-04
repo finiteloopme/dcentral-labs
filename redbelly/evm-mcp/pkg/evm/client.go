@@ -29,7 +29,24 @@ func NewClient(rpcEndpoint string, signer *Signer) *Chain {
 }
 
 func (c *Chain) NewTransaction() *bind.TransactOpts {
+	// txnOpts := bind.NewKeyedTransactor(c.Signer.PrivateKey)
 	txnOpts, err := bind.NewKeyedTransactorWithChainID(c.Signer.PrivateKey, c.ChainID)
 	oserr.PanicIfError("Unable to create transaction", err)
+	nonce, err := c.Client.PendingNonceAt(context.Background(), *c.Signer.Address)
+	oserr.PanicIfError("Unable to fetch nonce", err)
+	gasPrice, err := c.Client.SuggestGasPrice(context.Background())
+	oserr.PanicIfError("Unable to fetch gas price", err)
+	txnOpts.Nonce = big.NewInt(int64(nonce))
+	txnOpts.GasLimit = 300000 // Gas limit for the transaction
+	txnOpts.GasPrice = gasPrice
+	// txnOpts.Value = big.NewInt(1000000000000000000)     // in wei (1 eth)
+	return txnOpts
+}
+
+func (c *Chain) NewTransactionWithValue(valueEth int64) *bind.TransactOpts {
+	txnOpts := c.NewTransaction()
+	// txnOpts.Value = big.NewInt(valueEth * 1_000_000_000) // Convert ETH to Gwei
+	txnOpts.Value = big.NewInt(valueEth * 1000000000000000000) // in wei (1 eth)
+	// txnOpts.Value.Sign()
 	return txnOpts
 }

@@ -32,19 +32,19 @@ deploy-stock:
 		--broadcast \
 		--private-key=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
 
-.PHONY:deploy-stable
-deploy-stable:
-	forge script script/DeployStablecoins.s.sol \
-		--fork-url 127.0.0.1:8545 \
-		--broadcast \
-		--private-key=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+# .PHONY:deploy-stable
+# deploy-stable:
+# 	forge script script/DeployStablecoins.s.sol \
+# 		--fork-url 127.0.0.1:8545 \
+# 		--broadcast \
+# 		--private-key=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
 
-.PHONY:deploy-sovereign
-deploy-sovereign:
-	forge script script/DeployAndRegisterSovereignBonds.s.sol \
-		--fork-url 127.0.0.1:8545 \
-		--broadcast \
-		--private-key=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+# .PHONY:deploy-sovereign
+# deploy-sovereign:
+# 	forge script script/DeployAndRegisterSovereignBonds.s.sol \
+# 		--fork-url 127.0.0.1:8545 \
+# 		--broadcast \
+# 		--private-key=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 
 .PHONY: deploy-all
 deploy-all: deploy-rwa deploy-stock
@@ -61,6 +61,4 @@ start-chain:
 abi: build
 	mkdir -p abi
 	jq '.abi' out/RWA_Manager.sol/RWA_Manager.json > ${ABI_FOLDER}/RWA_Manager.json
-	# jq '.abi' out/SovereignBond.sol/SovereignBond.json > ${ABI_FOLDER}/SovereignBond.json
-	# jq '.abi' out/StableCoin.sol/Stablecoin.json > ${ABI_FOLDER}/StableCoin.json
 	jq '.abi' out/StockRWA.sol/StockAsset.json > ${ABI_FOLDER}/StockAsset.json

@@ -152,6 +152,7 @@ contract RWA_Manager is IAssetManager {
 
         Asset memory newAsset = Asset({
             name: assetName,
+            assetId: newAssetId,
             contractAddress: contractAddress,
             category: category
         });

@@ -29,14 +29,23 @@ func (s *McpServer) Serve() {
 	oserr.PanicIfError("error serving server", err)
 }
 
-func (s *McpServer) RegisterTool(name string, description string, handlerFunc func() (any, error)) {
+func (s *McpServer) RegisterTool(name string, description string, handlerFunc func() (any, error), params map[string]string) {
+	toolOpts := []mcp.ToolOption{}
+
+	// Add default options (description and a name parameter)
+	toolOpts = append(toolOpts, mcp.WithDescription(description))
+	toolOpts = append(toolOpts, mcp.WithString("name", mcp.Description("Name of the user")))
+
+	// Add custom parameters from the map
+	for k, v := range params {
+		toolOpts = append(toolOpts, mcp.WithString(k, mcp.Description(v)))
+	}
+
 	tool := mcp.NewTool(
 		name,
-		mcp.WithDescription(description),
-		mcp.WithString("name",
-			mcp.Description("Name of the user"),
-		),
+		toolOpts...,
 	)
+
 	s.server.AddTool(tool,
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			response, err := handlerFunc()

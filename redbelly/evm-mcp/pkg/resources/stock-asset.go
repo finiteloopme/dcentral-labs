@@ -47,17 +47,10 @@ func (s *StockAsset) GetAllStocks() ([]*big.Int, error) {
 	return stocks, nil
 }
 
-func (s *StockAsset) GetUserAssetIds(user common.Address) ([]*big.Int, error) {
-	stocks, err := s.caller.GetUserAssetIds(&bind.CallOpts{}, user)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user stocks: %w", err)
-	}
-	return stocks, nil
-}
-
 // BuyAsset allows a user to buy a specified amount of an asset.
-func (s *StockAsset) BuyAsset(opts *bind.TransactOpts, assetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	tx, err := s.transactor.BuyAsset(opts, assetId, amount)
+func (s *StockAsset) Buy(assetId *big.Int, tokenAmount int64) (*types.Transaction, error) {
+
+	tx, err := s.transactor.Buy(s.chain.NewTransactionWithValue(tokenAmount), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to buy asset %v: %w", assetId, err)
 	}
@@ -65,8 +58,8 @@ func (s *StockAsset) BuyAsset(opts *bind.TransactOpts, assetId *big.Int, amount 
 }
 
 // SellAsset allows a user to sell a specified amount of an asset.
-func (s *StockAsset) SellAsset(opts *bind.TransactOpts, assetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	tx, err := s.transactor.SellAsset(opts, assetId, amount)
+func (s *StockAsset) Sell(assetId *big.Int) (*types.Transaction, error) {
+	tx, err := s.transactor.Sell(s.chain.NewTransaction(), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sell asset %v: %w", assetId, err)
 	}

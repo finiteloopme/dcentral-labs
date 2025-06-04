@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./interface/IAsset.sol";
+import "forge-std/console.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
@@ -40,6 +41,7 @@ contract StockAsset is IAsset, ERC1155, Ownable {
     /// @param initialOwner The initial owner of the contract.
     constructor(address initialOwner) ERC1155("") Ownable(initialOwner) { 
         _transferOwnership(initialOwner);
+        
         _nextStockId = 0; // Start with ID 0 for the first stock
     }
 
@@ -69,6 +71,8 @@ contract StockAsset is IAsset, ERC1155, Ownable {
         if (initialTotalSupply > 0) {
             _mint(owner(), newStockId, initialTotalSupply, "");
         }
+
+        setApprovalForAll(address(this), true);
 
         emit AssetIssued(newStockId, owner(), initialTotalSupply, initialBuyPrice, initialName, initialSymbol, block.timestamp);
         _nextStockId++;
@@ -151,27 +155,27 @@ contract StockAsset is IAsset, ERC1155, Ownable {
         return ids;
     }
 
-    /// @inheritdoc IAsset
-    /// @notice Returns asset IDs owned by a specific user.
-    function getUserAssetIds(
-        address user
-    ) external view override returns (uint256[] memory) {
-        uint256 count = 0;
-        for (uint256 i = 0; i < _nextStockId; i++) {
-            if (_stocks[i].exists && balanceOf(user, i) > 0) {
-                count++;
-            }
-        }
+    // /// @inheritdoc IAsset
+    // /// @notice Returns asset IDs owned by a specific user.
+    // function getUserAssetIds(
+    //     address user
+    // ) external view override returns (uint256[] memory) {
+    //     uint256 count = 0;
+    //     for (uint256 i = 0; i < _nextStockId; i++) {
+    //         if (_stocks[i].exists && balanceOf(user, i) > 0) {
+    //             count++;
+    //         }
+    //     }
 
-        uint256[] memory ownedIds = new uint256[](count);
-        uint256 index = 0;
-        for (uint256 i = 0; i < _nextStockId; i++) {
-            if (_stocks[i].exists && balanceOf(user, i) > 0) {
-                ownedIds[index++] = i;
-            }
-        }
-        return ownedIds;
-    }
+    //     uint256[] memory ownedIds = new uint256[](count);
+    //     uint256 index = 0;
+    //     for (uint256 i = 0; i < _nextStockId; i++) {
+    //         if (_stocks[i].exists && balanceOf(user, i) > 0) {
+    //             ownedIds[index++] = i;
+    //         }
+    //     }
+    //     return ownedIds;
+    // }
 
     // --- ERC1155 Required Overrides ---
 
@@ -189,61 +193,73 @@ contract StockAsset is IAsset, ERC1155, Ownable {
     // --- IAsset Implementation: Buy/Sell ---
 
     /// @inheritdoc IAsset
-    /// @notice Allows a user to buy a specific amount of stock tokens.
-    /// @dev The user must send the exact amount of ETH calculated by `tokenCount * buyPrice`.
+    /// @notice Allows a user to buy stock tokens. The number of tokens is determined by msg.value / buyPrice.
+    /// @dev The user must send ETH exactly equal to `numberOfTokens * buyPrice`.
     ///      Tokens are transferred from the contract owner's balance.
-    ///      The contract owner must have approved this contract to transfer their tokens.
-    ///      ETH sent by the buyer is held by this contract.
-    /// @param id The ID of the stock asset to buy.
-    /// @param tokenCount The amount of stock tokens to buy.
-    function buyAsset(uint256 id, uint256 tokenCount) external payable override {
-        require(_stocks[id].exists, "StockAsset: Invalid or non-existent asset ID");
-        require(tokenCount > 0, "StockAsset: Token count must be positive");
+    ///      The contract owner must have approved this contract (setApprovalForAll) to transfer their tokens.
+    ///      ETH sent by the buyer is held by this contract (and can be used for sell payouts or withdrawn by owner).
+    /// @param _id The ID of the stock asset to buy.
+    function buy(uint256 _id) external payable override {
+        require(_stocks[_id].exists, "StockAsset: Invalid or non-existent asset ID");
+        StockData storage stock = _stocks[_id];
+        require(stock.buyPrice > 0, "StockAsset: Asset not tradable (buy price is zero)");
+        console.log("StockAsset: buy() called by: %v, with value: %v for asset ID: %v, with buy price of: %v", msg.sender, msg.value, stock.buyPrice);
 
-        StockData storage stock = _stocks[id];
-        uint256 totalPrice = stock.buyPrice * tokenCount; // Solidity ^0.8.0 checks for overflow
-        require(msg.value == totalPrice, "StockAsset: Incorrect ETH amount sent for buy order");
+        uint256 tokenCount = msg.value / stock.buyPrice;
+        require(tokenCount > 0, "StockAsset: Insufficient ETH sent for at least one token");
 
+        uint256 totalPriceRequired = tokenCount * stock.buyPrice;
+        require(msg.value == totalPriceRequired, "StockAsset: ETH sent must be exact price for whole tokens");
+
+        address contractOwner = owner(); 
+        require(balanceOf(contractOwner, _id) >= tokenCount, "StockAsset: Owner has insufficient stock balance for sale");
+        
         // The owner() is the source of the tokens.
         // This contract facilitates the transfer. ETH (msg.value) remains with this contract.
         // Requires owner() to have approved this contract (address(this)) as an operator for their tokens
         // (e.g., owner() should call setApprovalForAll(address(this), true) on this contract instance).
-        require(balanceOf(owner(), id) >= tokenCount, "StockAsset: Owner has insufficient stock balance for sale");
+        _safeTransferFrom(contractOwner, msg.sender, _id, tokenCount, ""); 
         
-        _safeTransferFrom(owner(), msg.sender, id, tokenCount, ""); // Transfer tokens from owner to buyer
 
         // ETH (msg.value) is now held by this contract.
-        // This ETH can be used for sellAsset payouts or withdrawn by the owner via a separate function (not implemented in this scope).
-
-        emit AssetBought(id, msg.sender, tokenCount, stock.buyPrice, stock.name, block.timestamp);
+        // This ETH can be used for sellAsset payouts or withdrawn by the owner via a separate function.
+        emit AssetBought(_id, msg.sender, tokenCount, stock.buyPrice, stock.name, block.timestamp);
     }
 
     /// @inheritdoc IAsset
-    /// @notice Allows a user to sell a specific amount of their stock tokens.
-    /// @dev Tokens are transferred from the seller (msg.sender) to the contract owner.
-    ///      The seller must have approved this contract to transfer their tokens.
-    ///      The contract pays the seller in ETH from its own balance.
-    /// @param id The ID of the stock asset to sell.
-    /// @param tokenCount The amount of stock tokens to sell.
-    function sellAsset(uint256 id, uint256 tokenCount) external override {
-        require(_stocks[id].exists, "StockAsset: Invalid or non-existent asset ID");
-        require(tokenCount > 0, "StockAsset: Token count must be positive");
+    /// @notice Allows a user to sell all their tokens of a specific stock asset ID.
+    /// @dev The seller receives ETH based on the current sell price.
+    ///      Tokens are transferred from the seller to the contract owner.
+    ///      The seller must have approved this contract to transfer their tokens
+    ///      (e.g., by calling `setApprovalForAll(address(this), true)`).
+    ///      If ETH is sent with this call (due to `payable`), it accrues to the contract.
+    /// @param _id The ID of the stock asset to sell.
+    function sell(uint256 _id) external payable override {
+        require(_stocks[_id].exists, "StockAsset: Invalid or non-existent asset ID");
+        StockData storage stock = _stocks[_id];
+        require(stock.sellPrice > 0, "StockAsset: Asset not sellable (sell price is zero)");
 
-        StockData storage stock = _stocks[id];
-        uint256 totalPayment = stock.sellPrice * tokenCount; // Solidity ^0.8.0 checks for overflow
+        address seller = msg.sender;
+        uint256 tokenCount = balanceOf(seller, _id);
+        require(tokenCount > 0, "StockAsset: Seller has no tokens of this type to sell");
 
-        require(address(this).balance >= totalPayment, "StockAsset: Contract has insufficient ETH to fulfill sell order");
-        // The seller (msg.sender) transfers tokens to the owner().
-        // This contract facilitates the transfer and pays the seller from its ETH balance.
-        // Requires msg.sender to have approved this contract (address(this)) as an operator for their tokens
-        // (e.g., msg.sender should call setApprovalForAll(address(this), true) on this contract instance).
-        require(balanceOf(msg.sender, id) >= tokenCount, "StockAsset: Seller has insufficient stock balance");
+        // Calculate the total payment due to the seller
+        uint256 paymentAmount = tokenCount * stock.sellPrice;
+        require(address(this).balance >= paymentAmount, "StockAsset: Contract has insufficient ETH to pay for the sale");
 
-        _safeTransferFrom(msg.sender, owner(), id, tokenCount, ""); // Transfer tokens from seller to owner
+        // Transfer tokens from the seller to the contract owner.
+        // The seller (msg.sender) must have previously approved this contract (address(this))
+        // as an operator for their tokens.
+        _safeTransferFrom(seller, owner(), _id, tokenCount, "");
 
-        (bool success, ) = msg.sender.call{value: totalPayment}("");
-        require(success, "StockAsset: ETH transfer to seller failed");
+        // Pay the seller from the contract's ETH balance
+        (bool success, ) = seller.call{value: paymentAmount}("");
+        require(success, "StockAsset: Failed to send ETH to seller");
 
-        emit AssetSold(id, msg.sender, tokenCount, stock.sellPrice, stock.name, block.timestamp);
+        // msg.value (if any) sent with this call simply adds to the contract's balance.
+        // The IAsset interface does not specify its use for the sell function.
+
+        emit AssetSold(_id, seller, tokenCount, stock.sellPrice, stock.name, block.timestamp);
     }
+
 }
