@@ -21,7 +21,7 @@ run:
 
 .PHONY: test
 test:
-	go test -cover -v
+	go test -cover -v ./...
 
 .PHONY: abi2go
 abi2go:

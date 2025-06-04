@@ -29,7 +29,7 @@ func (s *McpServer) Serve() {
 	oserr.PanicIfError("error serving server", err)
 }
 
-func (s *McpServer) RegisterTool(name string, description string, handlerFunc func() (any, error), params map[string]string) {
+func (s *McpServer) RegisterTool(name string, description string, handlerFunc func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error), params map[string]string) {
 	toolOpts := []mcp.ToolOption{}
 
 	// Add default options (description and a name parameter)
@@ -48,7 +48,7 @@ func (s *McpServer) RegisterTool(name string, description string, handlerFunc fu
 
 	s.server.AddTool(tool,
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			response, err := handlerFunc()
+			response, err := handlerFunc(ctx, request)
 			oserr.PanicIfError("error executing tool", err)
 			return mcp.NewToolResultText(fmt.Sprintf("%v", response)), nil
 		},

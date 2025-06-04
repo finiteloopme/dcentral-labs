@@ -9,6 +9,7 @@ import (
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/generated/contract"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
 	"github.com/finiteloopme/goutils/pkg/log"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RWAManager provides methods to interact with the RWA_Manager smart contract.
@@ -35,12 +36,12 @@ func NewRWAManager(chain *evm.Chain, contractAddress common.Address) (*RWAManage
 
 // GetAllAssets calls the getAllAssets function of the RWA_Manager smart contract.
 // It now returns a slice of contract.IAssetManagerAsset, which is the generated type.
-func (m *RWAManager) GetAllAssets(ctx context.Context) ([]contract.IAssetManagerAsset, error) {
+func (m *RWAManager) GetAllAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Infof("Getting all assets as user: %v", m.chain.Signer.Address.Hex())
 
 	assets, err := m.caller.GetAllAssets(&bind.CallOpts{Context: ctx})
 	if err != nil {
 		return nil, fmt.Errorf("failed to call GetAllAssets on contract %s: %w", m.address.Hex(), err)
 	}
-	return assets, nil
+	return mcp.NewToolResultText(fmt.Sprintf("%v", assets)), nil
 }
