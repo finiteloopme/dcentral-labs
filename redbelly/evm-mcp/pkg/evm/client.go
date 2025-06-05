@@ -45,8 +45,7 @@ func (c *Chain) NewTransaction() *bind.TransactOpts {
 
 func (c *Chain) NewTransactionWithValue(valueEth int64) *bind.TransactOpts {
 	txnOpts := c.NewTransaction()
-	// txnOpts.Value = big.NewInt(valueEth * 1_000_000_000) // Convert ETH to Gwei
-	txnOpts.Value = big.NewInt(valueEth * 1000000000000000000) // in wei (1 eth)
-	// txnOpts.Value.Sign()
+	txnOpts.Value = new(big.Int).Mul(big.NewInt(valueEth), big.NewInt(1_000_000_000_000_000_000)) // Convert ETH to Wei
+
 	return txnOpts
 }
