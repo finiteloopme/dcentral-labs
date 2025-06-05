@@ -39,7 +39,6 @@ func (c *Chain) NewTransaction() *bind.TransactOpts {
 	txnOpts.Nonce = big.NewInt(int64(nonce))
 	txnOpts.GasLimit = 300000 // Gas limit for the transaction
 	txnOpts.GasPrice = gasPrice
-	// txnOpts.Value = big.NewInt(1000000000000000000)     // in wei (1 eth)
 	return txnOpts
 }
 
