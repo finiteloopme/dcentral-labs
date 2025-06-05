@@ -34,7 +34,13 @@ func main() {
 		rwaManager.GetAllAssets,
 		map[string]string{},
 	)
-
+	stockAsset := onchain.NewStockAsset(client)
+	server.RegisterTool(
+		"buy-asset",
+		"Buy a specific asset on chain using the contract address, stock id, and amount of tokens to use",
+		stockAsset.BuyStock,
+		map[string]string{"assetId": "Stock Asset ID", "tokenAmount": "Amount of tokens to use to purchase the stock", "stockAssetContractAddress": "Onchain contract address for stocks"},
+	)
 	// server.RegisterTool(
 	// 	"buy-asset",
 	// 	"Buy a specific asset on chain using the contract address, stock id, and amount of tokens to use",

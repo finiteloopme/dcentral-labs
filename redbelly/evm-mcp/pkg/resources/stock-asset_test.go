@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,9 +20,7 @@ func setupStockAsset(t *testing.T) *StockAsset {
 	signer := evm.NewSigner(testPrivateKey)
 	chain := evm.NewClient(testRPCURL, signer)
 
-	contractAddr := common.HexToAddress(testStockContract)
-	stockAsset, err := NewStockAsset(chain, contractAddr)
-	require.NoError(t, err, "Failed to instantiate StockAsset")
+	stockAsset := NewStockAsset(chain)
 
 	return stockAsset
 }

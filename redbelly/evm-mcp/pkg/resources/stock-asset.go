@@ -1,14 +1,18 @@
 package resources
 
 import (
+	"context"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/generated/contract"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
+	oserr "github.com/finiteloopme/goutils/pkg/v2/os/err"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 type StockAsset struct {
@@ -18,23 +22,21 @@ type StockAsset struct {
 	address    common.Address
 }
 
-func NewStockAsset(chain *evm.Chain, contractAddress common.Address) (*StockAsset, error) {
-	caller, err := contract.NewStockAssetCaller(contractAddress, chain.Client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate StockAssetCaller: %w", err)
-	}
+func (s *StockAsset) refreshContract(address string) {
+	contractAddress := common.HexToAddress(address)
+	caller, err := contract.NewStockAssetCaller(contractAddress, s.chain.Client)
+	oserr.PanicIfError("failed to instantiate StockAssetCaller: %w", err)
+	transactor, err := contract.NewStockAssetTransactor(contractAddress, s.chain.Client)
+	oserr.PanicIfError("failed to instantiate StockAssetTransactor: %w", err)
+	s.caller = caller
+	s.transactor = transactor
+	s.address = contractAddress
+}
 
-	transactor, err := contract.NewStockAssetTransactor(contractAddress, chain.Client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate StockAssetTransactor: %w", err)
-	}
-
+func NewStockAsset(chain *evm.Chain) *StockAsset {
 	return &StockAsset{
-		chain:      chain,
-		caller:     caller,
-		transactor: transactor,
-		address:    contractAddress,
-	}, nil
+		chain: chain,
+	}
 }
 
 // GetAllStocks retrieves all stock symbols and their details from the smart contract.
@@ -55,6 +57,35 @@ func (s *StockAsset) Buy(assetId *big.Int, tokenAmount int64) (*types.Transactio
 		return nil, fmt.Errorf("failed to buy asset %v: %w", assetId, err)
 	}
 	return tx, nil
+}
+
+func (s *StockAsset) BuyStock(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	assetId, err := request.RequireString("assetId")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Asset ID is required: %v", err.Error())), nil
+	}
+	tokenAmount, err := request.RequireString("tokenAmount")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Token Amount is required: %v", err.Error())), nil
+	}
+	assetContractAddress, err := request.RequireString("stockAssetContractAddress")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Need contract address for the stock. %v", err.Error())), nil
+	}
+	s.refreshContract(assetContractAddress)
+	_assetId, err := strconv.ParseInt(assetId, 10, 64)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset ID: %v", err.Error())), nil
+	}
+	_tokenAmount, err := strconv.ParseInt(tokenAmount, 10, 64)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid token amount: %v", err.Error())), nil
+	}
+	tx, err := s.Buy(big.NewInt(_assetId), _tokenAmount)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Error buying asset: %v", err.Error())), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction hash: %s", tx.Hash().Hex())), nil
 }
 
 // SellAsset allows a user to sell a specified amount of an asset.
