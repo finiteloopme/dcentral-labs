@@ -10,11 +10,13 @@
 
 # Steps
 
-1. `make start-chain`
-2. `make deploy-rwa`
-3. Copy the address of RWA contract into `script/DeploySovereginBondERC1155.s.sol`
-4. `make deploy-sovereign`
-5. 
+Open 3 terminals:
+
+1. To start the chain: `cd porfolio-manager; make start-chain`
+2. To deploy the contracts: `cd porfolio-manager; make deploy-all`
+3. To start the agent: `cd ai-manager/app; make run-agent`
+4. Open frontend at http://localhost:8000
+
 
 # User stories
 
