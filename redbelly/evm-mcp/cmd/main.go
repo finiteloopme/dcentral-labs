@@ -18,7 +18,7 @@ func main() {
 
 	server := mcp.NewServer()
 
-	client := evm.NewClient(cfg.RPCEndpoint, cfg.Signer)
+	client := evm.NewClient(cfg.RPCEndpoint, cfg.WebsocketEndpoint, cfg.Signer)
 
 	rwaManager, err := onchain.NewRWAManager(
 		client,
@@ -41,31 +41,13 @@ func main() {
 		stockAsset.BuyStock,
 		map[string]string{"assetId": "Stock Asset ID", "tokenAmount": "Amount of tokens to use to purchase the stock", "stockAssetContractAddress": "Onchain contract address for stocks"},
 	)
-	// server.RegisterTool(
-	// 	"buy-asset",
-	// 	"Buy a specific asset on chain using the contract address, stock id, and amount of tokens to use",
-	// 	func() (any, error) {
-	// 		stock, err := onchain.NewStockAsset(client, common.HexToAddress("0x663F3ad617193148711d28f5334eE4Ed07016602"))
-	// 		oserr.PanicIfError("error creating stock asset", err)
-	// 		assetId := big.NewInt(1) // Convert int to *big.Int
-	// 		// client.NewTransactionWithValue(400)
-	// 		tx, err := stock.Buy(assetId, 1)
-	// 		if oserr.IsError(err) {
-	// 			return fmt.Sprintf("error buying asset: %v", err), nil
-	// 		}
-	// 		// oserr.PanicIfError("error buying asset", err)
-	// 		return fmt.Sprintf("Transaction hash: %s", tx.Hash().Hex()), nil
-	// 		//return fmt.Sprintf("Buying asset is not implemented yet"), nil
-	// 	},
-	// 	map[string]string{"assetId": "Stock Asset ID", "amount": "Amount of tokens to use"},
-	// )
-
-	// server.RegisterTool(
-	// 	"sell-asset",
-	// 	"Sell a specific asset on chain using the contract address, stock id, and amount of tokens to use",
-	// 	func() (any, error) { return fmt.Sprintf("Buying asset is not implemented yet"), nil },
-	// 	map[string]string{},
-	// )
+	stockListener := onchain.NewStockEventListener(client)
+	server.RegisterTool(
+		"listen-stock-purchase",
+		"Listen for onchain events which could indicate an opportunity to purchase some good stocks",
+		stockListener.SubscribeToPurchaseHandler,
+		map[string]string{"stockAssetContractAddress": "Onchain contract address for stocks"},
+	)
 
 	server.Serve()
 }

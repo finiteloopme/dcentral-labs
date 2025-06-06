@@ -11,20 +11,24 @@ import (
 )
 
 type Chain struct {
-	Client  *ethclient.Client
-	ChainID *big.Int
-	Signer  *Signer
+	Client   *ethclient.Client
+	WsClient *ethclient.Client
+	ChainID  *big.Int
+	Signer   *Signer
 }
 
-func NewClient(rpcEndpoint string, signer *Signer) *Chain {
+func NewClient(rpcEndpoint string, wsEndpoint string, signer *Signer) *Chain {
 	_client, err := ethclient.Dial(rpcEndpoint)
 	oserr.PanicIfError(fmt.Sprintf("Unable to connect to RPC endpoint: %v", rpcEndpoint), err)
+	_wsClient, err := ethclient.Dial(wsEndpoint)
+	oserr.PanicIfError(fmt.Sprintf("Unable to connect to WS endpoint: %v", wsEndpoint), err)
 	chainID, err := _client.ChainID(context.Background())
 	oserr.PanicIfError("Unable to fetch chain ID", err)
 	return &Chain{
-		Client:  _client,
-		ChainID: chainID,
-		Signer:  signer,
+		Client:   _client,
+		WsClient: _wsClient,
+		ChainID:  chainID,
+		Signer:   signer,
 	}
 }
 

@@ -12,8 +12,9 @@ import (
 
 // Config holds the application configuration, populated from CLI arguments
 type Config struct {
-	RPCEndpoint string
-	Signer      *evm.Signer
+	RPCEndpoint       string
+	WebsocketEndpoint string
+	Signer            *evm.Signer
 
 	RWAContractAddress string // RWA_Manager contract address
 	// Add other configuration fields here as needed
@@ -25,6 +26,7 @@ func ParseFlags() (*Config, error) {
 
 	// Define flags
 	flag.StringVar(&cfg.RPCEndpoint, "rpc-endpoint", "http://127.0.0.1:8545", "The RPC endpoint of the EVM chain")
+	flag.StringVar(&cfg.WebsocketEndpoint, "ws-endpoint", "ws://127.0.0.1:8545", "The Websocket endpoint of the EVM chain")
 	privateKeyHex := flag.String("private-key", "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "Owner's private key (hex encoded, e.g., 0x...)")
 	flag.StringVar(&cfg.RWAContractAddress, "rwa-contract-address", "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d", "The address of the RWA_Manager smart contract")
 

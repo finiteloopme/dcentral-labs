@@ -11,6 +11,7 @@ import (
 
 const (
 	testRPCURL        = "http://127.0.0.1:8545"
+	testWsURL         = "ws://127.0.0.1:8545"
 	testPrivateKey    = "4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"
 	testStockContract = "0x663F3ad617193148711d28f5334eE4Ed07016602"
 )
@@ -18,7 +19,7 @@ const (
 func setupStockAsset(t *testing.T) *StockAsset {
 	t.Helper()
 	signer := evm.NewSigner(testPrivateKey)
-	chain := evm.NewClient(testRPCURL, signer)
+	chain := evm.NewClient(testRPCURL, testWsURL, signer)
 
 	stockAsset := NewStockAsset(chain)
 
