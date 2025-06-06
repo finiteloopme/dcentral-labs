@@ -40,9 +40,10 @@ contract DeployStocks is Script {
         address deployer = msg.sender;
         vm.startBroadcast(deployer);
 
-        // 1. Deploy StockAsset contract
-        stockAssetContract = new StockAsset(deployer);
-        console.log("StockAsset contract deployed at:", address(stockAssetContract));
+        // 1. StockAsset contract
+        address stockAssetContractAddress = 0x663F3ad617193148711d28f5334eE4Ed07016602;
+        stockAssetContract = StockAsset(stockAssetContractAddress);
+        console.log("Using StockAsset contract deployed at:", address(stockAssetContract));
 
         // 2. Create 10 distinct stocks in StockAsset
         console.log("Creating 10 stocks in StockAsset...");

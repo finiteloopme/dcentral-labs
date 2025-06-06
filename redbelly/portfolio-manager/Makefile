@@ -25,29 +25,22 @@ deploy-rwa:
 		--broadcast \
 		--private-key=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
-.PHONY:deploy-stock
-deploy-stock:
+.PHONY:deploy-stock-contract
+deploy-stock-contract:
+	forge script script/DeployStockContract.s.sol \
+		--fork-url 127.0.0.1:8545 \
+		--broadcast \
+		--private-key=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+
+.PHONY:deploy-stock-assets
+deploy-stock-assets:
 	forge script script/DeployStocks.s.sol \
 		--fork-url 127.0.0.1:8545 \
 		--broadcast \
 		--private-key=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
 
-# .PHONY:deploy-stable
-# deploy-stable:
-# 	forge script script/DeployStablecoins.s.sol \
-# 		--fork-url 127.0.0.1:8545 \
-# 		--broadcast \
-# 		--private-key=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-
-# .PHONY:deploy-sovereign
-# deploy-sovereign:
-# 	forge script script/DeployAndRegisterSovereignBonds.s.sol \
-# 		--fork-url 127.0.0.1:8545 \
-# 		--broadcast \
-# 		--private-key=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-
 .PHONY: deploy-all
-deploy-all: deploy-rwa deploy-stock
+deploy-all: deploy-rwa deploy-stock-contract
 
 .PHONY: start-chain-mainnet
 start-chain-mainnet:
