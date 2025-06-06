@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,7 +25,7 @@ func NewStockEventListener(client *evm.Chain) *StockEventListener {
 	}
 }
 
-func (e *StockEventListener) SubscribeToPurchase(contractAddress string) {
+func (e *StockEventListener) SubscribeToPurchase(contractAddress string, purchaseAmount int) {
 
 	_stockContract, err := contract.NewStockAsset(common.HexToAddress(contractAddress), e.client.WsClient)
 	oserr.WarnIfError("failed to instantiate a contract for StockAsset: %w", err)
@@ -44,7 +45,15 @@ func (e *StockEventListener) SubscribeToPurchase(contractAddress string) {
 				log.Warn("error during subscription: %w", err)
 				break
 			case msg := <-logs:
-				log.Infof("AssetIssued: %v", msg)
+				stock := NewStockAsset(e.client)
+				stock.RefreshContract(contractAddress)
+				txn, err := stock.Buy(msg.AssetId, int64(purchaseAmount))
+				if err != nil {
+					log.Warnf("failed to automatically buy asset %v after issue: %w", msg.AssetId, err)
+					log.Warn("Unsubscribing...", err)
+					break
+				}
+				log.Infof("Automatic purchase succeeded with transaction: %s", txn.Hash().Hex())
 			}
 		}
 	}()
@@ -55,6 +64,14 @@ func (e *StockEventListener) SubscribeToPurchaseHandler(ctx context.Context, req
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Need contract address for the stock. %v", err.Error())), nil
 	}
-	e.SubscribeToPurchase(assetContractAddress)
+	_purchaseAmount, err := request.RequireString("purchaseAmount")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Need purchase amount for the stock. %v", err.Error())), nil
+	}
+	purchaseAmount, err := strconv.Atoi(_purchaseAmount)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid purchase amount: %v", err.Error())), nil
+	}
+	e.SubscribeToPurchase(assetContractAddress, purchaseAmount)
 	return mcp.NewToolResultText("Subscribed to purchase stocks automatically"), nil
 }

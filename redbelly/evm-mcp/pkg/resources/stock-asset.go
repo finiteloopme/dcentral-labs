@@ -22,7 +22,7 @@ type StockAsset struct {
 	address    common.Address
 }
 
-func (s *StockAsset) refreshContract(address string) {
+func (s *StockAsset) RefreshContract(address string) {
 	contractAddress := common.HexToAddress(address)
 	caller, err := contract.NewStockAssetCaller(contractAddress, s.chain.Client)
 	oserr.PanicIfError("failed to instantiate StockAssetCaller: %w", err)
@@ -72,7 +72,7 @@ func (s *StockAsset) BuyStock(ctx context.Context, request mcp.CallToolRequest) 
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Need contract address for the stock. %v", err.Error())), nil
 	}
-	s.refreshContract(assetContractAddress)
+	s.RefreshContract(assetContractAddress)
 	_assetId, err := strconv.ParseInt(assetId, 10, 64)
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset ID: %v", err.Error())), nil

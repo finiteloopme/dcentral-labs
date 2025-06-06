@@ -43,10 +43,10 @@ func main() {
 	)
 	stockListener := onchain.NewStockEventListener(client)
 	server.RegisterTool(
-		"listen-stock-purchase",
-		"Listen for onchain events which could indicate an opportunity to purchase some good stocks",
+		"register-stock-purchase",
+		"Listen for onchain events to initiate an automatic purchase of stocks. Great for catching the initial offers",
 		stockListener.SubscribeToPurchaseHandler,
-		map[string]string{"stockAssetContractAddress": "Onchain contract address for stocks"},
+		map[string]string{"stockAssetContractAddress": "Onchain contract address for stocks", "purchaseAmount": "Default amount used to automatically purchase stocks"},
 	)
 
 	server.Serve()
