@@ -26,13 +26,17 @@ func main() {
 	)
 	log.Infof("Successfully connected to the Asset Manager: %v", cfg.RWAContractAddress)
 
-	// r, err := rwaManager.GetAllAssets(context.Background())
-	// fmt.Println(r)
 	server.RegisterTool(
 		"list-assets",
 		"Get all the on chain assets available and managed by the asset manager",
 		rwaManager.GetAllAssets,
 		map[string]string{},
+	)
+	server.RegisterTool(
+		"set-risk-profile",
+		"Set the investment risk profile for the user's.  This will provide guidance to the agent on the mix of assets (percentage wise) in the portfolio",
+		rwaManager.SetRiskProfile,
+		map[string]string{"riskProfile": "Risk Profile (low, medium, or high)"},
 	)
 	stockAsset := onchain.NewStockAsset(client)
 	server.RegisterTool(

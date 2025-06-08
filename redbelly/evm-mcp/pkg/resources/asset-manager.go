@@ -45,3 +45,26 @@ func (m *RWAManager) GetAllAssets(ctx context.Context, request mcp.CallToolReque
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("%v", assets)), nil
 }
+
+func (m *RWAManager) SetRiskProfile(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	riskProfile, err := request.RequireString("riskProfile")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Risk Profile (low, medium, or high) is required: %v", err.Error())), nil
+	}
+	// default risk profile: Low
+	riskConfig := "{\"stocks\": 20, \"bonds\": 30, \"cash\": 20, \"property\": 30}"
+	switch riskProfile {
+	case "low":
+		log.Debug("Setting risk profile to low")
+	case "medium":
+		riskConfig = "{\"stocks\": 40, \"bonds\": 20, \"cash\": 20, \"property\": 20}"
+		log.Info("Setting risk profile to medium")
+	case "high":
+		riskConfig = "{\"stocks\": 70, \"bonds\": 10, \"cash\": 10, \"property\": 10}"
+		log.Info("Setting risk profile to high")
+	default:
+		// set the profile to low
+		log.Warnf("Invalid risk profile %s, defaulting to low", riskProfile)
+	}
+	return mcp.NewToolResultText(riskConfig), nil
+}
