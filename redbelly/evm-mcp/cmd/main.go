@@ -30,7 +30,7 @@ func main() {
 		"list-assets",
 		"Get all the on chain assets available and managed by the asset manager",
 		rwaManager.GetAllAssets,
-		map[string]string{},
+		map[string]string{"stockAssetContractAddress": "Onchain contract address for stocks"},
 	)
 	server.RegisterTool(
 		"set-risk-profile",
@@ -44,6 +44,13 @@ func main() {
 		"Buy a specific asset on chain using the contract address, stock id, and amount of tokens to use",
 		stockAsset.BuyStock,
 		map[string]string{"assetId": "Stock Asset ID", "tokenAmount": "Amount of tokens to use to purchase the stock", "stockAssetContractAddress": "Onchain contract address for stocks"},
+	)
+	server.RegisterTool(
+		"get-user-owned-assets",
+		"Get the assets owned specifically by the user.",
+		stockAsset.RetrieveMyStocks,
+		// map[string]string{"userAddress": "Hex representation of the user's wallet address"},
+		map[string]string{"stockAssetContractAddress": "Contract address for the stocks"},
 	)
 	stockListener := onchain.NewStockEventListener(client)
 	server.RegisterTool(

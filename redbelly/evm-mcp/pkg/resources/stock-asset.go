@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/generated/contract"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
+	"github.com/finiteloopme/goutils/pkg/log"
 	oserr "github.com/finiteloopme/goutils/pkg/v2/os/err"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -47,6 +49,51 @@ func (s *StockAsset) GetAllStocks() ([]*big.Int, error) {
 	}
 
 	return stocks, nil
+}
+
+func (s *StockAsset) RetrieveMyStocks(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	userAddress := s.chain.Signer.Address.String()
+	// userAddress, err := request.RequireString("userAddress")
+	// if err != nil {
+	// 	return mcp.NewToolResultText(fmt.Sprintf("User address is required: %v", err.Error())), nil
+	// }
+	assetContractAddress, err := request.RequireString("stockAssetContractAddress")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Need contract address for the stock. %v", err.Error())), nil
+	}
+	s.RefreshContract(assetContractAddress)
+	allAssets, err := s.GetAllStocks()
+	if err != nil {
+		log.Warn("failed to get all assets", err)
+		return mcp.NewToolResultText(fmt.Sprintf("failed to get all assets: %v", err.Error())), nil
+	}
+	type Asset struct {
+		ID      *big.Int `json:"assetId"`
+		Name    string   `json:"assetName"`
+		Symbol  string   `json:"assetSymbol"`
+		Balance *big.Int `json:"amountOwnedByUser"`
+	}
+	var assets []*Asset
+	for _, asset := range allAssets {
+		_asset, err := s.caller.AssetName(&bind.CallOpts{}, asset)
+		if err != nil {
+			return mcp.NewToolResultText(fmt.Sprintf("failed to get asset name: %v", err.Error())), nil
+		}
+		_balance, err := s.caller.BalanceOf(&bind.CallOpts{}, common.HexToAddress(userAddress), asset)
+		if err != nil {
+			return mcp.NewToolResultText(fmt.Sprintf("failed to retrieve balance of the asset: %v", err.Error())), nil
+		}
+		assets = append(assets, &Asset{
+			ID:      asset,
+			Name:    _asset,
+			Balance: _balance,
+		})
+	}
+	assetsInBytes, err := json.Marshal(assets)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("failed to marshal assets: %v", err.Error())), nil
+	}
+	return mcp.NewToolResultText(string(assetsInBytes)), nil
 }
 
 // BuyAsset allows a user to buy a specified amount of an asset.
