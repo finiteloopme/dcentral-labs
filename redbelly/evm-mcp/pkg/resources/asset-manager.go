@@ -46,6 +46,24 @@ func (m *RWAManager) GetAllAssets(ctx context.Context, request mcp.CallToolReque
 	return mcp.NewToolResultText(fmt.Sprintf("%v", assets)), nil
 }
 
+func (m *RWAManager) RegisterUser(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	userName, err := request.RequireString("userName")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("User name is required: %v", err.Error())), nil
+	}
+	_ = userName
+	signer, err := request.RequireString("signer")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Private key for the user is required: %v", err.Error())), nil
+	}
+	m.chain.Signer = evm.NewSigner(signer)
+	riskProfile, err := request.RequireString("riskProfile")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Risk Profile (low, medium, or high) is required: %v", err.Error())), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("User %s, has been set to have an investment risk profile of %s", userName, riskProfile)), nil
+}
+
 func (m *RWAManager) SetRiskProfile(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	riskProfile, err := request.RequireString("riskProfile")
 	if err != nil {

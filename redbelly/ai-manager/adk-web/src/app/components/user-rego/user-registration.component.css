@@ -1,14 +1,45 @@
 /* Import a clean font from Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* --- CSS Custom Properties for Theming --- */
+:root {
+  --font-family-main: 'Inter', sans-serif;
+  --background-color-page: #f0f4f8;
+  --background-color-form: #ffffff;
+  --background-color-input: #f7fafc;
+  --background-color-input-focus: #ffffff;
+
+  --text-color-title: #1a202c;
+  --text-color-subtitle: #4a5568;
+  --text-color-label: #2d3748;
+  --text-color-input: #2d3748;
+  --text-color-button: #ffffff;
+
+  --border-color-input: #cbd5e0;
+  --border-color-input-focus: #4299e1;
+  --border-color-form: #e2e8f0;
+
+  --button-gradient-start: #4F46E5;
+  --button-gradient-end: #818CF8;
+  --button-disabled-bg: #a0aec0;
+
+  --focus-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
+
+  --border-radius-form: 16px; /* Increased for a more modern feel */
+  --border-radius-control: 10px; /* Increased for consistency */
+
+  --shadow-form: 0 8px 16px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04); /* Softer shadow */
+  --shadow-button-hover: 0 3px 10px rgba(0, 0, 0, 0.12); /* Refined hover shadow */
+}
+
 /* --- Main Container Styling --- */
 .registration-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 80vh; /* Make it take up most of the screen height */
-  background-color: #f0f4f8; /* Light gray background */
-  font-family: 'Inter', sans-serif;
+  background-color: var(--background-color-page);
+  font-family: var(--font-family-main);
   padding: 2rem;
 }
 
@@ -17,23 +48,24 @@
   width: 100%;
   max-width: 450px; /* Limit form width for readability */
   padding: 2.5rem;
-  background-color: #ffffff;
-  border-radius: 12px; /* Softer rounded corners */
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
+  background-color: var(--background-color-form);
+  border-radius: var(--border-radius-form);
+  box-shadow: var(--shadow-form);
+  border: 1px solid var(--border-color-form);
 }
 
 .form-title {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #1a202c;
+  color: var(--text-color-title);
   text-align: center;
   margin-bottom: 0.5rem;
+  background-color: darkcyan;
 }
 
 .form-subtitle {
   font-size: 1rem;
-  color: #4a5568;
+  color: var(--text-color-subtitle);
   text-align: center;
   margin-bottom: 2rem;
 }
@@ -48,7 +80,7 @@
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #2d3748;
+  color: var(--text-color-label);
 }
 
 /* --- Input and Select Fields --- */
@@ -56,18 +88,18 @@
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 8px;
-  background-color: #f7fafc;
-  color: #2d3748;
+  border: 1px solid var(--border-color-input);
+  border-radius: var(--border-radius-control);
+  background-color: var(--background-color-input);
+  color: var(--text-color-input);
   transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .form-control:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
-  background-color: #ffffff;
+  border-color: var(--border-color-input-focus);
+  box-shadow: var(--focus-shadow);
+  background-color: var(--background-color-input-focus);
 }
 
 /* --- Submit Button --- */
@@ -76,21 +108,21 @@
   padding: 0.85rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #ffffff;
-  background: linear-gradient(90deg, #4F46E5, #818CF8);
-  border: none;
-  border-radius: 8px;
+  color: var(--text-color-button);
+  background: linear-gradient(90deg, var(--button-gradient-start), var(--button-gradient-end));
+  border: 1px solid;
+  border-radius: var(--border-radius-control);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .submit-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-button-hover);
 }
 
 .submit-button:disabled {
-  background: #a0aec0;
+  background: var(--button-disabled-bg);
   cursor: not-allowed;
   opacity: 0.7;
 }

@@ -27,6 +27,16 @@ func main() {
 	log.Infof("Successfully connected to the Asset Manager: %v", cfg.RWAContractAddress)
 
 	server.RegisterTool(
+		"greet-user",
+		"Welcome the user. User can use this way to set their name, private key, and investment risk profile",
+		rwaManager.RegisterUser,
+		map[string]string{
+			"userName":    "Name of user.  Used to greet the user",
+			"signer":      "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
+			"riskProfile": "Risk Profile (low, medium, or high)",
+		},
+	)
+	server.RegisterTool(
 		"list-assets",
 		"Get all the on chain assets available and managed by the asset manager",
 		rwaManager.GetAllAssets,

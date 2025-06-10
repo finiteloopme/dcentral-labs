@@ -33,8 +33,8 @@ func (s *McpServer) RegisterTool(name string, description string, handlerFunc fu
 	toolOpts := []mcp.ToolOption{}
 
 	// Add default options (description and a name parameter)
-	toolOpts = append(toolOpts, mcp.WithDescription(description))
-	toolOpts = append(toolOpts, mcp.WithString("name", mcp.Description("Name of the user")))
+	// toolOpts = append(toolOpts, mcp.WithDescription(description))
+	// toolOpts = append(toolOpts, mcp.WithString("name", mcp.Description("Name of the user")))
 
 	// Add custom parameters from the map
 	for k, v := range params {
@@ -53,24 +53,4 @@ func (s *McpServer) RegisterTool(name string, description string, handlerFunc fu
 			return mcp.NewToolResultText(fmt.Sprintf("%v", response)), nil
 		},
 	)
-	// err := s.server.RegisterTool(name, description,
-	// 	func(signer *evm.SignerAddress) (*mcp.ToolResponse, error) {
-	// 		// log.Infof("received tool request for signer: %v", signer.Address)
-	// 		response, err := handlerFunc()
-	// 		oserr.PanicIfError("error executing tool", err)
-	// 		return mcp.NewToolResponse(
-	// 			mcp.NewTextContent(fmt.Sprintf("%v", response)),
-	// 		), nil
-	// 	})
-	// oserr.PanicIfError(fmt.Sprintf("error registering tool: %v", name), err)
 }
-
-// func (s *McpServer) RegisterPrompt(name string, description string, handlerFunc any) {
-// 	err := s.server.RegisterPrompt(name, description, handlerFunc)
-// 	oserr.PanicIfError(fmt.Sprintf("error registering prompt: %v", name), err)
-// }
-
-// func (s *McpServer) RegisterResource(name string, description string, handlerFunc any) {
-// 	err := s.server.RegisterTool(name, description, handlerFunc)
-// 	oserr.PanicIfError(fmt.Sprintf("error registering tool: %v", name), err)
-// }
