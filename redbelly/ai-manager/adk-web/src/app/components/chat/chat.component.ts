@@ -310,14 +310,93 @@ export class ChatComponent implements OnInit, AfterViewInit, OnDestroy {
 
   registerUserProfile(userProfile: string){
     // this.userInput = (event.target as HTMLInputElement).value;
-    this.userInput = userProfile;
-    console.log(this.userInput);
-    this.sendMessage(new Event('input'))
+    // this.userInput = userProfile;
+    // console.log(this.userInput);
+    this.sendSecretMessage(new Event('input'), userProfile)
     // this.sendMessage(event);
   }
 
+  // this is literally a copy/paste of sendMessage, except that
+  // the user  input is not displayed back to the user.
+  async sendSecretMessage(event: Event, msg: string) {
+    if (this.messages.length === 0) {
+      this.scrollContainer.nativeElement.addEventListener('wheel', () => {
+        this.scrollInterruptedSubject.next(true);
+      });
+      this.scrollContainer.nativeElement.addEventListener('touchmove', () => {
+        this.scrollInterruptedSubject.next(true);
+      });
+    }
+    this.scrollInterruptedSubject.next(false);
+
+    event.preventDefault();
+    if (!msg.trim()) return;
+
+    // Add user message
+    // this.messages.push({role: 'user', text: msg});
+    // this.messagesSubject.next(this.messages);
+    // if (this.selectedFiles.length > 0) {
+    //   const messageAttachments = this.selectedFiles.map((file) => ({
+    //                                                       file: file.file,
+    //                                                       url: file.url,
+    //                                                     }));
+    //   this.messages.push({role: 'user', attachments: messageAttachments});
+    //   this.messagesSubject.next(this.messages);
+    // }
+
+    const req: AgentRunRequest = {
+      appName: this.appName,
+      userId: this.userId,
+      sessionId: this.sessionId,
+      newMessage: {
+        'role': 'user',
+        // 'parts': await this.getUserMessageParts(),
+        'parts': [{'text': `Greetings ${msg}`}],
+      },
+      streaming: this.useSse,
+    };
+    this.selectedFiles = [];
+    let index = this.eventMessageIndexArray.length - 1;
+    this.streamingTextMessage = null;
+    this.agentService.runSse(req).subscribe({
+      next: async (chunk) => {
+        if (chunk.startsWith('{"error"')) {
+          this.openSnackBar(chunk, 'OK');
+          return;
+        }
+        const chunkJson = JSON.parse(chunk);
+        if (chunkJson.error) {
+          this.openSnackBar(chunkJson.error, 'OK');
+          return;
+        }
+        if (chunkJson.content) {
+          for (let part of chunkJson.content.parts) {
+            index += 1;
+            this.processPart(chunkJson, part, index);
+          }
+        }
+        this.changeDetectorRef.detectChanges();
+      },
+      error: (err) => console.error('SSE error:', err),
+      complete: () => {
+        this.streamingTextMessage = null;
+        this.sessionTab.reloadSession(this.sessionId);
+        this.eventService.getTrace(this.sessionId)
+            .pipe(catchError((error) => {
+              if (error.status === 404) {
+                return of(null);
+              }
+              return of([]);
+            }))
+            .subscribe(res => {this.traceData = res})
+      },
+    });
+    // Clear input
+    // this.userInput = '';
+    this.changeDetectorRef.detectChanges();
+  }
+
   async sendMessage(event: Event) {
-    console.log('In sendMessage....')
     if (this.messages.length === 0) {
       this.scrollContainer.nativeElement.addEventListener('wheel', () => {
         this.scrollInterruptedSubject.next(true);
