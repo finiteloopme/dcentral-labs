@@ -1,0 +1,34 @@
+.dialog-container {
+  border-radius: 12px;
+  padding: 18px;
+  width:500px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.threshold-slider {
+  --mdc-slider-active-track-color: #4285f4;
+  --mdc-slider-inactive-track-color: #616161;
+  --mdc-slider-handle-color: #4285f4;
+  --mdc-slider-ripple-color: #4285f4;
+  width: 100px
+}
+
+.metric-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.metric-name {
+  width: 250px;
+}
+
+.threshold-value {
+  margin-left: 20px;
+}
+
+.mdc-slider__thumb--with-indicator {
+  background-color: var(--mdc-slider-handle-color, black);
+  border: none !important;
+  box-shadow: none !important;
+}

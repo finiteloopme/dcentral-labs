@@ -1,0 +1,73 @@
+<!-- 
+  This is the main container for the registration form.
+  We use some basic styling to center it and make it look clean.
+-->
+<div class="registration-container">
+  
+  <div class="registration-form">
+    <h2 class="form-title">User Profile</h2>
+    <p class="form-subtitle">Please fill in your details.</p>
+
+    <!-- 
+      The <form> element wraps our input fields.
+      The (ngSubmit) event calls the register() method in our component class.
+      The #userForm="ngForm" is a template reference variable that gives us access to the form's state.
+    -->
+    <form (ngSubmit)="register()" #userForm="ngForm">
+
+      <!-- First Name Input -->
+      <div class="form-group">
+        <label for="firstName">First Name</label>
+        <input 
+          type="text" 
+          id="firstName" 
+          name="firstName" 
+          class="form-control"
+          placeholder="Enter your first name"
+          required
+          [(ngModel)]="user.firstName">
+      </div>
+
+      <!-- Private Key Input -->
+      <div class="form-group">
+        <label for="privateKey">Private Key</label>
+        <input 
+          type="password" 
+          id="privateKey" 
+          name="privateKey" 
+          class="form-control"
+          placeholder="Enter your secret key"
+          required
+          [(ngModel)]="user.privateKey">
+      </div>
+
+      <!-- Investment Risk Profile Dropdown -->
+      <div class="form-group">
+        <label for="riskProfile">Investment Risk Profile</label>
+        <select 
+          id="riskProfile" 
+          name="riskProfile" 
+          class="form-control"
+          [(ngModel)]="user.riskProfile">
+          <!-- 
+            We use *ngFor to loop through the riskProfiles array 
+            from our component and create an <option> for each one.
+          -->
+          <option *ngFor="let profile of riskProfiles" [value]="profile">
+            {{ profile }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Submit Button -->
+      <button 
+        type="submit" 
+        class="submit-button"
+        [disabled]="!userForm.form.valid">
+        Register
+      </button>
+
+    </form>
+  </div>
+
+</div>

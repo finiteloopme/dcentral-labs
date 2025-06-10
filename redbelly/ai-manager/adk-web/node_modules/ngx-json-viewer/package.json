@@ -1,0 +1,42 @@
+{
+  "name": "ngx-json-viewer",
+  "version": "3.2.1",
+  "description": "JSON formatter / viewer for Angular",
+  "keywords": [
+    "angular",
+    "json"
+  ],
+  "author": "Vivo Xu <vivo@fancyber.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hivivo/ngx-json-viewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hivivo/ngx-json-viewer/issues"
+  },
+  "homepage": "https://github.com/hivivo/ngx-json-viewer#readme",
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "module": "fesm2015/ngx-json-viewer.mjs",
+  "es2020": "fesm2020/ngx-json-viewer.mjs",
+  "esm2020": "esm2020/ngx-json-viewer.mjs",
+  "fesm2020": "fesm2020/ngx-json-viewer.mjs",
+  "fesm2015": "fesm2015/ngx-json-viewer.mjs",
+  "typings": "index.d.ts",
+  "exports": {
+    "./package.json": {
+      "default": "./package.json"
+    },
+    ".": {
+      "types": "./index.d.ts",
+      "esm2020": "./esm2020/ngx-json-viewer.mjs",
+      "es2020": "./fesm2020/ngx-json-viewer.mjs",
+      "es2015": "./fesm2015/ngx-json-viewer.mjs",
+      "node": "./fesm2015/ngx-json-viewer.mjs",
+      "default": "./fesm2020/ngx-json-viewer.mjs"
+    }
+  },
+  "sideEffects": false
+}

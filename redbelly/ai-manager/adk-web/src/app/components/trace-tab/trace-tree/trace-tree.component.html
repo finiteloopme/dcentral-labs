@@ -1,0 +1,50 @@
+<!--
+ Copyright 2025 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<div style="margin-top: 15px;">
+    <div class="trace-container">
+        @for (node of flatTree; track node) {
+        <div class="trace-row">
+            <div class="trace-row-left">
+                <div class="trace-indent">
+                    @for (i of getArray(node.level); track $index) {
+                    <div class="indent-connector">
+                    </div>
+                    }
+                </div>
+                <span class="material-symbols-outlined" style="margin-right: 8px;">
+                    {{ getSpanIcon(node.span.name) }}
+                </span>
+                <div class="trace-label" [style.width.px]="400 - node.level * 20">
+                    {{ node.span.name }}
+                    <!-- <span class="trace-duration">
+            ({{ (toMs(node.span.end_time) - toMs(node.span.start_time)).toFixed(2) }}ms)
+          </span> -->
+                </div>
+            </div>
+            <div class="trace-bar-container">
+                <div class="trace-bar" [style.left.%]="getRelativeStart(node.span)"
+                    [style.width.%]="getRelativeWidth(node.span)">
+                    {{ (toMs(node.span.end_time) - toMs(node.span.start_time)).toFixed(2) }}ms
+                </div>
+                @if (getRelativeWidth(node.span) < 10) {
+                    <span style="position: absolute;color: #8DABBF" [style.left.%]="getRelativeStart(node.span) + 5">{{ (toMs(node.span.end_time) - toMs(node.span.start_time)).toFixed(2) }}ms</span>
+                }
+            </div>
+        </div>
+        }
+    </div>
+</div>
