@@ -62,22 +62,22 @@ func NewStockContract(chain *evm.Chain, _contractAddress string) *StockContract 
 func (s *StockContract) GetAllAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	stocks, err := s.GetAllStocks()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all stocks: %w", err)
+		return nil, fmt.Errorf("error GetAllAssets: : %w", err)
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("%v", stocks)), nil
 }
 
-func (s *StockContract) GetAllStocks() ([]*contract.EquityContractV3Equity, error) {
+func (s *StockContract) GetAllStocks() ([]contract.EquityContractV3Equity, error) {
 	stockIds, err := s.caller.GetAllAssetIds(&bind.CallOpts{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all stocks: %w", err)
+		return nil, fmt.Errorf("failed to get all stocks using address: %s. error: %w", s.address.Hex(), err)
 	}
 
 	return s.GetStocksByIds(stockIds)
 }
 
-func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]*contract.EquityContractV3Equity, error) {
+func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]contract.EquityContractV3Equity, error) {
 	stocks, err := s.GetStocksByIds(assetIds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stocks: %w", err)
@@ -85,14 +85,14 @@ func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]*contract.EquityC
 	return stocks, nil
 }
 
-func (s *StockContract) GetStocksByIds(assetIds []*big.Int) ([]*contract.EquityContractV3Equity, error) {
-	var stocks []*contract.EquityContractV3Equity
+func (s *StockContract) GetStocksByIds(assetIds []*big.Int) ([]contract.EquityContractV3Equity, error) {
+	var stocks []contract.EquityContractV3Equity
 	for _, assetId := range assetIds {
 		stock, err := s.caller.GetEquityDetailsFromId(&bind.CallOpts{}, assetId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get stock details: %w", err)
 		}
-		stocks = append(stocks, &stock)
+		stocks = append(stocks, stock)
 	}
 	return stocks, nil
 }

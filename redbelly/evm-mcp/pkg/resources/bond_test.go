@@ -9,23 +9,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStockContract_GetAllAssets(t *testing.T) {
+func TestBondContract_GetAllAssets(t *testing.T) {
 	// Given
 	rpcURL := "https://governors.testnet.redbelly.network"
 	wsURL := "wss://governors.testnet.redbelly.network/ws"
-	contractAddress := "0x994B3cDc930993957e0B5fF50f0dA32B264c6364"
+	contractAddress := "0x65c0cc0A876b77665B7e9AE00312E52a07f09D43"
 
 	signer := &evm.Signer{}
 	chain := evm.NewClient(rpcURL, wsURL, signer)
 	require.NotNil(t, chain, "EVM chain client should not be nil")
 
-	assetContract := resources.NewAssetContract(chain, contractAddress, "stock")
-	require.NotNil(t, assetContract, "Stock contract should not be nil")
-	stockContract := assetContract.(*resources.StockContract)
-	require.NotNil(t, stockContract, "Stock contract should not be nil")
+	assetContract := resources.NewAssetContract(chain, contractAddress, "bond")
+	require.NotNil(t, assetContract, "Bond contract should not be nil")
+	bondContract := assetContract.(*resources.BondContract)
+	require.NotNil(t, bondContract, "Bond contract should not be nil")
 
 	// When
-	result, err := stockContract.GetAllStocks()
+	result, err := bondContract.GetAllBonds()
 
 	// Then
 	assert.NoError(t, err, "GetAllAssets should not return an error")

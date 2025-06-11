@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/finiteloopme/goutils/pkg/log"
 	oserr "github.com/finiteloopme/goutils/pkg/v2/os/err"
 )
 
@@ -20,15 +21,16 @@ type Chain struct {
 func NewClient(rpcEndpoint string, wsEndpoint string, signer *Signer) *Chain {
 	_client, err := ethclient.Dial(rpcEndpoint)
 	oserr.PanicIfError(fmt.Sprintf("Unable to connect to RPC endpoint: %v", rpcEndpoint), err)
-	_wsClient, err := ethclient.Dial(wsEndpoint)
-	oserr.PanicIfError(fmt.Sprintf("Unable to connect to WS endpoint: %v", wsEndpoint), err)
+	// _wsClient, err := ethclient.Dial(wsEndpoint)
+	// oserr.PanicIfError(fmt.Sprintf("Unable to connect to WS endpoint: %v", wsEndpoint), err)
 	chainID, err := _client.ChainID(context.Background())
 	oserr.PanicIfError("Unable to fetch chain ID", err)
+	log.Infof("Connected to chainID: %v", chainID)
 	return &Chain{
-		Client:   _client,
-		WsClient: _wsClient,
-		ChainID:  chainID,
-		Signer:   signer,
+		Client: _client,
+		// WsClient: _wsClient,
+		ChainID: chainID,
+		Signer:  signer,
 	}
 }
 
