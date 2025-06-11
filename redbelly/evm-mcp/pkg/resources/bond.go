@@ -103,7 +103,7 @@ func (s *BondContract) GetBondsByIds(assetIds []*big.Int) ([]BondEntity, error) 
 			AsseId:              *assetId,
 			BondsContractV1Bond: bond,
 			Category:            AssetTypeBond.String(),
-			Description:         fmt.Sprintf("%v asset is of type (category) %v with an assetId of %v", bond.Name, AssetTypeStock.String(), *assetId),
+			Description:         fmt.Sprintf("%v asset is of type (category) %v with an assetId of %v", bond.Name, AssetTypeStock.String(), assetId.String()),
 		}
 		bonds = append(bonds, bondEntity)
 	}
