@@ -19,8 +19,10 @@ RUN go install github.com/ethereum/go-ethereum/cmd/abigen@latest
 RUN make abi2go
 RUN make build
 
-FROM ubuntu:latest
-RUN apt-get update && apt-get install -y python3 python3-pip nodejs npm python3.12-venv
+# FROM ubuntu:latest
+# RUN apt-get update && apt-get install -y python3.10 python3.10-pip nodejs npm python3.10-venv
+FROM python:3.10
+RUN apt-get update && apt-get install -y nodejs npm
 # COPY --from=builder_node /app/dist /app/dist
 WORKDIR /app
 COPY --from=builder_python /app /app
@@ -29,7 +31,9 @@ RUN chmod +x /app/mcp
 RUN python3 -m venv .venv
 # RUN . .venv/bin/activate
 RUN ./.venv/bin/pip install google-adk
-
+RUN rm -fr .venv/lib/python3.10/site-packages/google/adk/cli/browser
+RUN mkdir -p .venv/lib/python3.10/site-packages/google/adk/cli/browser
+COPY ./ai-manager/adk-web/dist/agent_framework_web/browser .venv/lib/python3.10/site-packages/google/adk/cli/browser
 RUN chmod +x setup.sh
 EXPOSE 8000
 
