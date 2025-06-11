@@ -16,7 +16,8 @@ root_agent = LlmAgent(
     tools=[
         MCPToolset(
             connection_params=StdioServerParameters(
-               command='/Users/kunall/scratchpad/dcentral-labs/redbelly/evm-mcp/bin/evm-mcp-rwa',
+            #    command='/Users/kunall/scratchpad/dcentral-labs/redbelly/evm-mcp/bin/evm-mcp-rwa',
+               command='/app/mcp',
             ),
             # Optional: Filter which tools from the MCP server are exposed
             # tool_filter=['list_directory', 'read_file']
