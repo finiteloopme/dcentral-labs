@@ -3,8 +3,6 @@ BINARY_NAME=evm-mcp-rwa
 ABI_FOLDER_LOCAL=../portfolio-manager/abi
 ABI_FOLDER=abi
 
-include .secrets
-
 .PHONY: init
 init:
 	go mod tidy
@@ -12,7 +10,7 @@ init:
 
 .PHONY: clean
 clean:
-	rm -fr ${BINARY_FOLDER}
+	rm -fr ${BINARY_FOLDER} generated
 
 .PHONY: build
 build:
@@ -21,17 +19,11 @@ build:
 .PHONY: run
 run:
 	echo "key: ${USER_PRIVATE_KEY}"
-	go run cmd/main.go --private-key=${USER_PRIVATE_KEY}
+	go run cmd/main.go
 
 .PHONY: test
 test:
 	go test -cover -v ./...
-
-.PHONY: abi2go-local
-abi2go-local:
-	mkdir -p generated/contract
-	abigen --abi ${ABI_FOLDER_LOCAL}/RWA_Manager.json --pkg contract --type AssetManagerRWA --out generated/contract/asset_manager_rwa.go
-	abigen --abi ${ABI_FOLDER_LOCAL}/StockAsset.json --pkg contract --type StockAsset --out generated/contract/stock_asset.go
 
 .PHONY: abi2go
 abi2go:
