@@ -15,8 +15,8 @@ func TestBondContract_GetAllAssets(t *testing.T) {
 	wsURL := "wss://governors.testnet.redbelly.network/ws"
 	contractAddress := "0x65c0cc0A876b77665B7e9AE00312E52a07f09D43"
 
-	signer := &evm.Signer{}
-	chain := evm.NewClient(rpcURL, wsURL, signer)
+	// signer := &evm.Signer{}
+	chain := evm.NewClient(rpcURL, wsURL)
 	require.NotNil(t, chain, "EVM chain client should not be nil")
 
 	assetContract := resources.NewAssetContract(chain, contractAddress, "bond")

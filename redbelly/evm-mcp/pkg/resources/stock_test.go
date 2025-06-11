@@ -26,9 +26,9 @@ func setupStockContract(t *testing.T) *resources.StockContract {
 	// signer, err := evm.NewSignerFromPrivateKey(privateKey, rpcURL) // Assuming such a constructor or similar
 	// require.NoError(t, err, "Failed to create signer from private key")
 	// require.NotNil(t, signer)
-	signer := evm.NewSigner("dbd2324b3528247c6a7b15ef04244cdbdbae8d3593426edf4720091e52423a54")
+	// signer := evm.NewSigner("dbd2324b3528247c6a7b15ef04244cdbdbae8d3593426edf4720091e52423a54")
 
-	chain := evm.NewClient(rpcURL, wsURL, signer)
+	chain := evm.NewClient(rpcURL, wsURL)
 	require.NotNil(t, chain, "EVM chain client should not be nil")
 
 	// Assuming NewAssetContract returns an AssetManager interface,

@@ -5,16 +5,13 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
-	oserr "github.com/finiteloopme/goutils/pkg/v2/os/err"
 )
 
 // Config holds the application configuration, populated from CLI arguments
 type Config struct {
 	RPCEndpoint       string
 	WebsocketEndpoint string
-	Signer            *evm.Signer
+	// Signer            *evm.Signer
 
 	RWAContractAddress       string // RWA_Manager contract address
 	StockContractAddress     string
@@ -40,7 +37,7 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&cfg.BondContractAddress, "bond-contract-address", "0x65c0cc0A876b77665B7e9AE00312E52a07f09D43", "The address of the Real World Asset Manager smart contract")
 	flag.StringVar(&cfg.PropertyContractAddress, "property-contract-address", "0x72f045851Bb460D707204F173917c6Fa21D9aDFF", "The address of the Real World Asset Manager smart contract")
 	flag.StringVar(&cfg.AlternateContractAddress, "alternate-contract-address", "0xbC534Ff297988CDDDD62A50Cb98Ae89670F1111C", "The address of the Real World Asset Manager smart contract")
-	privateKeyHex := flag.String("private-key", "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "Owner's private key (hex encoded, remove 0x prefix if present)")
+	// privateKeyHex := flag.String("private-key", "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "Owner's private key (hex encoded, remove 0x prefix if present)")
 	// log.Infof("Private Key: %s", *privateKeyHex)
 
 	flag.Parse()
@@ -56,14 +53,15 @@ func ParseFlags() (*Config, error) {
 	}
 
 	// Process private key if provided
-	if *privateKeyHex != "" {
-		cfg.Signer = evm.NewSigner(*privateKeyHex)
-	} else {
-		// generate a new signer
-		privateKey, err := crypto.GenerateKey()
-		oserr.PanicIfError("Error generating a signer key", err)
-		cfg.Signer = evm.PrivateKeyToSigner(privateKey)
-	}
+	// if *privateKeyHex != "" {
+	// 	cfg.Signer = evm.NewSigner(*privateKeyHex)
+	// } else {
+	// 	// generate a new signer
+	// 	privateKey, err := crypto.GenerateKey()
+	// 	oserr.PanicIfError("Error generating a signer key", err)
+	// 	cfg.Signer = evm.PrivateKeyToSigner(privateKey)
+	// }
+	// log.Infof("User public address is: %v", cfg.Signer.Address.Hex())
 
 	return cfg, nil
 }

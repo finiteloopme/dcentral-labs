@@ -1,5 +1,11 @@
-from google.adk.agents import LlmAgent
+from google.adk.agents import LlmAgent, RunConfig
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+
+config = RunConfig(
+    # streaming_mode=StreamingMode.SSE,
+    max_llm_calls=200
+)
+
 
 
 root_agent = LlmAgent(
@@ -16,8 +22,8 @@ root_agent = LlmAgent(
     tools=[
         MCPToolset(
             connection_params=StdioServerParameters(
-            #    command='/Users/kunall/scratchpad/dcentral-labs/redbelly/evm-mcp/bin/evm-mcp-rwa',
-               command='/app/mcp',
+               command='/Users/kunall/scratchpad/dcentral-labs/redbelly/evm-mcp/bin/evm-mcp-rwa',
+            #    command='/app/mcp',
             ),
             # Optional: Filter which tools from the MCP server are exposed
             # tool_filter=['list_directory', 'read_file']

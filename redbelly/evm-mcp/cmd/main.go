@@ -15,9 +15,7 @@ func main() {
 	oserr.PanicIfError("error parsing flags", err)
 
 	server := mcp.NewServer()
-
-	client := evm.NewClient(cfg.RPCEndpoint, cfg.WebsocketEndpoint, cfg.Signer)
-
+	client := evm.NewClient(cfg.RPCEndpoint, cfg.WebsocketEndpoint)
 	// rwaManager, err := onchain.NewRWAManager(
 	// 	client,
 	// 	common.HexToAddress(cfg.RWAContractAddress), // Use the parsed address
@@ -27,22 +25,20 @@ func main() {
 	// bonds := onchain.NewBondContract(client, cfg.BondContractAddress)
 	// stocks := onchain.NewStockContract(client, cfg.StockContractAddress)
 
-	// server.RegisterTool(
-	// 	"greet-user",
-	// 	"Welcome the user. User can use this way to set their name, private key, and investment risk profile",
-	// 	rwaManager.RegisterUser,
-	// 	map[string]string{
-	// 		"userName":    "Name of user.  Used to greet the user",
-	// 		"signer":      "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
-	// 		"riskProfile": "Risk Profile (low, medium, or high)",
-	// 	},
-	// )
+	server.RegisterTool(
+		"greet-user",
+		"Welcome the user. User can use this way to set their name, private key, and investment risk profile",
+		assetAgg.RegisterUser,
+		map[string]string{
+			"userName":    "Name of user.  Used to greet the user",
+			"signer":      "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
+			"riskProfile": "Risk Profile (low, medium, or high)",
+		},
+	)
 	server.RegisterTool(
 		"list-assets",
 		"Get all the on chain assets available and managed by the asset manager",
 		assetAgg.GetAllAssets,
-		// bonds.GetAllAssets,
-		// stocks.GetAllAssets,
 		map[string]string{},
 	)
 	server.RegisterTool(
@@ -53,6 +49,7 @@ func main() {
 			"assetType":   "Type of the asset (stock, bond, property or alternate)",
 			"assetId":     "Asset ID to purchase",
 			"tokenAmount": "Amount of tokens to use to purchase the stock",
+			"signer":      "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
 		},
 	)
 	server.RegisterTool(
@@ -63,6 +60,7 @@ func main() {
 			"assetType":   "Type of the asset (stock, bond, property or alternate)",
 			"assetId":     "Asset ID to purchase",
 			"tokenAmount": "Amount of tokens to use to purchase the stock",
+			"signer":      "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
 		},
 	)
 	server.RegisterTool(
@@ -70,7 +68,9 @@ func main() {
 		"Get the assets owned specifically by the user.",
 		assetAgg.GetMyAssets,
 		// map[string]string{"userAddress": "Hex representation of the user's wallet address"},
-		map[string]string{},
+		map[string]string{
+			"signer": "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
+		},
 	)
 	// server.RegisterTool(
 	// 	"list-assets",

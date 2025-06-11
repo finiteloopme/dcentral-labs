@@ -5,7 +5,7 @@ go 1.24.3
 require (
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/finiteloopme/goutils v0.0.0-20250528002119-e8e71910792d
-	github.com/mark3labs/mcp-go v0.31.0
+	github.com/mark3labs/mcp-go v0.32.0
 	github.com/stretchr/testify v1.10.0
 )
 

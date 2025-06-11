@@ -15,30 +15,31 @@ type Chain struct {
 	Client   *ethclient.Client
 	WsClient *ethclient.Client
 	ChainID  *big.Int
-	Signer   *Signer
+	// Signer   *Signer
 }
 
-func NewClient(rpcEndpoint string, wsEndpoint string, signer *Signer) *Chain {
+func NewClient(rpcEndpoint string, wsEndpoint string) *Chain {
 	_client, err := ethclient.Dial(rpcEndpoint)
 	oserr.PanicIfError(fmt.Sprintf("Unable to connect to RPC endpoint: %v", rpcEndpoint), err)
-	// _wsClient, err := ethclient.Dial(wsEndpoint)
-	// oserr.PanicIfError(fmt.Sprintf("Unable to connect to WS endpoint: %v", wsEndpoint), err)
+	_wsClient, err := ethclient.Dial(wsEndpoint)
+	oserr.PanicIfError(fmt.Sprintf("Unable to connect to WS endpoint: %v", wsEndpoint), err)
 	chainID, err := _client.ChainID(context.Background())
 	oserr.PanicIfError("Unable to fetch chain ID", err)
 	log.Infof("Connected to chainID: %v", chainID)
-	return &Chain{
-		Client: _client,
-		// WsClient: _wsClient,
-		ChainID: chainID,
-		Signer:  signer,
+	chain := &Chain{
+		Client:   _client,
+		WsClient: _wsClient,
+		ChainID:  chainID,
 	}
+
+	return chain
 }
 
-func (c *Chain) NewTransaction() *bind.TransactOpts {
+func (c *Chain) NewTransaction(signer *Signer) *bind.TransactOpts {
 	// txnOpts := bind.NewKeyedTransactor(c.Signer.PrivateKey)
-	txnOpts, err := bind.NewKeyedTransactorWithChainID(c.Signer.PrivateKey, c.ChainID)
+	txnOpts, err := bind.NewKeyedTransactorWithChainID(signer.PrivateKey, c.ChainID)
 	oserr.PanicIfError("Unable to create transaction", err)
-	nonce, err := c.Client.PendingNonceAt(context.Background(), *c.Signer.Address)
+	nonce, err := c.Client.PendingNonceAt(context.Background(), *signer.Address)
 	oserr.PanicIfError("Unable to fetch nonce", err)
 	gasPrice, err := c.Client.SuggestGasPrice(context.Background())
 	oserr.PanicIfError("Unable to fetch gas price", err)
@@ -48,8 +49,8 @@ func (c *Chain) NewTransaction() *bind.TransactOpts {
 	return txnOpts
 }
 
-func (c *Chain) NewTransactionWithValue(valueEth int64) *bind.TransactOpts {
-	txnOpts := c.NewTransaction()
+func (c *Chain) NewTransactionWithValue(valueEth int64, signer *Signer) *bind.TransactOpts {
+	txnOpts := c.NewTransaction(signer)
 	txnOpts.Value = new(big.Int).Mul(big.NewInt(valueEth), big.NewInt(1_000_000_000_000_000_000)) // Convert ETH to Wei
 
 	return txnOpts

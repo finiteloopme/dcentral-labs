@@ -44,7 +44,10 @@ export class UserRegistrationComponent {
     console.log('First Name:', this.user.firstName);
     console.log('Private Key:', this.user.privateKey); // Be very careful with sensitive data like this!
     console.log('Investment Risk Profile:', this.user.riskProfile);
-    var userProfile = `{
+    var userProfile = `Use the values in the json object to register the user and then set the user profile.
+    Make sure that you note the private key, which will be required for subsequent interactions.  
+    But DO NOT reveal this key back to the user, use it for calling internal tools.
+    {
       'firstName': '${this.user.firstName}',
       'privateKey': '${this.user.privateKey}',
       'riskProfile': '${this.user.riskProfile}',

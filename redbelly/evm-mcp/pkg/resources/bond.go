@@ -16,7 +16,8 @@ import (
 )
 
 type BondContract struct {
-	chain      *evm.Chain
+	chain *evm.Chain
+	// signer     *evm.Signer
 	caller     *contract.BondCaller
 	transactor *contract.BondTransactor
 	address    common.Address
@@ -40,7 +41,8 @@ func NewBondContract(chain *evm.Chain, _contractAddress string) *BondContract {
 		log.Warnf("failed to instantiate BondTransactor: %w", err)
 	}
 	return &BondContract{
-		chain:      chain,
+		chain: chain,
+		// signer:     signer,
 		caller:     caller,
 		transactor: transactor,
 		address:    contractAddress,
@@ -111,9 +113,15 @@ func (s *BondContract) GetBondsByIds(assetIds []*big.Int) ([]BondEntity, error) 
 }
 
 func (s *BondContract) GetMyAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	bondIds, err := s.caller.GetUserAssetIds(&bind.CallOpts{}, *s.chain.Signer.Address)
+	signerPrivKey, err := request.RequireString("signer")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get bonds for user: %s. error: %w", *s.chain.Signer.Address, err)
+		return mcp.NewToolResultText("User profile hasn't been set properly to retrieve bonds.  Requires signer key to be set"), nil
+	}
+	signer := evm.NewSigner(signerPrivKey)
+	log.Infof("Getting bonds for user: %v", signer.Address.Hex())
+	bondIds, err := s.caller.GetUserAssetIds(&bind.CallOpts{}, *signer.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bonds for user: %s. error: %w", *signer.Address, err)
 	}
 	if bonds, err := s.GetBondsByIds(bondIds); err != nil {
 		return nil, fmt.Errorf("failed to get s.GetAssetsByIds(bondIds): %w", err)
@@ -123,6 +131,11 @@ func (s *BondContract) GetMyAssets(ctx context.Context, request mcp.CallToolRequ
 }
 
 func (s *BondContract) Buy(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	signerPrivKey, err := request.RequireString("signer")
+	if err != nil {
+		return mcp.NewToolResultText("User profile hasn't been set properly to buy bonds.  Requires signer key to be set"), nil
+	}
+	signer := evm.NewSigner(signerPrivKey)
 	assetId, err := request.RequireString("assetId")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Asset ID is required: %v", err.Error())), nil
@@ -139,15 +152,15 @@ func (s *BondContract) Buy(ctx context.Context, request mcp.CallToolRequest) (*m
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Invalid token amount: %v", err.Error())), nil
 	}
-	txnReceipt, err := s.BuyBond(big.NewInt(_assetId), _tokenAmount)
+	txnReceipt, err := s.BuyBond(big.NewInt(_assetId), _tokenAmount, signer)
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error buying bond: %v", err.Error())), nil
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("Transaction order submitted for purchasing bond is: %v", txnReceipt)), nil
 }
 
-func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64) (*types.Transaction, error) {
-	tx, err := s.transactor.Buy(s.chain.NewTransactionWithValue(tokenAmount), assetId)
+func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64, signer *evm.Signer) (*types.Transaction, error) {
+	tx, err := s.transactor.Buy(s.chain.NewTransactionWithValue(tokenAmount, signer), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to buy bond %v: %w", assetId, err)
 	}
@@ -155,6 +168,11 @@ func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64) (*types.Tran
 }
 
 func (s *BondContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	signerPrivKey, err := request.RequireString("signer")
+	if err != nil {
+		return mcp.NewToolResultText("User profile hasn't been set properly to sell bonds.  Requires signer key to be set"), nil
+	}
+	signer := evm.NewSigner(signerPrivKey)
 	assetId, err := request.RequireString("assetId")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Asset ID is required: %v", err.Error())), nil
@@ -163,16 +181,16 @@ func (s *BondContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset ID: %v", err.Error())), nil
 	}
-	txnReceipt, err := s.SellBond(big.NewInt(_assetId))
+	txnReceipt, err := s.SellBond(big.NewInt(_assetId), signer)
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error selling asset: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction submitted for sell order of the bond is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction submitted for sell order of the bond is: %v", txnReceipt.Hash().Hex())), nil
 
 }
 
-func (s BondContract) SellBond(assetId *big.Int) (*types.Transaction, error) {
-	tx, err := s.transactor.Sell(s.chain.NewTransaction(), assetId)
+func (s BondContract) SellBond(assetId *big.Int, signer *evm.Signer) (*types.Transaction, error) {
+	tx, err := s.transactor.Sell(s.chain.NewTransaction(signer), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sell bond %v: %w", assetId, err)
 	}
