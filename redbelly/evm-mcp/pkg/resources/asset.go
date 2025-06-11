@@ -95,3 +95,43 @@ func (a *AssetAggretator) GetAllAssets(ctx context.Context, request mcp.CallTool
 	}
 	return result, nil
 }
+
+func (a *AssetAggretator) Buy(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	assetType, err := request.RequireString("assetType")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Asset type is required: %v", err.Error())), nil
+	}
+	assetContract := a.assetContracts[assetType]
+	if assetContract == nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset type: %s", assetType)), nil
+	}
+	return assetContract.Buy(ctx, request)
+}
+
+func (a *AssetAggretator) Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	assetType, err := request.RequireString("assetType")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Asset type is required: %v", err.Error())), nil
+	}
+	assetContract := a.assetContracts[assetType]
+	if assetContract == nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset type: %s", assetType)), nil
+	}
+	return assetContract.Sell(ctx, request)
+}
+
+func (a *AssetAggretator) GetMyAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	result := mcp.NewToolResultText("")
+	for contractType, contract := range a.assetContracts {
+		log.Infof("Getting all %s assets", contractType)
+		assets, err := contract.GetMyAssets(ctx, request)
+		if err != nil {
+			e := fmt.Errorf("failed to get personal assets of type: %s: %w", contractType, err)
+			log.Warn("%v", e)
+			result.Content = append(result.Content, mcp.NewToolResultText(e.Error()).Content...)
+		} else {
+			result.Content = append(result.Content, assets.Content...)
+		}
+	}
+	return result, nil
+}

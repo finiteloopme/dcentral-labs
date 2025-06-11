@@ -22,6 +22,13 @@ type StockContract struct {
 	address    common.Address
 }
 
+type StockEntity struct {
+	contract.EquityContractV3Equity
+	Id          big.Int `json:"assetId"`
+	Category    string  `json:"category"`
+	Description string  `json:"description"`
+}
+
 func NewStockContract(chain *evm.Chain, _contractAddress string) *StockContract {
 	contractAddress := common.HexToAddress(_contractAddress)
 	caller, err := contract.NewEquityCaller(contractAddress, chain.Client)
@@ -68,7 +75,7 @@ func (s *StockContract) GetAllAssets(ctx context.Context, request mcp.CallToolRe
 	return mcp.NewToolResultText(fmt.Sprintf("%v", stocks)), nil
 }
 
-func (s *StockContract) GetAllStocks() ([]contract.EquityContractV3Equity, error) {
+func (s *StockContract) GetAllStocks() ([]StockEntity, error) {
 	stockIds, err := s.caller.GetAllAssetIds(&bind.CallOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all stocks using address: %s. error: %w", s.address.Hex(), err)
@@ -77,7 +84,7 @@ func (s *StockContract) GetAllStocks() ([]contract.EquityContractV3Equity, error
 	return s.GetStocksByIds(stockIds)
 }
 
-func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]contract.EquityContractV3Equity, error) {
+func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]StockEntity, error) {
 	stocks, err := s.GetStocksByIds(assetIds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stocks: %w", err)
@@ -85,14 +92,20 @@ func (s *StockContract) GetAssetsByIds(assetIds []*big.Int) ([]contract.EquityCo
 	return stocks, nil
 }
 
-func (s *StockContract) GetStocksByIds(assetIds []*big.Int) ([]contract.EquityContractV3Equity, error) {
-	var stocks []contract.EquityContractV3Equity
+func (s *StockContract) GetStocksByIds(assetIds []*big.Int) ([]StockEntity, error) {
+	var stocks []StockEntity
 	for _, assetId := range assetIds {
 		stock, err := s.caller.GetEquityDetailsFromId(&bind.CallOpts{}, assetId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get stock details: %w", err)
 		}
-		stocks = append(stocks, stock)
+		equity := StockEntity{
+			Id:                     *assetId,
+			Category:               AssetTypeStock.String(),
+			EquityContractV3Equity: stock,
+			Description:            fmt.Sprintf("%v asset is of type (category) %v with an assetId of %v", stock.Name, AssetTypeStock.String(), assetId.String()),
+		}
+		stocks = append(stocks, equity)
 	}
 	return stocks, nil
 }
@@ -130,23 +143,16 @@ func (s *StockContract) Buy(ctx context.Context, request mcp.CallToolRequest) (*
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error buying stock: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction receipt for purchased stock is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction order submitted for purchasing stock: %v", txnReceipt)), nil
 }
 
-func (s *StockContract) BuyStock(assetId *big.Int, tokenAmount int64) (*types.Receipt, error) {
+func (s *StockContract) BuyStock(assetId *big.Int, tokenAmount int64) (*types.Transaction, error) {
 	tx, err := s.transactor.Buy(s.chain.NewTransactionWithValue(tokenAmount), assetId)
 	if err != nil {
+		log.Warnf("failed to buy stock %v: %w", assetId, err)
 		return nil, fmt.Errorf("failed to buy stock %v: %w", assetId, err)
 	}
-	receipt, err := s.chain.Client.TransactionReceipt(context.Background(), tx.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get buy transaction receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("buy transaction failed: %w", err)
-	}
-
-	return receipt, nil
+	return tx, nil
 }
 
 func (s *StockContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -162,22 +168,15 @@ func (s *StockContract) Sell(ctx context.Context, request mcp.CallToolRequest) (
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error selling asset: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction receipt for the sold stock is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction submitted for sell order of the stock is: %v", txnReceipt)), nil
 
 }
 
-func (s StockContract) SellStock(assetId *big.Int) (*types.Receipt, error) {
+func (s StockContract) SellStock(assetId *big.Int) (*types.Transaction, error) {
 	tx, err := s.transactor.Sell(s.chain.NewTransaction(), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sell stock %v: %w", assetId, err)
 	}
-	receipt, err := s.chain.Client.TransactionReceipt(context.Background(), tx.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sell transaction receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("sell transaction failed: %w", err)
-	}
 
-	return receipt, nil
+	return tx, nil
 }

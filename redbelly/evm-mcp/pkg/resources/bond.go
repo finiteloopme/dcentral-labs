@@ -22,6 +22,13 @@ type BondContract struct {
 	address    common.Address
 }
 
+type BondEntity struct {
+	contract.BondsContractV1Bond
+	AsseId      big.Int `json:"assetId"`
+	Category    string  `json:"category"`
+	Description string  `json:"description"`
+}
+
 func NewBondContract(chain *evm.Chain, _contractAddress string) *BondContract {
 	contractAddress := common.HexToAddress(_contractAddress)
 	caller, err := contract.NewBondCaller(contractAddress, chain.Client)
@@ -68,7 +75,7 @@ func (s *BondContract) GetAllAssets(ctx context.Context, request mcp.CallToolReq
 	return mcp.NewToolResultText(fmt.Sprintf("%v", bonds)), nil
 }
 
-func (s *BondContract) GetAllBonds() ([]contract.BondsContractV1Bond, error) {
+func (s *BondContract) GetAllBonds() ([]BondEntity, error) {
 	bondIds, err := s.caller.GetAllAssetIds(&bind.CallOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all bonds: %w", err)
@@ -77,7 +84,7 @@ func (s *BondContract) GetAllBonds() ([]contract.BondsContractV1Bond, error) {
 	return s.GetBondsByIds(bondIds)
 }
 
-func (s *BondContract) GetAssetsByIds(assetIds []*big.Int) ([]contract.BondsContractV1Bond, error) {
+func (s *BondContract) GetAssetsByIds(assetIds []*big.Int) ([]BondEntity, error) {
 	bonds, err := s.GetBondsByIds(assetIds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bonds: %w", err)
@@ -85,14 +92,20 @@ func (s *BondContract) GetAssetsByIds(assetIds []*big.Int) ([]contract.BondsCont
 	return bonds, nil
 }
 
-func (s *BondContract) GetBondsByIds(assetIds []*big.Int) ([]contract.BondsContractV1Bond, error) {
-	var bonds []contract.BondsContractV1Bond
+func (s *BondContract) GetBondsByIds(assetIds []*big.Int) ([]BondEntity, error) {
+	var bonds []BondEntity
 	for _, assetId := range assetIds {
 		bond, err := s.caller.GetBondsDetailsFromId(&bind.CallOpts{}, assetId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get bond details: %w", err)
 		}
-		bonds = append(bonds, bond)
+		bondEntity := BondEntity{
+			AsseId:              *assetId,
+			BondsContractV1Bond: bond,
+			Category:            AssetTypeBond.String(),
+			Description:         fmt.Sprintf("%v asset is of type (category) %v with an assetId of %v", bond.Name, AssetTypeStock.String(), *assetId),
+		}
+		bonds = append(bonds, bondEntity)
 	}
 	return bonds, nil
 }
@@ -130,23 +143,15 @@ func (s *BondContract) Buy(ctx context.Context, request mcp.CallToolRequest) (*m
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error buying bond: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction receipt for purchased bond is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction order submitted for purchasing bond is: %v", txnReceipt)), nil
 }
 
-func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64) (*types.Receipt, error) {
+func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64) (*types.Transaction, error) {
 	tx, err := s.transactor.Buy(s.chain.NewTransactionWithValue(tokenAmount), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to buy bond %v: %w", assetId, err)
 	}
-	receipt, err := s.chain.Client.TransactionReceipt(context.Background(), tx.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get buy transaction receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("buy transaction failed: %w", err)
-	}
-
-	return receipt, nil
+	return tx, nil
 }
 
 func (s *BondContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -162,22 +167,15 @@ func (s *BondContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error selling asset: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction receipt for the sold bond is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction submitted for sell order of the bond is: %v", txnReceipt)), nil
 
 }
 
-func (s BondContract) SellBond(assetId *big.Int) (*types.Receipt, error) {
+func (s BondContract) SellBond(assetId *big.Int) (*types.Transaction, error) {
 	tx, err := s.transactor.Sell(s.chain.NewTransaction(), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sell bond %v: %w", assetId, err)
 	}
-	receipt, err := s.chain.Client.TransactionReceipt(context.Background(), tx.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sell transaction receipt: %w", err)
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return nil, fmt.Errorf("sell transaction failed: %w", err)
-	}
 
-	return receipt, nil
+	return tx, nil
 }

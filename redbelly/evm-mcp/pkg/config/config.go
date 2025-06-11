@@ -41,9 +41,7 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&cfg.PropertyContractAddress, "property-contract-address", "0x72f045851Bb460D707204F173917c6Fa21D9aDFF", "The address of the Real World Asset Manager smart contract")
 	flag.StringVar(&cfg.AlternateContractAddress, "alternate-contract-address", "0xbC534Ff297988CDDDD62A50Cb98Ae89670F1111C", "The address of the Real World Asset Manager smart contract")
 	privateKeyHex := flag.String("private-key", "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "Owner's private key (hex encoded, remove 0x prefix if present)")
-
-	// Example for another potential flag:
-	// flag.BoolVar(&cfg.Verbose, "verbose", false, "Enable verbose logging")
+	// log.Infof("Private Key: %s", *privateKeyHex)
 
 	flag.Parse()
 

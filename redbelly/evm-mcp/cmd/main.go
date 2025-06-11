@@ -45,6 +45,33 @@ func main() {
 		// stocks.GetAllAssets,
 		map[string]string{},
 	)
+	server.RegisterTool(
+		"buy-asset",
+		"Buy a specific asset on chain using the specific amounts of token",
+		assetAgg.Buy,
+		map[string]string{
+			"assetType":   "Type of the asset (stock, bond, property or alternate)",
+			"assetId":     "Asset ID to purchase",
+			"tokenAmount": "Amount of tokens to use to purchase the stock",
+		},
+	)
+	server.RegisterTool(
+		"sell-asset",
+		"Sell all of the user's position for a specific asset on chain",
+		assetAgg.Sell,
+		map[string]string{
+			"assetType":   "Type of the asset (stock, bond, property or alternate)",
+			"assetId":     "Asset ID to purchase",
+			"tokenAmount": "Amount of tokens to use to purchase the stock",
+		},
+	)
+	server.RegisterTool(
+		"list-user-owned-assets",
+		"Get the assets owned specifically by the user.",
+		assetAgg.GetMyAssets,
+		// map[string]string{"userAddress": "Hex representation of the user's wallet address"},
+		map[string]string{},
+	)
 	// server.RegisterTool(
 	// 	"list-assets",
 	// 	"Get all the on chain assets available and managed by the asset manager",

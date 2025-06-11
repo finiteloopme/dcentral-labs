@@ -3,6 +3,8 @@ BINARY_NAME=evm-mcp-rwa
 ABI_FOLDER_LOCAL=../portfolio-manager/abi
 ABI_FOLDER=abi
 
+include .secrets
+
 .PHONY: init
 init:
 	go mod tidy
@@ -18,7 +20,8 @@ build:
 
 .PHONY: run
 run:
-	go run cmd/main.go
+	echo "key: ${USER_PRIVATE_KEY}"
+	go run cmd/main.go --private-key=${USER_PRIVATE_KEY}
 
 .PHONY: test
 test:
