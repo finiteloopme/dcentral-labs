@@ -72,6 +72,12 @@ func main() {
 			"signer": "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
 		},
 	)
+	server.RegisterTool(
+		"set-risk-profile",
+		"Set the investment risk profile for the user's.  This will provide guidance to the agent on the mix of assets (percentage wise) in the portfolio",
+		assetAgg.SetRiskProfile,
+		map[string]string{"riskProfile": "Risk Profile (low, medium, or high)"},
+	)
 	// server.RegisterTool(
 	// 	"list-assets",
 	// 	"Get all the on chain assets available and managed by the asset manager",
