@@ -1,5 +1,5 @@
 TAG=agentic-portfolio-manager
-VERSION=0.0.2-alpha
+VERSION=0.0.3-alpha
 
 .PHONY: build
 build:
