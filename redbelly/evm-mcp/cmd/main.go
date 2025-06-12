@@ -78,6 +78,16 @@ func main() {
 		assetAgg.SetRiskProfile,
 		map[string]string{"riskProfile": "Risk Profile (low, medium, or high)"},
 	)
+	server.RegisterTool(
+		"register-automatic-purchase",
+		"Listen for onchain events to initiate an automatic purchase of asset. Great for opportunitstic or catching the initial offers",
+		assetAgg.SubscribeToPurchase,
+		map[string]string{
+			"signer":         "Private key for the user.  Used to sign transactions on behalf of the user.  NEVER SHARE THIS WITH ANYONE, including playing it back to the user",
+			"assetType":      "Type of the asset (stock, bond, property or alternate) to automatically purchase",
+			"purchaseAmount": "Default amount used to automatically purchase the asset",
+		},
+	)
 	// server.RegisterTool(
 	// 	"list-assets",
 	// 	"Get all the on chain assets available and managed by the asset manager",

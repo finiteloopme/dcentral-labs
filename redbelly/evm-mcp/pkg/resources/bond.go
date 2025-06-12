@@ -12,6 +12,7 @@ import (
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/generated/contract"
 	"github.com/finiteloopme/dcentral-labs/redbelly/evm-mcp/pkg/evm"
 	"github.com/finiteloopme/goutils/pkg/log"
+	oserr "github.com/finiteloopme/goutils/pkg/v2/os/err"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -156,7 +157,7 @@ func (s *BondContract) Buy(ctx context.Context, request mcp.CallToolRequest) (*m
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error buying bond: %v", err.Error())), nil
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("Transaction order submitted for purchasing bond is: %v", txnReceipt)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction order submitted for purchasing bond is: %v", txnReceipt.Hash().Hex())), nil
 }
 
 func (s *BondContract) BuyBond(assetId *big.Int, tokenAmount int64, signer *evm.Signer) (*types.Transaction, error) {
@@ -189,11 +190,66 @@ func (s *BondContract) Sell(ctx context.Context, request mcp.CallToolRequest) (*
 
 }
 
-func (s BondContract) SellBond(assetId *big.Int, signer *evm.Signer) (*types.Transaction, error) {
+func (s *BondContract) SellBond(assetId *big.Int, signer *evm.Signer) (*types.Transaction, error) {
 	tx, err := s.transactor.Sell(s.chain.NewTransaction(signer), assetId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sell bond %v: %w", assetId, err)
 	}
 
 	return tx, nil
+}
+
+func (e *BondContract) SubscribeToPurchase(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	signerPrivKey, err := request.RequireString("signer")
+	if err != nil {
+		return mcp.NewToolResultText("User profile hasn't been set properly to automatically purchase bonds.  Requires signer key to be set"), nil
+	}
+	signer := evm.NewSigner(signerPrivKey)
+	// assetContractAddress, err := request.RequireString("stockAssetContractAddress")
+	// if err != nil {
+	// 	return mcp.NewToolResultText(fmt.Sprintf("Need contract address for the stock. %v", err.Error())), nil
+	// }
+	_purchaseAmount, err := request.RequireString("purchaseAmount")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Need purchase amount for the bond. %v", err.Error())), nil
+	}
+	purchaseAmount, err := strconv.Atoi(_purchaseAmount)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid purchase amount: %v", err.Error())), nil
+	}
+	e.SubscribeToBonds(purchaseAmount, signer)
+	return mcp.NewToolResultText("Subscribed to purchase bonds automatically"), nil
+}
+
+func (s *BondContract) SubscribeToBonds(purchaseAmount int, signer *evm.Signer) {
+	bondContract, err := contract.NewBond(s.address, s.chain.WsClient)
+	oserr.WarnIfError("failed to instantiate a contract for BoondAsset: %w", err)
+	if err != nil {
+		return
+	}
+
+	watchOpts := &bind.WatchOpts{Context: context.Background(), Start: nil}
+	logs := make(chan *contract.BondAssetSold, 0)
+	go func() {
+		subscription, err := bondContract.WatchAssetSold(watchOpts, logs, make([]*big.Int, 0), make([]common.Address, 0))
+		oserr.PanicIfError("failed to subscribe to BondAssetSold events: %w", err)
+		defer subscription.Unsubscribe()
+		for {
+			select {
+			case err := <-subscription.Err():
+				log.Warn("error during subscription: %w", err)
+				break
+			case msg := <-logs:
+				// stock := NewStockAsset(e.client)
+				// stock.RefreshContract(contractAddress)
+				txn, err := s.BuyBond(msg.AssetId, int64(purchaseAmount), signer)
+				if err != nil {
+					log.Warnf("failed to automatically buy asset %v after issue: %w", msg.AssetId, err)
+					log.Warn("Unsubscribing...", err)
+					break
+				}
+				log.Infof("Automatic purchase succeeded with transaction: %s", txn.Hash().Hex())
+			}
+		}
+	}()
 }

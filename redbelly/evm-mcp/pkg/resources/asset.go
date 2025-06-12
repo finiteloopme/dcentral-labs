@@ -66,6 +66,7 @@ type AssetContract interface {
 	GetMyAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 	Buy(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 	Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	SubscribeToPurchase(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 }
 
 func NewAssetContract(chain *evm.Chain, contractAddress string, assetType string) AssetContract {
@@ -86,7 +87,6 @@ func NewAssetContract(chain *evm.Chain, contractAddress string, assetType string
 }
 
 func (a *AssetAggretator) GetAllAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Infof("This agg in GetAllAssets is: %v", &a)
 
 	log.Infof("Getting all assets with req: %v", request)
 	result := mcp.NewToolResultText("")
@@ -107,7 +107,6 @@ func (a *AssetAggretator) GetAllAssets(ctx context.Context, request mcp.CallTool
 }
 
 func (a *AssetAggretator) Buy(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Infof("This agg in Buy is: %v", &a)
 	_, err := request.RequireString("signer")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Private key for the user is required: %v", err.Error())), nil
@@ -124,7 +123,6 @@ func (a *AssetAggretator) Buy(ctx context.Context, request mcp.CallToolRequest) 
 }
 
 func (a *AssetAggretator) Sell(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Infof("This agg in Sell is: %v", &a)
 	_, err := request.RequireString("signer")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Private key for the user is required: %v", err.Error())), nil
@@ -141,7 +139,6 @@ func (a *AssetAggretator) Sell(ctx context.Context, request mcp.CallToolRequest)
 }
 
 func (a *AssetAggretator) GetMyAssets(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Infof("This agg in GetMyAssets is: %v", &a)
 	_, err := request.RequireString("signer")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Private key for the user has not been set: %v", err.Error())), nil
@@ -163,7 +160,6 @@ func (a *AssetAggretator) GetMyAssets(ctx context.Context, request mcp.CallToolR
 }
 
 func (a *AssetAggretator) RegisterUser(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Infof("This agg in RegisterUser is: %v", &a)
 	userName, err := request.RequireString("userName")
 	if err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("User name is required: %v", err.Error())), nil
@@ -207,4 +203,20 @@ func (a *AssetAggretator) SetRiskProfile(ctx context.Context, request mcp.CallTo
 		log.Warnf("Invalid risk profile %s, defaulting to low", riskProfile)
 	}
 	return mcp.NewToolResultText(riskConfig), nil
+}
+
+func (a *AssetAggretator) SubscribeToPurchase(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	_, err := request.RequireString("signer")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Private key for the user is required: %v", err.Error())), nil
+	}
+	assetType, err := request.RequireString("assetType")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Asset type is required: %v", err.Error())), nil
+	}
+	assetContract := a.assetContracts[assetType]
+	if assetContract == nil {
+		return mcp.NewToolResultText(fmt.Sprintf("Invalid asset type: %s", assetType)), nil
+	}
+	return assetContract.SubscribeToPurchase(ctx, request)
 }
