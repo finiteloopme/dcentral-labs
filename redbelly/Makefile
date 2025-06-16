@@ -1,5 +1,5 @@
 TAG=agentic-portfolio-manager
-VERSION=0.0.3-alpha
+VERSION=0.0.2-beta
 
 .PHONY: build
 build:
@@ -16,7 +16,7 @@ join:
 
 .PHONY: deploy
 deploy:
-	gcloud run deploy agentic-wallet-deca \
+	gcloud run deploy agentic-rwa-deca \
 		--source . \
 		--region us-central1 \
 		--project kunal-scratch \
