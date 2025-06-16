@@ -54,8 +54,12 @@ func (a *AssetAggretator) RefreshAssetContracts() {
 	assetContracts := make(map[string]AssetContract)
 	stockContract := NewAssetContract(a.chain, a.cfg.StockContractAddress, AssetTypeStock.String())
 	bondContract := NewAssetContract(a.chain, a.cfg.BondContractAddress, AssetTypeBond.String())
+	propertyContract := NewAssetContract(a.chain, a.cfg.PropertyContractAddress, AssetTypeProperty.String())
+	alternateAssetContract := NewAssetContract(a.chain, a.cfg.AlternateContractAddress, AssetTypeAlternate.String())
 	assetContracts[AssetTypeStock.String()] = stockContract
 	assetContracts[AssetTypeBond.String()] = bondContract
+	assetContracts[AssetTypeProperty.String()] = propertyContract
+	assetContracts[AssetTypeAlternate.String()] = alternateAssetContract
 	a.assetContracts = assetContracts
 }
 
@@ -77,10 +81,12 @@ func NewAssetContract(chain *evm.Chain, contractAddress string, assetType string
 	case AssetTypeBond.String():
 		bondContract := NewBondContract(chain, contractAddress)
 		return AssetContract(bondContract)
-	// case "property":
-	// 	return NewPropertyAsset(chain)
-	// case "alternate":
-	// 	return NewAlternateAsset(chain)
+	case AssetTypeProperty.String():
+		propertyContract := NewPropertyContract(chain, contractAddress)
+		return AssetContract(propertyContract)
+	case AssetTypeAlternate.String():
+		alternateAssetContract := NewAlternateContract(chain, contractAddress)
+		return AssetContract(alternateAssetContract)
 	default:
 		return nil
 	}
