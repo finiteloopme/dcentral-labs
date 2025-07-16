@@ -40,5 +40,6 @@ operations/variable-scripts/variable.template.json
 operations/variable-scripts/variable.json
 
 # Sentinel runtime directory
-.sentinel.terraform*
+.sentinel
+.terraform*
 tfplan.out
