@@ -1,0 +1,6 @@
+# Operating System and Editor specific files (optional, but recommended)
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~

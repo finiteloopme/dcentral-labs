@@ -1,0 +1,24 @@
+# This YAML file defines the metadata for the Confidential Space workload.
+# It's passed to the VM instance at creation time.
+version: v1
+workload:
+  # The environment variables for the workload container.
+  # The LAUNCHER_ARGS are passed to the Confidential Space launcher.
+  environment:
+    - name: LAUNCHER_ARGS
+      value:
+        # This is the full URI of the Docker image we pushed to Artifact Registry.
+        # It's a critical piece of the attestation, as the image digest is measured.
+        - --image_repo_name=us-central1-docker.pkg.dev/your-gcp-project-id/midnight-server-repo/midnight-proof-server:latest
+
+  # Attestation configuration for the workload.
+  attestation:
+    # The workload identity pool provider to use for attestation.
+    # This must match the provider we created earlier.
+    workload_identity_pool_provider: "projects/your-gcp-project-id/locations/global/workloadIdentityPools/midnight-attestation-pool/providers/confidential-space-provider"
+
+    # The service account that the workload will impersonate after successful attestation.
+    service_account: "midnight-workload-sa@your-gcp-project-id.iam.gserviceaccount.com"
+
+# IMPORTANT: Before deploying, replace 'your-gcp-project-id' with your actual Google Cloud Project ID.
+
