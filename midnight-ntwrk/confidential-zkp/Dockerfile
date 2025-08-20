@@ -10,7 +10,7 @@ RUN cargo build --release
 
 # --- Stage 2: Final Image ---
 # This stage creates the final, lean image for our workload.
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Install necessary certificates for HTTPS communication.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*

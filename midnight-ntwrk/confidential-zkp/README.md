@@ -106,7 +106,8 @@ gcloud iam workload-identity-pools providers create-oidc $WIP_PROVIDER \
     --location="global" \
     --issuer-uri="https://confidentialcomputing.googleapis.com/" \
     --allowed-audiences="https://sts.googleapis.com" \
-    --attribute-mapping="google.subject=assertion.sub"
+    --attribute-mapping="google.subject=\"gcpcs::\"+assertion.submods.container.image_digest+\"::\"+assertion.submods.gce.project_number+\"::\"+assertion.submods.gce.instance_id,attribute.image_digest=assertion.submods.container.image_digest" \
+    --attribute-condition="assertion.hwmodel == 'INTEL_TDX'"
 ```
 
 ### 2.3. Grant Service Account Access
@@ -114,6 +115,20 @@ gcloud iam workload-identity-pools providers create-oidc $WIP_PROVIDER \
 This policy ensures that only workloads running in a TDX environment can assume the service account's identity.
 
 ```bash
+gcloud iam service-accounts add-iam-policy-binding \
+    ${WORKLOAD_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+    --member=user:$(gcloud config get-value account) \
+    --role="roles/iam.serviceAccountUser"
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member=serviceAccount:${WORKLOAD_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+    --role="roles/confidentialcomputing.workloadUser"
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member=serviceAccount:${WORKLOAD_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+    --role="roles/logging.logWriter"
+gcloud artifacts repositories add-iam-policy-binding ${REPO_NAME} \
+    --location=us-central1 \
+    --member=serviceAccount:${WORKLOAD_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+    --role="roles/artifactregistry.reader"
 gcloud iam service-accounts add-iam-policy-binding "${WORKLOAD_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/iam.workloadIdentityUser" \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$WIP_POOL_ID/*"
@@ -151,7 +166,10 @@ gcloud compute firewall-rules create allow-attestation-server \
     --no-shielded-secure-boot \
     --shielded-vtpm \
     --shielded-integrity-monitoring \
-    --reservation-affinity=any
+    --maintenance-policy=TERMINATE \
+    --reservation-affinity=any \
+    --image-family=confidential-space-debug \
+    --metadata="^~^tee-image-reference=${IMAGE_URI}~tee-container-log-redirect=true"
     ```
 
 ## Step 4: Remote Attestation Verification with Rust Client
