@@ -1,0 +1,37 @@
+# cloudbuild.yaml
+# This file defines the steps for Google Cloud Build to execute Terraform commands.
+
+steps:
+  # Step 1: Initialize Terraform
+  # This step initializes Terraform and configures the backend to use a GCS bucket.
+  # The bucket name is passed in as a substitution variable.
+  - name: 'hashicorp/terraform:1.5.7'
+    id: 'init'
+    args:
+      - 'init'
+      - '-backend-config=bucket=${_TF_STATE_BUCKET}'
+
+  # Step 2: Run the specified Terraform command (plan, apply, or destroy)
+  # This uses an entrypoint override to execute a small shell script.
+  # This allows conditional logic based on the command.
+  - name: 'hashicorp/terraform:1.5.7'
+    id: 'terraform-command'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        # For a 'plan', we create a plan file to be used by 'apply'.
+        if [ "${_TF_COMMAND}" = "plan" ]; then
+          terraform ${_TF_COMMAND} -var="gcp_project_id=${PROJECT_ID}"
+        # For 'apply', we use the plan file created in a previous run.
+        elif [ "${_TF_COMMAND}" = "apply" ]; then
+          terraform ${_TF_COMMAND} -var="gcp_project_id=${PROJECT_ID}" -auto-approve
+        # For other commands like 'destroy', we run them directly.
+        else
+          terraform ${_TF_COMMAND} -var="gcp_project_id=${PROJECT_ID}" -auto-approve
+        fi
+
+# Substitutions allow us to pass variables into the build process from the command line.
+substitutions:
+  _TF_COMMAND: 'plan' # The default command to run if none is specified.
+  _TF_STATE_BUCKET: '' # The GCS bucket for Terraform state (must be provided).
