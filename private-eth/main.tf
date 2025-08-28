@@ -1,16 +1,12 @@
 # main.tf
 
-# Configure Terraform to use a Google Cloud Storage (GCS) bucket for its state file.
-# This is essential for CI/CD environments and team collaboration.
 terraform {
   backend "gcs" {
-    # The bucket name will be configured dynamically by the Cloud Build 'init' step
-    # using the -backend-config flag. This avoids hardcoding the bucket name.
-    prefix = "terraform/private-eth/state/reth-node"
+    prefix = "terraform/state/reth-node"
   }
 }
 
-# Configure the Google Cloud provider
+# --- GCP Provider Configuration ---
 provider "google" {
   project = var.gcp_project_id
   region  = var.gcp_region
@@ -18,95 +14,82 @@ provider "google" {
   impersonate_service_account = "tf-service-account@kunal-scratch.iam.gserviceaccount.com"
 }
 
-# Create a new VPC network for our resources
-resource "google_compute_network" "reth_vpc" {
-  name                    = "reth-vpc-network"
-  auto_create_subnetworks = false # We will create a custom subnet
+# --- Networking ---
+resource "google_compute_network" "vpc_network" {
+  name                    = "reth-vpc"
+  auto_create_subnetworks = false
 }
 
-# Create a subnet in the VPC
-resource "google_compute_subnetwork" "reth_subnet" {
-  name          = "reth-public-subnet"
-  ip_cidr_range = "10.0.1.0/24"
-  network       = google_compute_network.reth_vpc.id
+resource "google_compute_subnetwork" "vpc_subnetwork" {
+  name          = "reth-subnet"
+  ip_cidr_range = "10.10.0.0/24"
+  network       = google_compute_network.vpc_network.id
   region        = var.gcp_region
 }
 
-# Create firewall rules to allow necessary traffic
-resource "google_compute_firewall" "reth_firewall" {
-  name    = "reth-firewall-rules"
-  network = google_compute_network.reth_vpc.id
-
-  # Allow inbound SSH, Reth P2P, and RPC traffic from anywhere
+resource "google_compute_firewall" "allow_ssh_http" {
+  name    = "reth-firewall"
+  network = google_compute_network.vpc_network.name
   allow {
     protocol = "tcp"
-    ports    = ["22", "30303", "8545"]
+    ports    = ["22", "8545", "8546", "30303"]
   }
-  allow {
-    protocol = "udp"
-    ports    = ["30303"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["reth-node"] # Apply this rule to instances with this tag
+  source_ranges = ["0.0.0.0/0"] # For simplicity; restrict in production
 }
 
-# Create a large, fast persistent disk for chain data
+# --- Data Disk ---
+# This resource creates the large disk for storing chain data.
+# It can be created from a pre-existing snapshot for fast deployments,
+# or as a new empty disk for the initial setup.
 resource "google_compute_disk" "reth_data_disk" {
-  name = "reth-chain-data-disk"
-  type = "pd-ssd" # Use an SSD for performance
-  size = 2500     # 2.5TB in GB, adjust as needed
+  name     = "reth-chain-data-disk"
+  type     = "hyperdisk-extreme"
+  zone     = var.gcp_zone
+  # Conditionally create from snapshot if a name is provided.
+  snapshot = var.gcp_disk_snapshot_name != "" ? var.gcp_disk_snapshot_name : null
+  # If no snapshot, create a new 2.5TB empty disk.
+  size     = var.gcp_disk_snapshot_name != "" ? null : 4000
+
+  # Ensure the disk is deleted when the instance is destroyed.
+  labels = {
+    "created-by" = "terraform"
+  }
 }
 
-# Create a Compute Engine instance to run the Reth node
+
+# --- Compute Instance ---
 resource "google_compute_instance" "reth_node" {
   name         = "reth-private-fork-node"
   machine_type = var.machine_type
   zone         = var.gcp_zone
-  tags         = ["reth-node"] # Tag for the firewall rule
 
-  # Configure the boot disk with Ubuntu
   boot_disk {
     initialize_params {
-      image = var.image
-      size  = 50 # GB
+      image = "ubuntu-os-cloud/ubuntu-2204-lts"
+      size  = 200 # GB
     }
   }
 
-  # Attach the large data disk
   attached_disk {
     source      = google_compute_disk.reth_data_disk.id
-    device_name = "reth-data-disk" # A name for the attachment
+    device_name = "reth-data-disk"
   }
 
-
-  # Configure the network interface
   network_interface {
-    network    = google_compute_network.reth_vpc.id
-    subnetwork = google_compute_subnetwork.reth_subnet.id
+    subnetwork = google_compute_subnetwork.vpc_subnetwork.id
     access_config {
       // Ephemeral public IP
     }
   }
 
-  # Pass the startup script and genesis file as instance metadata
   metadata = {
-    startup-script = file("${path.module}/startup_script.sh")
-    genesis_json   = file("${path.module}/private-genesis.json")
+    "startup-script" = file("startup_script.sh")
+    "genesis-json"   = file("private-genesis.json")
   }
 
-  // Allow the instance to manage disks
   service_account {
     scopes = ["cloud-platform"]
   }
 
-  // It's good practice to ensure the disk is deleted when the instance is
-  lifecycle {
-    ignore_changes = [attached_disk]
-  }
-}
-
-# Output the public IP address of the instance
-output "instance_public_ip" {
-  value = google_compute_instance.reth_node.network_interface[0].access_config[0].nat_ip
+  allow_stopping_for_update = true
 }

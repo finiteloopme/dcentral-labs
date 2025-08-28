@@ -21,7 +21,8 @@ variable "gcp_zone" {
 variable "machine_type" {
   description = "The GCE machine type to use. Should have sufficient CPU and memory."
   type        = string
-  default     = "n2-standard-8" # 8 vCPU, 32 GiB RAM
+  # default     = "n2-standard-8" # 8 vCPU, 32 GiB RAM
+  default     = "n2-standard-64" # 64 vCPU, 256 GiB RAM
 }
 
 variable "image" {
@@ -34,4 +35,10 @@ variable "app_name" {
   description = "Name of the application"
   type        = string
   default     = "private-eth"
+}
+
+variable "gcp_disk_snapshot_name" {
+  description = "The name of the GCP disk snapshot to create the data disk from. If empty, an empty disk will be created for a fresh download."
+  type        = string
+  default     = ""
 }
