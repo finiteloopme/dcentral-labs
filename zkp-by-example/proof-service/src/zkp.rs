@@ -29,7 +29,7 @@ impl ConstraintSynthesizer<Fr> for SudokuCircuit {
     /// Generates the constraints for the Sudoku scoring circuit.
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         // 1. Allocate public inputs.
-        let _score_var = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.score as u64)))?;
+        let score_var = FpVar::<Fr>::new_input(cs.clone(), || Ok(Fr::from(self.score as u64)))?;
         let _solution_hash_var = FpVar::<Fr>::new_input(cs.clone(), || Ok(self.solution_hash))?;
 
         // 2. Allocate private inputs.
@@ -58,16 +58,31 @@ impl ConstraintSynthesizer<Fr> for SudokuCircuit {
             .collect::<Result<Vec<_>, _>>()?;
 
         // 3. Score Calculation Constraint.
-        // (This part is currently missing from the original code, but would be implemented here)
+        let mut calculated_score = FpVar::<Fr>::zero();
+        let one = FpVar::<Fr>::one();
+
+        for i in 0..9 {
+            for j in 0..9 {
+                let player_move_is_some = self.player_board[i][j].is_some();
+                let player_move_is_some_var = Boolean::new_witness(cs.clone(), || Ok(player_move_is_some))?;
+
+                let is_correct = player_board_vars[i][j].is_eq(&solution_board_vars[i][j])?;
+
+                let score_change = is_correct.select(&one, &FpVar::zero())?;
+                let final_score_change = player_move_is_some_var.select(&score_change, &FpVar::zero())?;
+
+                calculated_score += final_score_change;
+            }
+        }
+
+        calculated_score.enforce_equal(&score_var)?;
 
         // 4. Board Validity Constraints.
-        // Enforce that both the player's board and the solution board are valid.
         enforce_board_validity(cs.clone(), &player_board_vars)?;
         enforce_board_validity(cs.clone(), &solution_board_vars)?;
 
         // 5. Solution Hash Constraint.
-        // This part is complex and requires a Poseidon gadget.
-        // For now, we will skip this constraint and assume the solution board is correct.
+        // (Skipped for now)
 
         Ok(())
     }

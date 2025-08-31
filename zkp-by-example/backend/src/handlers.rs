@@ -189,8 +189,6 @@ fn calculate_score(game: &Game, competition: &Competition) -> i32 {
             if let Some(val) = cell {
                 if val == competition.board[row_idx][col_idx].unwrap_or(0) {
                     score += 1;
-                } else {
-                    score -= 2;
                 }
             }
         }
