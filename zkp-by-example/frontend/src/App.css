@@ -1,43 +1,136 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
 body {
-  font-family: sans-serif;
-  background-color: #f0f0f0;
+  font-family: 'Share Tech Mono', monospace;
+  background-color: #1a1a1a;
+  color: #00ff00;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#root {
+  width: 100%;
+  max-width: 500px;
+  padding: 2rem;
+  border: 1px solid #00ff00;
+  box-shadow: 0 0 20px #00ff00;
+  background-color: #000;
 }
 
 nav {
   margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
 }
 
-nav button {
-  margin-right: 0.5rem;
+nav a {
+  color: #00ff00;
+  text-decoration: none;
+  border: 1px solid #00ff00;
   padding: 0.5rem 1rem;
-  border: 1px solid #ccc;
-  background-color: #fff;
+  transition: all 0.3s ease;
+}
+
+nav a:hover {
+  background-color: #00ff00;
+  color: #000;
+}
+
+input, select, button {
+  font-family: 'Share Tech Mono', monospace;
+  background-color: #1a1a1a;
+  color: #00ff00;
+  border: 1px solid #00ff00;
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+button {
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background-color: #00ff00;
+  color: #000;
 }
 
 .sudoku-grid {
   display: grid;
-  grid-template-columns: repeat(9, 40px);
-  grid-template-rows: repeat(9, 40px);
-  border: 2px solid #333;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  border: 2px solid #00ff00;
+  margin: 1rem 0;
+  max-width: 400px;
+  max-height: 360px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-right: 2px solid #00ff00;
+  border-bottom: 2px solid #00ff00;
 }
 
 .sudoku-row {
-  display: contents;
+    display: contents;
 }
 
 .sudoku-cell {
-  width: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
   height: 40px;
   text-align: center;
   font-size: 1.5rem;
-  border: 1px solid #ccc;
+  border: 1px solid #005500;
+  background-color: #000;
+  color: #00ff00;
+  caret-color: #00ff00;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  border-top: 1px solid #005500;
+  border-left: 1px solid #005500;
 }
 
-.sudoku-cell:nth-child(3n) {
-  border-right: 2px solid #333;
+.sudoku-cell:nth-child(3n+1) {
+  border-left: 2px solid #00ff00;
 }
 
-.sudoku-row:nth-child(3n) .sudoku-cell {
-  border-bottom: 2px solid #333;
+.sudoku-row:nth-child(3n+1) .sudoku-cell {
+  border-top: 2px solid #00ff00;
+}
+
+.initial-cell {
+  background-color: aliceblue; /* Neon green for system numbers */
+  color: #005500;
+}
+
+.user-cell {
+  color: #00ffff; /* Neon blue for user numbers */
+}
+
+/* Remove spinners from number inputs */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+@media (max-width: 600px) {
+  #root {
+    padding: 1rem;
+    border: none;
+    box-shadow: none;
+  }
+
+  .sudoku-grid {
+    font-size: 1rem;
+  }
 }

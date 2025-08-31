@@ -73,7 +73,7 @@ function GamePage() {
       ) : (
         <div>
           <p>Playing as: {player?.name}</p>
-          <SudokuGrid board={game.board} onCellChange={handleCellChange} />
+          <SudokuGrid board={game.board} initialBoard={competition.board} onCellChange={handleCellChange} />
           <button onClick={handleSubmit}>Submit</button>
           {game.score !== 0 && <p>Score: {game.score}</p>}
         </div>
