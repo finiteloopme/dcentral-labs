@@ -1,0 +1,4 @@
+- Create a multiplayer sudoku game.  Where players can join an in progress competition to compete against each other to solve the sudoku the quickest
+- Each player can submit the game including unfinished for marking by the backend.  A number in the correct place gets the user 1 point, whereas number in an incorrect deducts 2 points.  Score can be negative
+- Keep a competition ladder for each of the games, including in progress and completed games
+- An admin should be able to create, pause, and resume a competition.  While the competition is paused, players playing that game can only submit the game for scoring but not make changes to solve the game.  Admin should be able to pause competitions selectively

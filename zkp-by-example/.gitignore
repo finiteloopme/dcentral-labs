@@ -1,0 +1,24 @@
+# Dependencies
+frontend/node_modules
+backend/target
+
+# Gemini
+.gemini
+
+# Build artifacts
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# macOS
+.DS_Store
+
+# Certificates
+*.pem
