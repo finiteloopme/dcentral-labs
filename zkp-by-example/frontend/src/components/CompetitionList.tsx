@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Select from 'react-select';
+import { useNavigate } from 'react-router-dom';
 import type { Competition } from '../types';
 import config from '../config';
 
 /**
- * A component that displays a list of available competitions.
+ * A component that displays a searchable dropdown of available competitions.
  */
 function CompetitionList() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const navigate = useNavigate();
 
   // Fetch the list of competitions from the backend when the component mounts.
   useEffect(() => {
@@ -16,16 +18,50 @@ function CompetitionList() {
       .then(data => setCompetitions(data));
   }, []);
 
+  const options = competitions.map(comp => ({
+    value: comp.id,
+    label: comp.name,
+  }));
+
+  const handleChange = (selectedOption: any) => {
+    navigate(`/competitions/${selectedOption.value}`);
+  };
+
+  const customStyles = {
+    control: (provided: any) => ({
+      ...provided,
+      backgroundColor: '#1a1a1a',
+      borderColor: '#00ff00',
+      color: '#00ff00',
+    }),
+    menu: (provided: any) => ({
+      ...provided,
+      backgroundColor: '#1a1a1a',
+    }),
+    option: (provided: any, state: any) => ({
+      ...provided,
+      backgroundColor: state.isSelected ? '#00ff00' : '#1a1a1a',
+      color: state.isSelected ? '#000' : '#00ff00',
+      ':hover': {
+        backgroundColor: '#00ff00',
+        color: '#000',
+      },
+    }),
+    singleValue: (provided: any) => ({
+      ...provided,
+      color: '#00ff00',
+    }),
+  };
+
   return (
     <div>
-      <h2>Competitions</h2>
-      <ul>
-        {competitions.map(comp => (
-          <li key={comp.id}>
-            <Link to={`/competitions/${comp.id}`}>{comp.name}</Link>
-          </li>
-        ))}
-      </ul>
+      <h2>Select a Competition</h2>
+      <Select
+        options={options}
+        onChange={handleChange}
+        placeholder="Search for a competition..."
+        styles={customStyles}
+      />
     </div>
   );
 }

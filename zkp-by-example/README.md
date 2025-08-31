@@ -43,6 +43,8 @@ make build
 make docker-build
 ```
 
+This will build Docker images for the `backend`, `frontend`, and `proof-service`.
+
 ### Google Cloud Build & Deploy
 
 **Note:** You need to have a Google Cloud project and have the `gcloud` CLI configured.
@@ -58,5 +60,8 @@ make docker-build
 
     ```bash
     export GCP_PROJECT=<your-gcp-project-id>
+    make gcb-deploy
+    ```
+>
     make gcb-deploy
     ```

@@ -56,3 +56,9 @@ pub struct LadderEntry {
     pub player_name: String,
     pub score: i32,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct ProofResponse {
+    pub proof: String,
+    pub vk: String,
+}

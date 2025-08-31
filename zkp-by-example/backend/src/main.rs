@@ -1,60 +1,46 @@
-//! The main entry point for the Sudoku backend server.
-//!
-//! This module sets up the Axum web server and defines the API routes.
+use actix_cors::Cors;
+use actix_web::{web, App, HttpServer};
 
-use axum::{
-    routing::{get, post, put},
-    Router,
-};
-use std::net::SocketAddr;
-use tower_http::cors::{Any, CorsLayer};
-
+mod config;
 mod handlers;
 mod models;
 mod state;
 
+use config::Config;
 use state::AppState;
 
-#[tokio::main]
-async fn main() {
-    // Initialize the shared state.
-    let state = AppState::new();
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let config = Config::from_env();
+    let state = web::Data::new(AppState::new(config.clone()));
 
-    // Set up CORS middleware to allow requests from any origin.
-    // This is useful for development, but should be configured more securely for production.
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
 
-    // Define the application routes.
-    let app = Router::new()
-        // A simple health check endpoint.
-        .route("/", get(handlers::handler))
-        // Admin routes for managing competitions.
-        .route("/admin/competitions", post(handlers::create_competition))
-        .route(
-            "/admin/competitions/:id/pause",
-            put(handlers::pause_competition),
-        )
-        .route(
-            "/admin/competitions/:id/resume",
-            put(handlers::resume_competition),
-        )
-        // Player routes for interacting with the game.
-        .route("/competitions", get(handlers::list_competitions))
-        .route("/competitions/:id", get(handlers::get_competition))
-        .route("/competitions/:id/join", post(handlers::join_competition))
-        .route("/competitions/:id/submit", post(handlers::submit_solution))
-        .route("/competitions/:id/ladder", get(handlers::get_ladder))
-        // Add the shared state to the application.
-        .with_state(state)
-        // Add the CORS middleware.
-        .layer(cors);
-
-    // Start the server.
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+        App::new()
+            .wrap(cors)
+            .app_data(state.clone())
+            .service(
+                web::scope("/admin")
+                    .route("/competitions", web::post().to(handlers::create_competition))
+                    .route("/competitions/{id}/pause", web::put().to(handlers::pause_competition))
+                    .route("/competitions/{id}/resume", web::put().to(handlers::resume_competition))
+            )
+            .service(
+                web::scope("/competitions")
+                    .route("", web::get().to(handlers::list_competitions))
+                    .route("/{id}", web::get().to(handlers::get_competition))
+                    .route("/{id}/join", web::post().to(handlers::join_competition))
+                    .route("/{id}/submit", web::post().to(handlers::submit_solution))
+                    .route("/{id}/ladder", web::get().to(handlers::get_ladder))
+            )
+            .route("/request-proof", web::post().to(handlers::request_proof))
+            .route("/", web::get().to(handlers::handler))
+    })
+    .bind(format!("0.0.0.0:{}", config.port))?
+    .run()
+    .await
 }

@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import config from '../config';
 
+interface AdminDashboardProps {
+  onCompetitionCreated: () => void;
+}
+
 /**
  * A component for the admin dashboard.
  *
  * This component provides functionality for admins to create new competitions.
  */
-function AdminDashboard() {
+function AdminDashboard({ onCompetitionCreated }: AdminDashboardProps) {
   const [competitionName, setCompetitionName] = useState('');
 
   /**
@@ -23,7 +27,17 @@ function AdminDashboard() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ name: competitionName }),
+    })
+    .then(() => {
+        setCompetitionName('');
+        onCompetitionCreated();
     });
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      createCompetition();
+    }
   };
 
   return (
@@ -33,6 +47,7 @@ function AdminDashboard() {
         type="text"
         value={competitionName}
         onChange={e => setCompetitionName(e.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="Competition Name"
       />
       <button onClick={createCompetition}>Create Competition</button>

@@ -6,6 +6,7 @@ function Layout() {
       <nav>
         <Link to="/">Home</Link>
         <Link to="/admin">Admin</Link>
+        <Link to="/verify-proof">Verify Proof</Link>
       </nav>
 
       <hr />

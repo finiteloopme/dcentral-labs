@@ -10,6 +10,7 @@ function GamePage() {
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
+  const [proof, setProof] = useState<string | null>(null);
 
   useEffect(() => {
     if (competitionId) {
@@ -58,6 +59,20 @@ function GamePage() {
     }
   };
 
+  const handleRequestProof = () => {
+    if (game) {
+      fetch(`${config.backendUrl}/request-proof`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(game),
+      })
+        .then(response => response.json())
+        .then(data => setProof(data.proof));
+    }
+  };
+
   if (!competition) {
     return <div>Loading...</div>;
   }
@@ -75,7 +90,9 @@ function GamePage() {
           <p>Playing as: {player?.name}</p>
           <SudokuGrid board={game.board} initialBoard={competition.board} onCellChange={handleCellChange} />
           <button onClick={handleSubmit}>Submit</button>
+          <button onClick={handleRequestProof}>Generate Proof</button>
           {game.score !== 0 && <p>Score: {game.score}</p>}
+          {proof && <div><h3>Proof:</h3><p>{proof}</p></div>}
         </div>
       )}
       <Ladder competitionId={competition.id} />

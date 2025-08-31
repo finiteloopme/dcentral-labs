@@ -1,6 +1,7 @@
 # Dependencies
 frontend/node_modules
 backend/target
+proof-service/target
 
 # Gemini
 .gemini

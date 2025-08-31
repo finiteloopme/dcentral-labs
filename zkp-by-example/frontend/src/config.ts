@@ -8,9 +8,15 @@ const config = {
   /**
    * The base URL of the backend server.
    *
-   * This can be overridden by the `VITE_BACKEND_URL` environment variable.
+   * This is a placeholder that will be replaced by the entrypoint script.
    */
-  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  backendUrl: '__BACKEND_URL__',
+  /**
+   * The base URL of the proof service.
+   *
+   * This is a placeholder that will be replaced by the entrypoint script.
+   */
+  proofServiceUrl: '__PROOF_SERVICE_URL__',
   /**
    * A collection of API endpoints.
    */

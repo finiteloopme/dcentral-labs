@@ -1,126 +1,96 @@
-//! This module contains the handlers for the API endpoints.
-
 use crate::state::AppState;
-use crate::models::{Competition, Game, Player, CreateCompetitionPayload, JoinGamePayload, LadderEntry};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use crate::models::{Competition, Game, Player, CreateCompetitionPayload, JoinGamePayload, LadderEntry, ProofResponse};
+use actix_web::{web, HttpResponse, Responder};
+use reqwest;
+use serde_json::json;
 
 // Admin Handlers
 
-/// Creates a new competition.
-///
-/// A new Sudoku puzzle is generated for the competition.
-pub async fn create_competition(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateCompetitionPayload>,
-) -> (StatusCode, Json<Competition>) {
+pub async fn create_competition(state: web::Data<AppState>, payload: web::Json<CreateCompetitionPayload>) -> impl Responder {
     let mut competitions = state.competitions.lock().unwrap();
     let id = uuid::Uuid::new_v4().to_string();
 
-    // Generate a new Sudoku puzzle.
     let puzzle = sudoku::Sudoku::generate_unique();
     let board: Vec<Option<u8>> = puzzle.to_bytes().iter().map(|c| if *c == 0 { None } else { Some(*c) }).collect();
     let board = board.chunks(9).map(|s| s.to_vec()).collect();
 
     let competition = Competition {
         id: id.clone(),
-        name: payload.name,
+        name: payload.name.clone(),
         is_paused: false,
         board,
     };
     competitions.insert(id, competition.clone());
-    (StatusCode::CREATED, Json(competition))
+    HttpResponse::Created().json(competition)
 }
 
-/// Pauses a competition.
-///
-/// When a competition is paused, players cannot make moves.
-pub async fn pause_competition(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> StatusCode {
+pub async fn pause_competition(state: web::Data<AppState>, id: web::Path<String>) -> impl Responder {
+    let competition_id = id.into_inner();
     let mut competitions = state.competitions.lock().unwrap();
-    if let Some(competition) = competitions.get_mut(&id) {
+    if let Some(competition) = competitions.get_mut(&competition_id) {
         competition.is_paused = true;
-        StatusCode::OK
+        HttpResponse::Ok()
     } else {
-        StatusCode::NOT_FOUND
+        HttpResponse::NotFound()
     }
 }
 
-/// Resumes a competition.
-pub async fn resume_competition(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> StatusCode {
+pub async fn resume_competition(state: web::Data<AppState>, id: web::Path<String>) -> impl Responder {
+    let competition_id = id.into_inner();
     let mut competitions = state.competitions.lock().unwrap();
-    if let Some(competition) = competitions.get_mut(&id) {
+    if let Some(competition) = competitions.get_mut(&competition_id) {
         competition.is_paused = false;
-        StatusCode::OK
+        HttpResponse::Ok()
     } else {
-        StatusCode::NOT_FOUND
+        HttpResponse::NotFound()
     }
 }
 
 // Player Handlers
 
-/// Lists all available competitions.
-pub async fn list_competitions(State(state): State<AppState>) -> Json<Vec<Competition>> {
+pub async fn list_competitions(state: web::Data<AppState>) -> impl Responder {
     let competitions = state.competitions.lock().unwrap();
-    let competitions_vec = competitions.values().cloned().collect();
-    Json(competitions_vec)
+    let competitions_vec: Vec<Competition> = competitions.values().cloned().collect();
+    HttpResponse::Ok().json(competitions_vec)
 }
 
-/// Gets a single competition by its ID.
-pub async fn get_competition(State(state): State<AppState>, axum::extract::Path(id): axum::extract::Path<String>) -> (StatusCode, Json<Option<Competition>>) {
+pub async fn get_competition(state: web::Data<AppState>, id: web::Path<String>) -> impl Responder {
+    let competition_id = id.into_inner();
     let competitions = state.competitions.lock().unwrap();
-    let competition = competitions.get(&id).cloned();
-    if competition.is_some() {
-        (StatusCode::OK, Json(competition))
+    let competition = competitions.get(&competition_id).cloned();
+    if let Some(c) = competition {
+        HttpResponse::Ok().json(c)
     } else {
-        (StatusCode::NOT_FOUND, Json(None))
+        HttpResponse::NotFound().finish()
     }
 }
 
-
-/// Allows a player to join a competition.
-///
-/// If the player already exists in the competition, their existing game is returned.
-/// Otherwise, a new player and game are created.
-pub async fn join_competition(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(payload): Json<JoinGamePayload>,
-) -> (StatusCode, Json<Game>) {
+pub async fn join_competition(state: web::Data<AppState>, id: web::Path<String>, payload: web::Json<JoinGamePayload>) -> impl Responder {
+    let competition_id = id.into_inner();
     let mut players = state.players.lock().unwrap();
     let mut games = state.games.lock().unwrap();
     let competitions = state.competitions.lock().unwrap();
 
-    let competition = match competitions.get(&id) {
+    let competition = match competitions.get(&competition_id) {
         Some(c) => c,
-        None => return (StatusCode::NOT_FOUND, Json(Game::default())),
+        None => return HttpResponse::NotFound().finish(),
     };
 
-    // Check if a player with the same name already exists for this competition.
     if let Some(existing_player) = players.iter().find(|p| p.name == payload.name) {
-        if let Some(existing_game) = games.iter().find(|g| g.player_id == existing_player.id && g.competition_id == id) {
-            return (StatusCode::OK, Json(existing_game.clone()));
+        if let Some(existing_game) = games.iter().find(|g| g.player_id == existing_player.id && g.competition_id == competition_id) {
+            return HttpResponse::Ok().json(existing_game.clone());
         }
     }
 
-    // If the player does not exist, create a new player and game.
     let player_id = uuid::Uuid::new_v4().to_string();
     let new_player = Player {
         id: player_id.clone(),
-        name: payload.name,
+        name: payload.name.clone(),
     };
     players.push(new_player);
 
     let game = Game {
-        competition_id: id,
+        competition_id: competition_id,
         player_id,
         board: competition.board.clone(),
         score: 0,
@@ -128,51 +98,41 @@ pub async fn join_competition(
 
     games.push(game.clone());
 
-    (StatusCode::CREATED, Json(game))
+    HttpResponse::Created().json(game)
 }
 
-/// Submits a player's solution for scoring.
-///
-/// The player's board is compared against the solution board.
-/// The score is calculated and updated.
-pub async fn submit_solution(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(submission): Json<Game>,
-) -> (StatusCode, Json<Game>) {
+pub async fn submit_solution(state: web::Data<AppState>, id: web::Path<String>, submission: web::Json<Game>) -> impl Responder {
+    let competition_id = id.into_inner();
     let mut games = state.games.lock().unwrap();
     let competitions = state.competitions.lock().unwrap();
 
-    let competition = match competitions.get(&id) {
+    let competition = match competitions.get(&competition_id) {
         Some(c) => c,
-        None => return (StatusCode::NOT_FOUND, Json(Game::default())),
+        None => return HttpResponse::NotFound().finish(),
     };
 
-    // Players cannot submit solutions if the competition is paused.
     if competition.is_paused {
-        return (StatusCode::FORBIDDEN, Json(Game::default()));
+        return HttpResponse::Forbidden().finish();
     }
 
-    if let Some(game) = games.iter_mut().find(|g| g.competition_id == id && g.player_id == submission.player_id) {
+    if let Some(game) = games.iter_mut().find(|g| g.competition_id == competition_id && g.player_id == submission.player_id) {
         game.board = submission.board.clone();
         game.score = calculate_score(game, competition);
 
-        (StatusCode::OK, Json(game.clone()))
+        HttpResponse::Ok().json(game.clone())
     } else {
-        (StatusCode::NOT_FOUND, Json(Game::default()))
+        HttpResponse::NotFound().finish()
     }
 }
 
-/// Returns the ladder for a competition.
-///
-/// The ladder is a list of all games in the competition, which includes the player and their score.
-pub async fn get_ladder(State(state): State<AppState>, axum::extract::Path(id): axum::extract::Path<String>) -> (StatusCode, Json<Vec<LadderEntry>>) {
+pub async fn get_ladder(state: web::Data<AppState>, id: web::Path<String>) -> impl Responder {
+    let competition_id = id.into_inner();
     let games = state.games.lock().unwrap();
     let players = state.players.lock().unwrap();
 
     let mut ladder: Vec<LadderEntry> = games
         .iter()
-        .filter(|g| g.competition_id == id)
+        .filter(|g| g.competition_id == competition_id)
         .map(|g| {
             let player_name = players
                 .iter()
@@ -188,13 +148,38 @@ pub async fn get_ladder(State(state): State<AppState>, axum::extract::Path(id): 
 
     ladder.sort_by(|a, b| b.score.cmp(&a.score));
 
-    (StatusCode::OK, Json(ladder))
+    HttpResponse::Ok().json(ladder)
 }
 
+async fn generate_proof_request(submission: &Game, competition: &Competition, proof_service_url: &str) -> Result<ProofResponse, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let res = client.post(format!("{}/generate-proof", proof_service_url))
+        .json(&json!({
+            "player_board": submission.board,
+            "solution_board": competition.board,
+            "score": submission.score,
+        }))
+        .send()
+        .await?;
 
-/// A simple handler for the root endpoint.
-pub async fn handler() -> &'static str {
-    "Hello, World!"
+    res.json::<ProofResponse>().await
+}
+
+pub async fn request_proof(state: web::Data<AppState>, submission: web::Json<Game>) -> impl Responder {
+    let competitions = state.competitions.lock().unwrap();
+    let competition = match competitions.get(&submission.competition_id) {
+        Some(c) => c.clone(),
+        None => return HttpResponse::NotFound().finish(),
+    };
+
+    match generate_proof_request(&submission, &competition, &state.config.proof_service_url).await {
+        Ok(proof_response) => HttpResponse::Ok().json(proof_response),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+pub async fn handler() -> impl Responder {
+    HttpResponse::Ok().body("Hello, World!")
 }
 
 fn calculate_score(game: &Game, competition: &Competition) -> i32 {

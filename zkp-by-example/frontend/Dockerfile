@@ -26,12 +26,9 @@ FROM nginx:1.25-alpine
 # Copy the built static files from the builder stage to the Nginx html directory.
 COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
 
-# Copy the Nginx configuration file.
-# This file configures Nginx to serve the React application correctly.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY entrypoint.sh /entrypoint.sh
 
-# Expose port 80.
 EXPOSE 80
 
-# Start Nginx when the container starts.
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]
