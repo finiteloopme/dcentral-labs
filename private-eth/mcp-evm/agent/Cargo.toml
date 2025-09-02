@@ -1,0 +1,10 @@
+[package]
+name = "mcp-evm-agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk.git", branch = "main", features = ["transport-child-process", "client"] }
+anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1.0"

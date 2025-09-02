@@ -1,0 +1,1 @@
+(Tool, for<'a> fn(&'a EvmTools, GetTokenPriceParams) -> Pin<Box<(dyn Future<Output = std::result::Result<std::string::String, std::string::String>> + Send + 'a)>> {EvmTools::get_token_price}): IntoToolRoute<EvmTools, _>
