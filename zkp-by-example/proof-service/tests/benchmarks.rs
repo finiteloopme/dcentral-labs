@@ -3,9 +3,10 @@ use std::fs::File;
 use std::io::BufReader;
 use proof_service::{SudokuCircuit};
 use halo2_proofs::{
-    plonk::{create_proof, keygen_pk, keygen_vk, verify_proof},
+    plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, VerifyingKey, ProvingKey},
     poly::commitment::Params,
     transcript::{Blake2bWrite, Blake2bRead, Challenge255},
+    pasta::EqAffine,
 };
 use rand::rngs::OsRng;
 use serde::Deserialize;
@@ -24,18 +25,16 @@ fn run_benchmarks() {
     let reader = BufReader::new(file);
     let proof_request: GenerateProofRequest = serde_json::from_reader(reader).expect("should deserialize");
 
-    benchmark_case("Sudoku Circuit with dummy data", proof_request);
-}
-
-fn benchmark_case(name: &str, proof_request: GenerateProofRequest) {
-    println!("\n--- {} ---", name);
-
-    // TODO: This should be done only once.
-    let params: Params<halo2_proofs::pasta::EqAffine> = Params::new(13);
-
+    let params: Params<EqAffine> = Params::new(13);
     let empty_circuit = SudokuCircuit::default();
     let vk = keygen_vk(&params, &empty_circuit).expect("keygen_vk should not fail");
-    let pk = keygen_pk(&params, vk, &empty_circuit).expect("keygen_pk should not fail");
+    let pk = keygen_pk(&params, vk.clone(), &empty_circuit).expect("keygen_pk should not fail");
+
+    benchmark_case("Sudoku Circuit with dummy data", proof_request, &params, &pk, &vk);
+}
+
+fn benchmark_case(name: &str, proof_request: GenerateProofRequest, params: &Params<EqAffine>, pk: &ProvingKey<EqAffine>, vk: &VerifyingKey<EqAffine>) {
+    println!("\n--- {} ---", name);
 
     let mut solution_board = [[0u8; 9]; 9];
     for i in 0..9 {
@@ -52,7 +51,7 @@ fn benchmark_case(name: &str, proof_request: GenerateProofRequest) {
     // Benchmark proof generation
     let start_generation = Instant::now();
     let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
-    create_proof(&params, &pk, &[circuit], &[&[]], OsRng, &mut transcript)
+    create_proof(params, pk, &[circuit], &[&[]], OsRng, &mut transcript)
         .expect("proof generation should not fail");
     let proof = transcript.finalize();
     let generation_time = start_generation.elapsed();
@@ -61,10 +60,10 @@ fn benchmark_case(name: &str, proof_request: GenerateProofRequest) {
     // Benchmark proof verification
     let start_verification = Instant::now();
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
-    let strategy = halo2_proofs::plonk::SingleVerifier::new(&params);
+    let strategy = halo2_proofs::plonk::SingleVerifier::new(params);
     verify_proof(
-        &params,
-        pk.get_vk(),
+        params,
+        vk,
         strategy,
         &[&[]],
         &mut transcript,

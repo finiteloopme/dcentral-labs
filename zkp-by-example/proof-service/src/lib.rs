@@ -13,7 +13,7 @@
 //! - The player's board must match the solution board where the solution board is not empty.
 
 use halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner},
+    circuit::{Layouter, SimpleFloorPlanner, Value},
     plonk::{
         Advice, Circuit, Column, ConstraintSystem, Error, Expression,
         Selector,
@@ -176,7 +176,7 @@ impl Circuit<Fp> for SudokuCircuit {
                                 || format!("player_board_{}_{}", i, j),
                                 config.advice[j],
                                 i,
-                                || Ok(Fp::from(value as u64)),
+                                || Value::known(Fp::from(value as u64)),
                             )?;
                             // Print the cell value for debugging.
                             cell.value().map(|v| println!("cell value: {:?}", v));
