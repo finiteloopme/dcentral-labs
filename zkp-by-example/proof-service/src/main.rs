@@ -34,6 +34,9 @@ use base64::engine::general_purpose::STANDARD;
 use proof_service::{SudokuCircuit};
 use log::info;
 
+mod config;
+use config::Config;
+
 /// The request payload for the `generate-proof` endpoint.
 #[derive(Deserialize)]
 struct GenerateProofRequest {
@@ -106,6 +109,8 @@ async fn generate_proof_handler(
 async fn main() -> std::io::Result<()> {
     // Initialize the logger.
     env_logger::init();
+    // Load the configuration.
+    let config = Config::from_env();
     // Create a new Actix web server.
     HttpServer::new(|| {
         // Create a new CORS middleware.
@@ -118,7 +123,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .route("/generate-proof", web::post().to(generate_proof_handler))
     })
-    .bind("127.0.0.1:3001")?
+    .bind(format!("0.0.0.0:{}", config.port))?
     .keep_alive(std::time::Duration::from_secs(75))
     .run()
     .await
