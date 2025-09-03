@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Select from 'react-select';
+import Select, { type StylesConfig } from 'react-select';
 import { useNavigate } from 'react-router-dom';
 import type { Competition } from '../types';
 import config from '../config';
@@ -18,27 +18,34 @@ function CompetitionList() {
       .then(data => setCompetitions(data));
   }, []);
 
-  const options = competitions.map(comp => ({
+  interface OptionType {
+    value: string;
+    label: string;
+  }
+
+  const options: OptionType[] = competitions.map(comp => ({
     value: comp.id,
     label: comp.name,
   }));
 
-  const handleChange = (selectedOption: any) => {
-    navigate(`/competitions/${selectedOption.value}`);
+  const handleChange = (selectedOption: OptionType | null) => {
+    if (selectedOption) {
+      navigate(`/competitions/${selectedOption.value}`);
+    }
   };
 
-  const customStyles = {
-    control: (provided: any) => ({
+  const customStyles: StylesConfig<OptionType, false> = {
+    control: (provided) => ({
       ...provided,
       backgroundColor: '#1a1a1a',
       borderColor: '#00ff00',
       color: '#00ff00',
     }),
-    menu: (provided: any) => ({
+    menu: (provided) => ({
       ...provided,
       backgroundColor: '#1a1a1a',
     }),
-    option: (provided: any, state: any) => ({
+    option: (provided, state) => ({
       ...provided,
       backgroundColor: state.isSelected ? '#00ff00' : '#1a1a1a',
       color: state.isSelected ? '#000' : '#00ff00',
@@ -47,7 +54,7 @@ function CompetitionList() {
         color: '#000',
       },
     }),
-    singleValue: (provided: any) => ({
+    singleValue: (provided) => ({
       ...provided,
       color: '#00ff00',
     }),

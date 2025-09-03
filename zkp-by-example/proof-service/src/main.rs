@@ -4,7 +4,7 @@ use std::sync::Arc;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use halo2_proofs::{
-    plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, ProvingKey},
+    plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, ProvingKey, VerifyingKey},
     poly::commitment::Params,
     transcript::{Blake2bRead, Blake2bWrite, Challenge255},
     pasta::EqAffine,
@@ -22,6 +22,7 @@ use config::Config;
 struct AppState {
     params: Arc<Params<EqAffine>>,
     pk: Arc<ProvingKey<EqAffine>>,
+    vk: Arc<VerifyingKey<EqAffine>>,
 }
 
 /// The request payload for the `generate-proof` endpoint.
@@ -60,6 +61,7 @@ async fn generate_proof_handler(
     let response = GenerateProofResponse {
         proof: STANDARD.encode(&proof),
     };
+    info!("Generated proof (base64): {}", response.proof);
     info!("Proof generated successfully");
     HttpResponse::Ok().json(response)
 }
@@ -77,21 +79,21 @@ async fn verify_proof_handler(
     data: web::Data<AppState>,
 ) -> impl Responder {
     info!("Received request to verify proof");
+    info!("Proof (base64): {}", &payload.proof);
 
     let proof = STANDARD.decode(&payload.proof).expect("proof should be valid base64");
-
-    let empty_circuit = SudokuCircuit::default();
-    let vk = keygen_vk(&data.params, &empty_circuit).expect("keygen_vk should not fail");
 
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
     let strategy = halo2_proofs::plonk::SingleVerifier::new(&data.params);
     let result = verify_proof(
         &data.params,
-        &vk,
+        &data.vk,
         strategy,
         &[&[]],
         &mut transcript,
     );
+
+    info!("Verification result: {:?}", result);
 
     HttpResponse::Ok().json(result.is_ok())
 }
@@ -99,7 +101,7 @@ async fn verify_proof_handler(
 /// The main entry point for the proof service.
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let config = Config::from_env();
 
     let params = Params::<EqAffine>::new(13);
@@ -110,6 +112,7 @@ async fn main() -> std::io::Result<()> {
     let app_state = web::Data::new(AppState {
         params: Arc::new(params),
         pk: Arc::new(pk),
+        vk: Arc::new(vk),
     });
 
     HttpServer::new(move || {

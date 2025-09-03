@@ -3,7 +3,6 @@ import config from '../config';
 
 function VerifyProofPage() {
   const [proof, setProof] = useState('');
-  const [vk, setVk] = useState('');
   const [publicInputs, setPublicInputs] = useState('');
   const [verificationResult, setVerificationResult] = useState<boolean | null>(null);
 
@@ -17,7 +16,6 @@ function VerifyProofPage() {
       },
       body: JSON.stringify({ 
         proof,
-        vk,
         public_inputs: publicInputsArray,
       }),
     })
@@ -32,11 +30,6 @@ function VerifyProofPage() {
         value={proof}
         onChange={e => setProof(e.target.value)}
         placeholder="Enter the proof (base64 encoded)"
-      />
-      <textarea
-        value={vk}
-        onChange={e => setVk(e.target.value)}
-        placeholder="Enter the verifying key (base64 encoded)"
       />
       <input
         type="text"
