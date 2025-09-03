@@ -10,13 +10,13 @@ const config = {
    *
    * This is a placeholder that will be replaced by the entrypoint script.
    */
-  backendUrl: '__BACKEND_URL__',
+  backendUrl: import.meta.env.VITE_BACKEND_URL || '__BACKEND_URL__',
   /**
    * The base URL of the proof service.
    *
    * This is a placeholder that will be replaced by the entrypoint script.
    */
-  proofServiceUrl: '__PROOF_SERVICE_URL__',
+  proofServiceUrl: import.meta.env.VITE_PROOF_SERVICE_URL || '__PROOF_SERVICE_URL__',
   /**
    * A collection of API endpoints.
    */

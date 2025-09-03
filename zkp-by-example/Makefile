@@ -34,6 +34,12 @@ build:
 	@echo "Building proof-service..."
 	@cd proof-service && cargo build --release
 
+# Runs the tests for the proof-service.
+test:
+	@echo "Running tests for proof-service..."
+	@cd proof-service && cargo test -- --nocapture
+
+
 # Builds Docker images for the backend, frontend, and proof-service.
 # Requires the `GCP_PROJECT` environment variable to be set.
 docker-build:

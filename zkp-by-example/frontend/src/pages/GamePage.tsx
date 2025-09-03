@@ -61,7 +61,7 @@ function GamePage() {
 
   const handleRequestProof = () => {
     if (game) {
-      fetch(`${config.backendUrl}/request-proof`, {
+      fetch(`${config.proofServiceUrl}/generate-proof`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
