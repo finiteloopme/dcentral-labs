@@ -1,7 +1,7 @@
 # Using multi-stage builds to create a small, secure image.
 
 # Stage 1: Build the application
-FROM rust:1.76 AS builder
+FROM rust:1.85 AS builder
 
 WORKDIR /usr/src/app
 COPY . .

@@ -3,7 +3,7 @@
 # Stage 1: Build the application
 #
 # We use the official Rust image as our builder.
-FROM rust:1.76 AS builder
+FROM rust:1.85 AS builder
 
 # Create a new empty shell project in the working directory.
 WORKDIR /usr/src/app
