@@ -1,5 +1,3 @@
-//! This module contains the main entry point for the proof service.
-
 use std::sync::Arc;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
@@ -7,81 +5,88 @@ use halo2_proofs::{
     plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, ProvingKey, VerifyingKey},
     poly::commitment::Params,
     transcript::{Blake2bRead, Blake2bWrite, Challenge255},
-    pasta::EqAffine,
+    pasta::{EqAffine, Fp},
 };
 use rand::rngs::OsRng;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use proof_service::{SudokuCircuit};
+use proof_service::{SudokuCircuit, SudokuConfig};
 use log::info;
 
 mod config;
 use config::Config;
 
-/// The application state.
 struct AppState {
     params: Arc<Params<EqAffine>>,
     pk: Arc<ProvingKey<EqAffine>>,
     vk: Arc<VerifyingKey<EqAffine>>,
 }
 
-/// The request payload for the `generate-proof` endpoint.
 #[derive(Deserialize)]
 struct GenerateProofRequest {
-    /// The player's submitted Sudoku board.
-    board: [[Option<u8>; 9]; 9],
+    solution: [[u8; 9]; 9],
+    puzzle: [[Option<u8>; 9]; 9],
 }
 
-/// The response payload for the `generate-proof` endpoint.
 #[derive(Serialize)]
 struct GenerateProofResponse {
-    /// The base64-encoded proof.
     proof: String,
 }
 
-/// The handler for the `generate-proof` endpoint.
 async fn generate_proof_handler(
     payload: web::Json<GenerateProofRequest>,
     data: web::Data<AppState>,
 ) -> impl Responder {
     info!("Received request to generate proof");
 
-    let solution_board = [[0u8; 9]; 9];
-
     let circuit = SudokuCircuit {
-        player_board: payload.board.clone(),
-        solution_board,
+        solution: payload.solution,
+        puzzle: payload.puzzle,
     };
 
+    let public_inputs: Vec<Fp> = payload.puzzle
+        .iter()
+        .flatten()
+        .map(|&val| Fp::from(val.unwrap_or(0) as u64))
+        .collect();
+
     let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
-    create_proof(&data.params, &data.pk, &[circuit], &[&[]], OsRng, &mut transcript)
+    create_proof(&data.params, &data.pk, &[circuit], &[&[&public_inputs]], OsRng, &mut transcript)
         .expect("proof generation should not fail");
     let proof = transcript.finalize();
 
     let response = GenerateProofResponse {
         proof: STANDARD.encode(&proof),
     };
-    info!("Generated proof (base64): {}", response.proof);
     info!("Proof generated successfully");
     HttpResponse::Ok().json(response)
 }
 
-/// The request payload for the `verify-proof` endpoint.
 #[derive(Deserialize)]
 struct VerifyProofRequest {
-    /// The base64-encoded proof.
     proof: String,
+    puzzle: [[Option<u8>; 9]; 9],
 }
 
-/// The handler for the `verify-proof` endpoint.
 async fn verify_proof_handler(
     payload: web::Json<VerifyProofRequest>,
     data: web::Data<AppState>,
 ) -> impl Responder {
     info!("Received request to verify proof");
-    info!("Proof (base64): {}", &payload.proof);
 
-    let proof = STANDARD.decode(&payload.proof).expect("proof should be valid base64");
+    let proof = match STANDARD.decode(&payload.proof.trim()) {
+        Ok(p) => p,
+        Err(e) => {
+            info!("Base64 decoding failed: {}", e);
+            return HttpResponse::BadRequest().json("Invalid base64 for proof");
+        }
+    };
+
+    let public_inputs: Vec<Fp> = payload.puzzle
+        .iter()
+        .flatten()
+        .map(|&val| Fp::from(val.unwrap_or(0) as u64))
+        .collect();
 
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
     let strategy = halo2_proofs::plonk::SingleVerifier::new(&data.params);
@@ -89,7 +94,7 @@ async fn verify_proof_handler(
         &data.params,
         &data.vk,
         strategy,
-        &[&[]],
+        &[&[&public_inputs]],
         &mut transcript,
     );
 
@@ -98,7 +103,6 @@ async fn verify_proof_handler(
     HttpResponse::Ok().json(result.is_ok())
 }
 
-/// The main entry point for the proof service.
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();

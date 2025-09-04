@@ -6,15 +6,15 @@ use halo2_proofs::{
     plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, VerifyingKey, ProvingKey},
     poly::commitment::Params,
     transcript::{Blake2bWrite, Blake2bRead, Challenge255},
-    pasta::EqAffine,
+    pasta::{EqAffine, Fp},
 };
 use rand::rngs::OsRng;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct GenerateProofRequest {
-    player_board: [[Option<u8>; 9]; 9],
-    solution_board: [[Option<u8>; 9]; 9],
+    puzzle: [[Option<u8>; 9]; 9],
+    solution: [[u8; 9]; 9],
 }
 
 #[test]
@@ -36,22 +36,21 @@ fn run_benchmarks() {
 fn benchmark_case(name: &str, proof_request: GenerateProofRequest, params: &Params<EqAffine>, pk: &ProvingKey<EqAffine>, vk: &VerifyingKey<EqAffine>) {
     println!("\n--- {} ---", name);
 
-    let mut solution_board = [[0u8; 9]; 9];
-    for i in 0..9 {
-        for j in 0..9 {
-            solution_board[i][j] = proof_request.solution_board[i][j].unwrap_or(0);
-        }
-    }
-
     let circuit = SudokuCircuit {
-        player_board: proof_request.player_board,
-        solution_board,
+        puzzle: proof_request.puzzle,
+        solution: proof_request.solution,
     };
+
+    let public_inputs: Vec<Fp> = proof_request.puzzle
+        .iter()
+        .flatten()
+        .map(|&val| Fp::from(val.unwrap_or(0) as u64))
+        .collect();
 
     // Benchmark proof generation
     let start_generation = Instant::now();
     let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
-    create_proof(params, pk, &[circuit], &[&[]], OsRng, &mut transcript)
+    create_proof(params, pk, &[circuit], &[&[&public_inputs]], OsRng, &mut transcript)
         .expect("proof generation should not fail");
     let proof = transcript.finalize();
     let generation_time = start_generation.elapsed();
@@ -65,7 +64,7 @@ fn benchmark_case(name: &str, proof_request: GenerateProofRequest, params: &Para
         params,
         vk,
         strategy,
-        &[&[]],
+        &[&[&public_inputs]],
         &mut transcript,
     )
     .expect("proof verification should not fail");

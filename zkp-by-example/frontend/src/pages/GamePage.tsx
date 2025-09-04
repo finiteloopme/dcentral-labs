@@ -60,13 +60,20 @@ function GamePage() {
   };
 
   const handleRequestProof = () => {
-    if (game) {
+    if (game && competition) {
+      const solutionForProof = game.board.map(row =>
+        row.map(cell => (cell === null ? 0 : cell))
+      );
+
       fetch(`${config.proofServiceUrl}/generate-proof`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(game),
+        body: JSON.stringify({
+          puzzle: competition.board,
+          solution: solutionForProof,
+        }),
       })
         .then(response => response.json())
         .then(data => setProof(data.proof));
