@@ -10,7 +10,7 @@ build-trader:
 run: run-trader
 
 run-trader:
-	cd defi-trader && cargo run &
+	cd defi-trader && cargo run
 
 stop: stop-trader
 
@@ -18,7 +18,7 @@ stop-trader:
 	pkill -f 'defi-trader'
 
 fork-chain:
-	anvil --fork-url https://1rpc.io/eth
+	anvil --fork-url https://rpc.flashbots.net
 
 test:
 

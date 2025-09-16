@@ -4,6 +4,7 @@ use ethers::signers::{LocalWallet, Signer};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 abigen!(IUniswapV2Router, "./abi/uniswap_v2_router.json");
+abigen!(IWeth, "./abi/weth.json");
 
 #[derive(Clone)]
 pub struct UniswapV2 {
@@ -23,8 +24,22 @@ impl UniswapV2 {
     }
 
     pub async fn get_quote(&self, from_token: Address, to_token: Address, amount: U256) -> anyhow::Result<U256> {
-        let amounts_out = self.router.get_amounts_out(amount, vec![from_token, to_token]).call().await?;
+        let weth_address = self.router.weth().call().await?;
+        let path = if from_token == Address::zero() {
+            vec![weth_address, to_token]
+        } else if to_token == Address::zero() {
+            vec![from_token, weth_address]
+        } else {
+            vec![from_token, to_token]
+        };
+        let amounts_out = self.router.get_amounts_out(amount, path).call().await?;
         Ok(amounts_out[1])
+    }
+
+    pub async fn approve(&self, token_address: Address, spender: Address, amount: U256) -> anyhow::Result<()> {
+        let weth = IWeth::new(token_address, self.router.client());
+        weth.approve(spender, amount).send().await?.await?;
+        Ok(())
     }
 
     pub async fn swap(&self, from_token: Address, to_token: Address, amount: U256) -> anyhow::Result<()> {
@@ -34,17 +49,48 @@ impl UniswapV2 {
             .as_secs()
             + 60 * 20; // 20 minutes from now
 
-        self.router
-            .swap_exact_tokens_for_tokens(
-                amount,
-                U256::zero(),
-                vec![from_token, to_token],
-                self.wallet_address,
-                U256::from(deadline),
-            )
-            .send()
-            .await?
-            .await?;
+        let weth_address = self.router.weth().call().await?;
+
+        if from_token == Address::zero() {
+            // ETH to Token
+            self.router
+                .swap_exact_eth_for_tokens(
+                    U256::zero(),
+                    vec![weth_address, to_token],
+                    self.wallet_address,
+                    U256::from(deadline),
+                )
+                .value(amount)
+                .send()
+                .await?
+                .await?;
+        } else if to_token == Address::zero() {
+            // Token to ETH
+            self.router
+                .swap_exact_tokens_for_eth(
+                    amount,
+                    U256::zero(),
+                    vec![from_token, weth_address],
+                    self.wallet_address,
+                    U256::from(deadline),
+                )
+                .send()
+                .await?
+                .await?;
+        } else {
+            // Token to Token
+            self.router
+                .swap_exact_tokens_for_tokens(
+                    amount,
+                    U256::zero(),
+                    vec![from_token, to_token],
+                    self.wallet_address,
+                    U256::from(deadline),
+                )
+                .send()
+                .await?
+                .await?;
+        }
 
         Ok(())
     }

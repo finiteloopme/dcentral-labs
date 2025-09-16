@@ -42,6 +42,13 @@ pub struct SwapArgs {
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
+pub struct ApproveArgs {
+    pub token: String,
+    pub spender: String,
+    pub amount: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
 pub struct SetPrivateKeyArgs {
     pub private_key: String,
 }
@@ -74,6 +81,24 @@ impl DefiTrader {
             curve: Arc::new(Mutex::new(None)),
             balancer: Arc::new(Mutex::new(None)),
             sushiswap: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn get_token_address(&self, token: &str) -> Result<Address, McpError> {
+        if token.to_lowercase() == "eth" {
+            return Ok(Address::zero());
+        }
+
+        if let Ok(address) = Address::from_str(token) {
+            return Ok(address);
+        }
+
+        let token_key = token.to_lowercase();
+        if let Some(token_address_str) = self.config.tokens.get(&token_key) {
+            Address::from_str(token_address_str)
+                .map_err(|e| McpError::invalid_params(format!("Invalid address for token '{}': {}", token, e), None))
+        } else {
+            Err(McpError::invalid_params(format!("Token '{}' not found", token), None))
         }
     }
 
@@ -124,11 +149,13 @@ impl DefiTrader {
     }
 
     
+
+    
     /// Returns a quote for a swap from a specific protocol.
     #[tool]
     async fn get_quote(&self, Parameters(args): Parameters<GetQuoteArgs>) -> Result<CallToolResult, McpError> {
-        let from_token = args.from_token.parse::<Address>().map_err(|e| McpError::invalid_params(e.to_string(), None))?;
-        let to_token = args.to_token.parse::<Address>().map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        let from_token = self.get_token_address(&args.from_token)?;
+        let to_token = self.get_token_address(&args.to_token)?;
         let amount = U256::from_dec_str(&args.amount).map_err(|e| McpError::invalid_params(e.to_string(), None))?;
 
         let quote = match args.protocol.as_str() {
@@ -185,11 +212,27 @@ impl DefiTrader {
         )]))
     }
 
+    /// Approves a token for spending by a spender.
+    #[tool]
+    async fn approve(&self, Parameters(args): Parameters<ApproveArgs>) -> Result<CallToolResult, McpError> {
+        let token = self.get_token_address(&args.token)?;
+        let spender = self.get_token_address(&args.spender)?;
+        let amount = U256::from_dec_str(&args.amount).map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+
+        let uniswap_v2 = self.uniswap_v2.lock().unwrap().clone().ok_or_else(|| McpError::internal_error("UniswapV2 not initialized. Please set the private key first.", None))?;
+
+        uniswap_v2.approve(token, spender, amount).await.map_err(|e| McpError::internal_error(e.to_string(), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            "Approved".to_string(),
+        )]))
+    }
+
     /// Performs a swap on a specific protocol.
     #[tool]
     async fn swap(&self, Parameters(args): Parameters<SwapArgs>) -> Result<CallToolResult, McpError> {
-        let from_token = args.from_token.parse::<Address>().map_err(|e| McpError::invalid_params(e.to_string(), None))?;
-        let to_token = args.to_token.parse::<Address>().map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        let from_token = self.get_token_address(&args.from_token)?;
+        let to_token = self.get_token_address(&args.to_token)?;
         let amount = U256::from_dec_str(&args.amount).map_err(|e| McpError::invalid_params(e.to_string(), None))?;
 
         match args.protocol.as_str() {
