@@ -23,6 +23,7 @@ use crate::protocols::{
 use ethers::types::{Address, U256};
 use std::str::FromStr;
 use serde::Deserialize;
+use std::sync::{Arc, Mutex};
 
 #[derive(Deserialize, schemars::JsonSchema)]
 pub struct GetQuoteArgs {
@@ -40,6 +41,10 @@ pub struct SwapArgs {
     pub amount: String,
 }
 
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct SetPrivateKeyArgs {
+    pub private_key: String,
+}
 
 /// The `DefiTrader` struct represents the DeFi trader service.
 #[derive(Clone)]
@@ -47,10 +52,10 @@ pub struct DefiTrader {
     tool_router: ToolRouter<DefiTrader>,
     prompt_router: PromptRouter<DefiTrader>,
     config: Config,
-    uniswap_v2: UniswapV2,
-    curve: Curve,
-    balancer: Balancer,
-    sushiswap: SushiSwap,
+    uniswap_v2: Arc<Mutex<Option<UniswapV2>>>,
+    curve: Arc<Mutex<Option<Curve>>>,
+    balancer: Arc<Mutex<Option<Balancer>>>,
+    sushiswap: Arc<Mutex<Option<SushiSwap>>>,
 }
 
 #[tool_router]
@@ -61,32 +66,61 @@ impl DefiTrader {
     ///
     /// * `config` - The configuration for the service.
     pub fn new(config: Config) -> Self {
-        let uniswap_v2 = UniswapV2::new(
-            &config.rpc_url,
-            Address::from_str(&config.uniswap_v2_router).unwrap(),
-        );
-        let curve = Curve::new(
-            &config.rpc_url,
-            Address::from_str(&config.curve_registry).unwrap(),
-        );
-        let balancer = Balancer::new(
-            &config.rpc_url,
-            Address::from_str(&config.balancer_vault).unwrap(),
-        );
-        let sushiswap = SushiSwap::new(
-            &config.rpc_url,
-            Address::from_str(&config.sushiswap_router).unwrap(),
-        );
-
         Self {
             tool_router: Self::tool_router(),
             prompt_router: Self::prompt_router(),
             config,
-            uniswap_v2,
-            curve,
-            balancer,
-            sushiswap,
+            uniswap_v2: Arc::new(Mutex::new(None)),
+            curve: Arc::new(Mutex::new(None)),
+            balancer: Arc::new(Mutex::new(None)),
+            sushiswap: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Sets the private key for the service and initializes the protocols.
+    #[tool]
+    async fn set_private_key(&self, Parameters(args): Parameters<SetPrivateKeyArgs>) -> Result<CallToolResult, McpError> {
+        let pk = args.private_key.clone();
+
+        let uniswap_v2_protocol = UniswapV2::new(
+            &self.config.rpc_url,
+            Address::from_str(&self.config.uniswap_v2_router).unwrap(),
+            &pk,
+        ).await;
+        
+        let curve_protocol = Curve::new(
+            &self.config.rpc_url,
+            Address::from_str(&self.config.curve_registry).unwrap(),
+            &pk,
+        ).await;
+
+        let balancer_protocol = Balancer::new(
+            &self.config.rpc_url,
+            Address::from_str(&self.config.balancer_vault).unwrap(),
+            &pk,
+        ).await;
+
+        let sushiswap_protocol = SushiSwap::new(
+            &self.config.rpc_url,
+            Address::from_str(&self.config.sushiswap_router).unwrap(),
+            &pk,
+        ).await;
+
+        let mut uniswap_v2 = self.uniswap_v2.lock().unwrap();
+        *uniswap_v2 = Some(uniswap_v2_protocol);
+
+        let mut curve = self.curve.lock().unwrap();
+        *curve = Some(curve_protocol);
+
+        let mut balancer = self.balancer.lock().unwrap();
+        *balancer = Some(balancer_protocol);
+
+        let mut sushiswap = self.sushiswap.lock().unwrap();
+        *sushiswap = Some(sushiswap_protocol);
+
+        Ok(CallToolResult::success(vec![Content::text(
+            "Private key set and protocols initialized.".to_string(),
+        )]))
     }
 
     
@@ -98,10 +132,50 @@ impl DefiTrader {
         let amount = U256::from_dec_str(&args.amount).map_err(|e| McpError::invalid_params(e.to_string(), None))?;
 
         let quote = match args.protocol.as_str() {
-            "uniswap_v2" => self.uniswap_v2.get_quote(from_token, to_token, amount).await,
-            "curve" => self.curve.get_quote(from_token, to_token, amount).await,
-            "balancer" => self.balancer.get_quote(from_token, to_token, amount).await,
-            "sushiswap" => self.sushiswap.get_quote(from_token, to_token, amount).await,
+            "uniswap_v2" => {
+                let protocol = {
+                    let lock = self.uniswap_v2.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.get_quote(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("UniswapV2 not initialized. Please set the private key first.", None));
+                }
+            },
+            "curve" => {
+                let protocol = {
+                    let lock = self.curve.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.get_quote(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("Curve not initialized. Please set the private key first.", None));
+                }
+            },
+            "balancer" => {
+                let protocol = {
+                    let lock = self.balancer.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.get_quote(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("Balancer not initialized. Please set the private key first.", None));
+                }
+            },
+            "sushiswap" => {
+                let protocol = {
+                    let lock = self.sushiswap.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.get_quote(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("SushiSwap not initialized. Please set the private key first.", None));
+                }
+            },
             _ => return Err(McpError::invalid_params("Invalid protocol", None)),
         }
         .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -119,10 +193,50 @@ impl DefiTrader {
         let amount = U256::from_dec_str(&args.amount).map_err(|e| McpError::invalid_params(e.to_string(), None))?;
 
         match args.protocol.as_str() {
-            "uniswap_v2" => self.uniswap_v2.swap(from_token, to_token, amount).await,
-            "curve" => self.curve.swap(from_token, to_token, amount).await,
-            "balancer" => self.balancer.swap(from_token, to_token, amount).await,
-            "sushiswap" => self.sushiswap.swap(from_token, to_token, amount).await,
+            "uniswap_v2" => {
+                let protocol = {
+                    let lock = self.uniswap_v2.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.swap(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("UniswapV2 not initialized. Please set the private key first.", None));
+                }
+            },
+            "curve" => {
+                let protocol = {
+                    let lock = self.curve.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.swap(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("Curve not initialized. Please set the private key first.", None));
+                }
+            },
+            "balancer" => {
+                let protocol = {
+                    let lock = self.balancer.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.swap(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("Balancer not initialized. Please set the private key first.", None));
+                }
+            },
+            "sushiswap" => {
+                let protocol = {
+                    let lock = self.sushiswap.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(protocol) = protocol {
+                    protocol.swap(from_token, to_token, amount).await
+                } else {
+                    return Err(McpError::internal_error("SushiSwap not initialized. Please set the private key first.", None));
+                }
+            },
             _ => return Err(McpError::invalid_params("Invalid protocol", None)),
         }
         .map_err(|e| McpError::internal_error(e.to_string(), None))?;
@@ -147,7 +261,7 @@ impl ServerHandler for DefiTrader {
                 .enable_tools()
                 .build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some("This server provides tools for interacting with DeFi protocols.".to_string()),
+            instructions: Some("This server provides tools for interacting with DeFi protocols. Please set the private key before using the swap tool.".to_string()),
         }
     }
 

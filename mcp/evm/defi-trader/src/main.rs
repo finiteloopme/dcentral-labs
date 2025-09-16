@@ -68,7 +68,9 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let ct = sse_server.with_service(move || DefiTrader::new(config.clone()));
+    let defi_trader = DefiTrader::new(config.clone());
+
+    let ct = sse_server.with_service(move || defi_trader.clone());
 
     tokio::signal::ctrl_c().await?;
     ct.cancel();

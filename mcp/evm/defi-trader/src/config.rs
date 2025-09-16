@@ -8,5 +8,5 @@ pub struct Config {
     pub curve_registry: String,
     pub balancer_vault: String,
     pub sushiswap_router: String,
-    // pub private_key: String,
+    
 }
