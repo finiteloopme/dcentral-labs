@@ -26,6 +26,7 @@ struct AppState {
 struct GenerateProofRequest {
     solution: [[u8; 9]; 9],
     puzzle: [[Option<u8>; 9]; 9],
+    score: u64,
 }
 
 #[derive(Serialize)]
@@ -42,13 +43,15 @@ async fn generate_proof_handler(
     let circuit = SudokuCircuit {
         solution: payload.solution,
         puzzle: payload.puzzle,
+        score: payload.score,
     };
 
-    let public_inputs: Vec<Fp> = payload.puzzle
+    let mut public_inputs: Vec<Fp> = payload.puzzle
         .iter()
         .flatten()
         .map(|&val| Fp::from(val.unwrap_or(0) as u64))
         .collect();
+    public_inputs.push(Fp::from(payload.score));
 
     let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
     create_proof(&data.params, &data.pk, &[circuit], &[&[&public_inputs]], OsRng, &mut transcript)
@@ -66,6 +69,7 @@ async fn generate_proof_handler(
 struct VerifyProofRequest {
     proof: String,
     puzzle: [[Option<u8>; 9]; 9],
+    score: u64,
 }
 
 async fn verify_proof_handler(
@@ -82,11 +86,12 @@ async fn verify_proof_handler(
         }
     };
 
-    let public_inputs: Vec<Fp> = payload.puzzle
+    let mut public_inputs: Vec<Fp> = payload.puzzle
         .iter()
         .flatten()
         .map(|&val| Fp::from(val.unwrap_or(0) as u64))
         .collect();
+    public_inputs.push(Fp::from(payload.score));
 
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
     let strategy = halo2_proofs::plonk::SingleVerifier::new(&data.params);

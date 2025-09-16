@@ -15,6 +15,7 @@ use serde::Deserialize;
 struct GenerateProofRequest {
     puzzle: [[Option<u8>; 9]; 9],
     solution: [[u8; 9]; 9],
+    score: u64,
 }
 
 #[test]
@@ -39,13 +40,15 @@ fn benchmark_case(name: &str, proof_request: GenerateProofRequest, params: &Para
     let circuit = SudokuCircuit {
         puzzle: proof_request.puzzle,
         solution: proof_request.solution,
+        score: proof_request.score,
     };
 
-    let public_inputs: Vec<Fp> = proof_request.puzzle
+    let mut public_inputs: Vec<Fp> = proof_request.puzzle
         .iter()
         .flatten()
         .map(|&val| Fp::from(val.unwrap_or(0) as u64))
         .collect();
+    public_inputs.push(Fp::from(proof_request.score));
 
     // Benchmark proof generation
     let start_generation = Instant::now();
@@ -71,3 +74,4 @@ fn benchmark_case(name: &str, proof_request: GenerateProofRequest, params: &Para
     let verification_time = start_verification.elapsed();
     println!("Proof verification time: {:?}", verification_time);
 }
+

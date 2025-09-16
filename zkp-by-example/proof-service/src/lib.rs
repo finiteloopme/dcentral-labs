@@ -84,7 +84,9 @@ impl SudokuChip {
         mut layouter: impl Layouter<Fp>,
         solution: [[u8; 9]; 9],
         puzzle: [[Option<u8>; 9]; 9],
+        score: u64,
     ) -> Result<Vec<Vec<AssignedCell<Fp, Fp>>>, Error> {
+        info!("Assigning region with score: {}", score);
         layouter.assign_region(
             || "sudoku puzzle",
             |mut region| {
@@ -117,6 +119,24 @@ impl SudokuChip {
                         }
                     }
                 }
+
+                let score_cell = region.assign_advice(
+                    || "score",
+                    self.config.advice[0],
+                    10, // Assign score to a new row
+                    || Value::known(Fp::from(score)),
+                )?;
+
+                let public_score_cell = region.assign_advice_from_instance(
+                    || "public_score",
+                    self.config.instance,
+                    81, // The 82nd public input
+                    self.config.advice[0],
+                    10,
+                )?;
+
+                region.constrain_equal(score_cell.cell(), public_score_cell.cell())?;
+
                 Ok(assigned_cells)
             },
         )
@@ -127,6 +147,7 @@ impl SudokuChip {
 pub struct SudokuCircuit {
     pub solution: [[u8; 9]; 9],
     pub puzzle: [[Option<u8>; 9]; 9],
+    pub score: u64,
 }
 
 impl Circuit<Fp> for SudokuCircuit {
@@ -134,7 +155,11 @@ impl Circuit<Fp> for SudokuCircuit {
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
-        Self::default()
+        Self {
+            solution: Default::default(),
+            puzzle: Default::default(),
+            score: 0,
+        }
     }
 
     fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
@@ -147,7 +172,7 @@ impl Circuit<Fp> for SudokuCircuit {
         mut layouter: impl Layouter<Fp>,
     ) -> Result<(), Error> {
         let chip = SudokuChip::new(config);
-        chip.assign_region(layouter.namespace(|| "sudoku"), self.solution, self.puzzle)?;
+        chip.assign_region(layouter.namespace(|| "sudoku"), self.solution, self.puzzle, self.score)?;
         Ok(())
     }
 }

@@ -1,0 +1,29 @@
+[package]
+name = "defi-trader"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rmcp = { version = "0.6.3", features = ["server", "macros", "transport-sse-server", "auth"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "std", "fmt"] }
+futures = "0.3"
+rand = { version = "0.9", features = ["std"] }
+axum = { version = "0.8", features = ["macros"] }
+schemars = "1.0"
+reqwest = { version = "0.12", features = ["json"] }
+chrono = "0.4"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+serde_urlencoded = "0.7"
+askama = { version = "0.14" }
+tower-http = { version = "0.6", features = ["cors"] }
+hyper = { version = "1" }
+hyper-util = { version = "0", features = ["server"] }
+tokio-util = { version = "0.7" }
+toml = "0.8"
+ethers = { version = "2.0.14", features = ["abigen", "ws", "rustls"] }
+clap = { version = "4.5.4", features = ["derive"] }

@@ -1,0 +1,12 @@
+{
+  "theme": "Google Code",
+  "context": {
+    "filename": [".gemini/web3-defi.md"]
+  },
+  "mcpServers": {
+    "defi-manager": {
+      "url": "http://127.0.0.1:8000/sse",
+      "description": "Tool to manage the onchain finance"
+    }
+  }
+}

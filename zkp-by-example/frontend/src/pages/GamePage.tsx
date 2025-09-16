@@ -65,6 +65,15 @@ function GamePage() {
         row.map(cell => (cell === null ? 0 : cell))
       );
 
+      let score = 0;
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          if (competition.board[i][j] === null && game.board[i][j] !== null) {
+            score++;
+          }
+        }
+      }
+
       fetch(`${config.proofServiceUrl}/generate-proof`, {
         method: 'POST',
         headers: {
@@ -73,6 +82,7 @@ function GamePage() {
         body: JSON.stringify({
           puzzle: competition.board,
           solution: solutionForProof,
+          score,
         }),
       })
         .then(response => response.json())

@@ -8,6 +8,7 @@ function VerifyProofPage() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('');
   const [verificationResult, setVerificationResult] = useState<boolean | null>(null);
+  const [score, setScore] = useState<number>(0);
 
   useEffect(() => {
     fetch(`${config.backendUrl}${config.api.competitions}`)
@@ -37,6 +38,7 @@ function VerifyProofPage() {
       body: JSON.stringify({
         proof,
         puzzle: puzzleArray,
+        score,
       }),
     })
       .then(response => response.json())
@@ -66,6 +68,16 @@ function VerifyProofPage() {
           <SudokuGrid board={selectedPuzzle} initialBoard={selectedPuzzle} onCellChange={() => {}} />
         </div>
       )}
+
+      <div style={{ marginTop: '20px' }}>
+        <input
+          type="number"
+          value={score}
+          onChange={e => setScore(parseInt(e.target.value, 10))}
+          placeholder="Enter the score"
+          style={{ width: '100%' }}
+        />
+      </div>
 
       <div style={{ marginTop: '20px' }}>
         <textarea

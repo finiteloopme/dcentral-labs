@@ -1,0 +1,10 @@
+bind_address = "127.0.0.1:8000"
+# rpc_url = "https://1rpc.io/eth"
+rpc_url = "http://localhost:8545"
+uniswap_v2_router = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+curve_registry = "0x0000000022D53366457F9d5E68Ec1050465C23D3"
+balancer_vault = "0xBA12222222228d8Ba445958a75a0704d566BF2C8"
+sushiswap_router = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+
+# Replace with your private key
+# private_key = "0000000000000000000000000000000000000000000000000000000000000001"

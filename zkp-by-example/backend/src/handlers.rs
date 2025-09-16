@@ -3,10 +3,12 @@ use crate::models::{Competition, Game, Player, CreateCompetitionPayload, JoinGam
 use actix_web::{web, HttpResponse, Responder};
 use reqwest;
 use serde_json::json;
+use log::info;
 
 // Admin Handlers
 
 pub async fn create_competition(state: web::Data<AppState>, payload: web::Json<CreateCompetitionPayload>) -> impl Responder {
+    info!("Creating competition with name: {}", payload.name);
     let mut competitions = state.competitions.lock().unwrap();
     let id = uuid::Uuid::new_v4().to_string();
 
