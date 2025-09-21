@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/big"
+	"net/http"
 	"os"
 	"time"
 
@@ -62,17 +63,31 @@ func main() {
 	// 5. Simulate monitoring
 	log.Println("Monitoring for price drop...")
 	time.Sleep(3 * time.Second)
-	log.Println("...PRICE DROP DETECTED! Found item for 49 USDC.")
+	log.Println("...PRICE DROP DETECTED! Fetching cart from merchant...")
 
-	// 6. Create the CartMandate (the "bill")
-	// The price (49 USDC) is *less than* the maxPrice (50 USDC).
-	cartAmount := new(big.Int).Mul(big.NewInt(49), big.NewInt(1e18))
+	// 6. Fetch the CartMandate from the merchant server.
+	// This simulates the agent interacting with a real merchant API.
+	resp, err := http.Get(cfg.MerchantServerURL + "/cart")
+	if err != nil {
+		log.Fatalf("Failed to fetch cart from merchant: %%v", err)
+	}
+	defer resp.Body.Close()
 
-	// We must use the `bindings` generated structs for function calls
+	var cartResponse struct {
+		Merchant common.Address `json:"merchant"`
+		Token    common.Address `json:"token"`
+		Amount   *big.Int       `json:"amount"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&cartResponse); err != nil {
+		log.Fatalf("Failed to decode cart response: %%v", err)
+	}
+
+	// We must use the `bindings` generated structs for the actual contract call.
 	cart := bindings.PaymentFacilitatorCartMandate{
-		Merchant: common.HexToAddress(cfg.MerchantAddress),
-		Token:    contracts.TokenUSDC,
-		Amount:   cartAmount,
+		Merchant: cartResponse.Merchant,
+		Token:    cartResponse.Token,
+		Amount:   cartResponse.Amount,
 	}
 
 	intent := bindings.PaymentFacilitatorIntentMandate{

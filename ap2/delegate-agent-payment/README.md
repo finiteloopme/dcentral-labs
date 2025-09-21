@@ -101,35 +101,22 @@ In a separate terminal, start `anvil`. This will simulate the Ethereum blockchai
 Anvil will start and print a list of private keys. We will use:
 
 * **Account 0 (User):** `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
-* **Account 1 (Agent/Facilitator):** `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`
+* **Account 1 (Agent/Facilitator)::** `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`
 * **Account 2 (Merchant):** `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a`
 
 The RPC URL will be [http://127.0.0.1:8545](http://127.0.0.1:8545).
 
-### 2. Install Dependencies
+### 2. Install Dependencies and Build
 
-This will install go-ethereum.
-
-```bash
-make install-deps
-```
-
-### 3. Build the Project
-
-This single command will compile the Solidity code, generate the Go bindings, and compile the Go code.
+This single command will install dependencies and compile all contracts and Go binaries.
 
 ```bash
 make build
 ```
 
-(Optional) To update the smart contract dependencies (e.g. OpenZeppelin), run:
-```bash
-make update-forge-deps
-```
+### 3. Run Phase 1: User Setup
 
-### 4. Run Phase 1: User Setup
-
-Run the user's setup script. This will build the binaries and then run the user setup.
+In a second terminal, run the user's setup script. This deploys the contracts and creates the user's signed intent.
 
 ```bash
 make run-user-setup
@@ -137,12 +124,22 @@ make run-user-setup
 
 You will see output in your terminal, and anvil will show new transactions.
 
-### 5. Run Phase 2: Agent Execution
+### 4. Run Phase 2a: Start the Merchant Server
 
-Now, run the agent. This will build the binaries and then run the agent.
+In a third terminal, start the merchant server. This simulates the merchant's e-commerce backend.
+
+```bash
+make run-merchant
+```
+
+The server will start and listen on port 8081.
+
+### 5. Run Phase 2b: Agent Execution
+
+Finally, in a fourth terminal, run the agent. The agent will now fetch the cart details from the merchant server before executing the payment.
 
 ```bash
 make run-agent
 ```
 
-**Success!** You will see the agent's output, and the anvil terminal will show the final executePurchase transaction. You can check the anvil logs to see that the MockUSDC balance was transferred from the user to the merchant, all while the user was "asleep".
+**Success!** You will see the merchant server logging the request, the agent logging the successful execution, and the anvil terminal showing the final `executePurchase` transaction.

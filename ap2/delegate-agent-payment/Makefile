@@ -42,6 +42,7 @@ install-deps:
 compile-go: install-deps
 	$(GO) build -o $(GO_BUILD)/agent ./cmd/agent
 	$(GO) build -o $(GO_BUILD)/user ./cmd/user
+	$(GO) build -o $(GO_BUILD)/merchant ./cmd/merchant
 
 # ==============================================================================
 
@@ -89,8 +90,12 @@ run-user-setup: build
 	@mkdir -p $(DEPLOYMENTS_DIR)
 	./$(GO_BUILD)/user
 
+run-merchant:
+	@echo "==> (PHASE 2a) Starting Merchant Server..."
+	./$(GO_BUILD)/merchant
+
 run-agent: build
-	@echo "==> (PHASE 2) Running Agent..."
+	@echo "==> (PHASE 2b) Running Agent..."
 	./$(GO_BUILD)/agent || true
 
 # ==============================================================================

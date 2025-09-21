@@ -19,6 +19,8 @@ type Config struct {
 	TaskFile string `mapstructure:"taskFile"`
 	// MerchantAddress is the Ethereum address of the merchant to be paid.
 	MerchantAddress string `mapstructure:"merchantAddress"`
+	// MerchantServerURL is the URL for the new merchant server.
+	MerchantServerURL string `mapstructure:"merchantServerURL"`
 	// UserPrivateKey is the private key of the user account.
 	UserPrivateKey string `mapstructure:"USER_PRIVATE_KEY"`
 	// AgentPrivateKey is the private key of the agent/facilitator account.
