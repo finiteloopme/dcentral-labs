@@ -60,29 +60,29 @@ func main() {
 		log.Fatalf("Failed to wait for TokenUSDC deployment: %%v", err)
 	}
 
-	// 4. Deploy the AgentProxy contract.
+	// 4. Deploy the PaymentFacilitator contract.
 	// The `msg.sender` for this transaction (the user) will become the `owner`.
-	proxyAddr, tx, _, err := bindings.DeployAgent(userAuth, client)
+	facilitatorAddr, tx, _, err := bindings.DeployPaymentFacilitator(userAuth, client)
 	if err != nil {
-		log.Fatalf("Failed to deploy AgentProxy: %%v", err)
+		log.Fatalf("Failed to deploy PaymentFacilitator: %%v", err)
 	}
-	log.Printf("AgentProxy deployed at: %%s (tx: %%s)", proxyAddr.Hex(), tx.Hash().Hex())
+	log.Printf("PaymentFacilitator deployed at: %%s (tx: %%s)", facilitatorAddr.Hex(), tx.Hash().Hex())
 
 	// Wait for the deployment transaction to be mined.
 	_, err = bind.WaitMined(ctx, client, tx)
 	if err != nil {
-		log.Fatalf("Failed to wait for AgentProxy deployment: %%v", err)
+		log.Fatalf("Failed to wait for PaymentFacilitator deployment: %%v", err)
 	}
 
 	// 5. Send the on-chain `approve` transaction.
-	// This is the crucial on-chain pre-approval step that allows the AgentProxy
+	// This is the crucial on-chain pre-approval step that allows the PaymentFacilitator
 	// contract to spend a certain amount of the user's USDC.
 	approveAmount := new(big.Int).Mul(big.NewInt(50), big.NewInt(1e18)) // 50 USDC
-	log.Printf("Approving AgentProxy (%%s) to spend %%d tUSDC...", proxyAddr.Hex(), approveAmount)
+	log.Printf("Approving PaymentFacilitator (%%s) to spend %%d tUSDC...", facilitatorAddr.Hex(), approveAmount)
 
-	tx, err = usdcContract.Approve(userAuth, proxyAddr, approveAmount)
+	tx, err = usdcContract.Approve(userAuth, facilitatorAddr, approveAmount)
 	if err != nil {
-		log.Fatalf("Failed to approve proxy: %%v", err)
+		log.Fatalf("Failed to approve facilitator: %%v", err)
 	}
 	_, err = bind.WaitMined(ctx, client, tx)
 	if err != nil {
@@ -105,7 +105,7 @@ func main() {
 		Token:         usdcAddr,
 		MaxPrice:      approveAmount,                                     // Max price is 50 USDC
 		Expires:       big.NewInt(time.Now().Add(24 * time.Hour).Unix()), // Valid for 24 hours
-		ProxyContract: proxyAddr,
+		ProxyContract: facilitatorAddr,
 		Nonce:         nonce,
 	}
 
@@ -123,8 +123,8 @@ func main() {
 	// This includes the deployed contract addresses and the signed task data.
 	log.Println("Saving deployment addresses and task data...")
 	saveJSON(cfg.ContractsFile, types.DeployedContracts{
-		TokenUSDC:  usdcAddr,
-		AgentProxy: proxyAddr,
+		TokenUSDC:          usdcAddr,
+		PaymentFacilitator: facilitatorAddr,
 	})
 	saveJSON(cfg.TaskFile, types.TaskData{
 		Mandate:   mandate,

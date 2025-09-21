@@ -14,8 +14,8 @@ import (
 )
 
 // EIP712DomainName is the `name` in the EIP712 Domain constructor.
-// This MUST match the name in the `AgentProxy.sol` constructor for signatures to be valid.
-const EIP712DomainName = "AgentProxy"
+// This MUST match the name in the `PaymentFacilitator.sol` constructor for signatures to be valid.
+const EIP712DomainName = "PaymentFacilitator"
 
 // EIP712DomainVersion is the `version` in the EIP712 Domain constructor.
 // This MUST match the version in the `AgentProxy.sol` constructor.

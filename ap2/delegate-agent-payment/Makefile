@@ -21,7 +21,7 @@ GO_BUILD := bin
 
 # Contract names (must match file names without .sol)
 
-CONTRACTS := AgentProxy TokenUSDC
+CONTRACTS := PaymentFacilitator TokenUSDC
 
 # Phony targets
 
@@ -69,7 +69,7 @@ test-contracts:
 gen-bindings: compile-contracts
 	@echo "==> Generating Go bindings for contracts..."
 	@mkdir -p $(BINDINGS_DIR)
-	$(ABIGEN) --abi=$(CONTRACT_BUILD_DIR)/AgentProxy.sol/AgentProxy.abi.json --bin=$(CONTRACT_BUILD_DIR)/AgentProxy.sol/AgentProxy.bin --pkg=bindings --type=Agent --out=$(BINDINGS_DIR)/agentproxy.go
+	$(ABIGEN) --abi=$(CONTRACT_BUILD_DIR)/PaymentFacilitator.sol/PaymentFacilitator.abi.json --bin=$(CONTRACT_BUILD_DIR)/PaymentFacilitator.sol/PaymentFacilitator.bin --pkg=bindings --type=PaymentFacilitator --out=$(BINDINGS_DIR)/paymentfacilitator.go
 	$(ABIGEN) --abi=$(CONTRACT_BUILD_DIR)/TokenUSDC.sol/TokenUSDC.abi.json --bin=$(CONTRACT_BUILD_DIR)/TokenUSDC.sol/TokenUSDC.bin --pkg=bindings --type=TokenUSDC --out=$(BINDINGS_DIR)/tokenusdc.go
 
 # Meta-target

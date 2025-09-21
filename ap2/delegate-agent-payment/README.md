@@ -12,7 +12,7 @@ The user is only required to perform a one-time, on-chain setup (deploying a pro
 ├── README.md            # This file \
 ├── config.toml          # Configuration file \
 ├── contracts/ \
-│   ├── AgentProxy.sol     # The user's on-chain proxy/vault \
+│   ├── PaymentFacilitator.sol # The user's on-chain proxy/vault \
 │   ├── TokenUSDC.sol      # A simple ERC20 token for the demo
 ├── go.mod \
 ├── go.sum \
@@ -45,8 +45,8 @@ The user runs this script *once* while they are "awake".
 
 1. **Connects** to the blockchain.
 2. **Deploys** TokenUSDC.sol and mints 1,000 tokens to the user.
-3. **Deploys** AgentProxy.sol, which is owned by the user.
-4. **Approves (On-Chain):** The user sends an on-chain approve transaction to the MockUSDC contract, allowing their *own* AgentProxy to spend up to 50 USDC on their behalf.
+3. **Deploys** PaymentFacilitator.sol, which is owned by the user.
+4. **Approves (On-Chain):** The user sends an on-chain approve transaction to the TokenUSDC contract, allowing their *own* PaymentFacilitator to spend up to 50 USDC on their behalf.
 5. **Signs IntentMandate (Off-Chain):** The user defines their rules (e.g., "buy for &lt;= 50 USDC") and signs this as an EIP-712 message. This signature is the agent's "permission slip".
 6. **Saves Artifacts:** The script saves contract addresses and the signed mandate to the deployments/ folder for the agent to use.
 
@@ -57,12 +57,12 @@ The agent runs this script while the user is "asleep".
 1. **Loads Artifacts:** Reads the deployments/ folder to get contract addresses and the user's signed IntentMandate.
 2. **Monitors:** Simulates monitoring for a price drop.
 3. **Creates Cart:** Once the "price is right" (49 USDC), it creates a CartMandate.
-4. **Executes (On-Chain):** The agent (as a facilitator) calls the executePurchase function on the AgentProxy contract. It pays the gas for this call.
-5. Proxy Validates: The AgentProxy contract does all the security checks on-chain:
+4. **Executes (On-Chain):** The agent (as a facilitator) calls the executePurchase function on the PaymentFacilitator contract. It pays the gas for this call.
+5. Facilitator Validates: The PaymentFacilitator contract does all the security checks on-chain:
    a. Verifies the user's IntentMandate signature.
    b. Checks that the nonce hasn't been used.
    c. Checks that the cart.amount (49 USDC) is less than or equal to the intent.maxPrice (50 USDC).
-6. **Proxy Pays:** If all checks pass, the proxy calls transferFrom on the MockUSDC contract, pulling 49 USDC from the user's wallet and sending it to the merchant.
+6. **Facilitator Pays:** If all checks pass, the facilitator calls transferFrom on the TokenUSDC contract, pulling 49 USDC from the user's wallet and sending it to the merchant.
 
 ## Testing
 

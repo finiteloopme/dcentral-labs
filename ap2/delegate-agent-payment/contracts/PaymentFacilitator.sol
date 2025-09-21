@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
- * @title AgentProxy
+ * @title PaymentFacilitator
  * @author Your Name
  * @notice This contract acts as a user-specific proxy that holds an ERC20 allowance
  * and executes purchases on the user's behalf. It is a core component of the
@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * the final transaction, but it only executes the payment if the call includes a
  * valid `IntentMandate` that has been signed off-chain by the `owner` (the user).
  */
-contract AgentProxy is EIP712 {
+contract PaymentFacilitator is EIP712 {
     // --- State Variables ---
 
     // @notice The user who deployed this contract and is authorized to sign intents.
@@ -90,7 +90,7 @@ contract AgentProxy is EIP712 {
      * are critical for creating the domain separator. These must match the values
      * used by the off-chain signing client (Go backend in this case).
      */
-    constructor() EIP712("AgentProxy", "1") {
+    constructor() EIP712("PaymentFacilitator", "1") {
         owner = msg.sender;
     }
 

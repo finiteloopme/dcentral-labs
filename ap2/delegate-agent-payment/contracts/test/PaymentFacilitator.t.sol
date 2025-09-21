@@ -2,16 +2,16 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "AgentProxy.sol";
+import "PaymentFacilitator.sol";
 import "TokenUSDC.sol";
 
 /**
- * @title AgentProxyTest
- * @notice Test suite for the AgentProxy contract.
+ * @title PaymentFacilitatorTest
+ * @notice Test suite for the PaymentFacilitator contract.
  * @dev Uses Foundry for testing. Tests the core `executePurchase` flow.
  */
-contract AgentProxyTest is Test {
-    AgentProxy public agentProxy;
+contract PaymentFacilitatorTest is Test {
+    PaymentFacilitator public paymentFacilitator;
     TokenUSDC public usdc;
 
     // --- Actors ---
@@ -37,10 +37,10 @@ contract AgentProxyTest is Test {
         merchant = vm.addr(MERCHANT_PK);
 
         // Deploy contracts as the user.
-        // The user becomes the `owner` of the AgentProxy contract.
+        // The user becomes the `owner` of the PaymentFacilitator contract.
         vm.startPrank(user);
         usdc = new TokenUSDC(0); // No initial supply needed, we mint below.
-        agentProxy = new AgentProxy();
+        paymentFacilitator = new PaymentFacilitator();
         usdc.mint(user, 1000e6); // Mint 1000 USDC (with 6 decimals) for the user.
         vm.stopPrank();
     }
@@ -49,18 +49,18 @@ contract AgentProxyTest is Test {
      * @notice Tests the successful execution of a purchase.
      */
     function testExecutePurchase() public {
-        // 1. User gives the AgentProxy contract an allowance to spend their USDC.
+        // 1. User gives the PaymentFacilitator contract an allowance to spend their USDC.
         // This is a prerequisite for the `transferFrom` call in `executePurchase`.
         vm.startPrank(user);
-        usdc.approve(address(agentProxy), 100e6); // Approve 100 USDC
+        usdc.approve(address(paymentFacilitator), 100e6); // Approve 100 USDC
 
         // 2. User defines their intent for a purchase off-chain.
-        AgentProxy.IntentMandate memory intent = AgentProxy.IntentMandate({
+        PaymentFacilitator.IntentMandate memory intent = PaymentFacilitator.IntentMandate({
             task: keccak256(bytes("Buy a coffee")),
             token: address(usdc),
             maxPrice: 10e6, // Max price: 10 USDC
             expires: block.timestamp + 3600, // Intent expires in 1 hour
-            proxyContract: address(agentProxy), // For EIP-712 domain
+            proxyContract: address(paymentFacilitator), // For EIP-712 domain
             nonce: 123 // Unique nonce to prevent replay attacks
         });
 
@@ -68,7 +68,7 @@ contract AgentProxyTest is Test {
         
         // 3a. Calculate the EIP-712 struct hash.
         bytes32 structHash = keccak256(abi.encode(
-            agentProxy.INTENT_MANDATE_TYPEHASH(),
+            paymentFacilitator.INTENT_MANDATE_TYPEHASH(),
             intent.task,
             intent.token,
             intent.maxPrice,
@@ -78,7 +78,7 @@ contract AgentProxyTest is Test {
         ));
 
         // 3b. Get the EIP-712 domain separator from the contract.
-        bytes32 domainSeparator = agentProxy.domainSeparatorV4();
+        bytes32 domainSeparator = paymentFacilitator.domainSeparatorV4();
 
         // 3c. Hash the domain separator and struct hash to get the final digest to sign.
         bytes32 digest = keccak256(abi.encodePacked(
@@ -97,20 +97,20 @@ contract AgentProxyTest is Test {
         vm.stopPrank(); // End pranking as user.
 
         // 4. The agent receives the signed intent and prepares the cart for checkout.
-        AgentProxy.CartMandate memory cart = AgentProxy.CartMandate({
+        PaymentFacilitator.CartMandate memory cart = PaymentFacilitator.CartMandate({
             merchant: merchant,
             token: address(usdc),
             amount: 5e6 // Actual price: 5 USDC
         });
 
-        // 5. The agent submits the transaction to the AgentProxy contract.
+        // 5. The agent submits the transaction to the PaymentFacilitator contract.
         vm.startPrank(agent);
-        agentProxy.executePurchase(intent, cart, signature);
+        paymentFacilitator.executePurchase(intent, cart, signature);
         vm.stopPrank(); // End pranking as agent.
 
         // 6. Verify the outcome of the transaction.
         assertEq(usdc.balanceOf(user), 995e6, "User balance should be 995 USDC"); // 1000 - 5
         assertEq(usdc.balanceOf(merchant), 5e6, "Merchant balance should be 5 USDC");
-        assertEq(usdc.balanceOf(address(agentProxy)), 0, "Proxy balance should be 0");
+        assertEq(usdc.balanceOf(address(paymentFacilitator)), 0, "Proxy balance should be 0");
     }
 }

@@ -19,19 +19,15 @@ type IntentMandate struct {
 	MaxPrice *big.Int `json:"maxPrice"`
 	// Expires is the Unix timestamp when this intent becomes invalid.
 	Expires *big.Int `json:"expires"`
-	// ProxyContract is the address of the user's AgentProxy contract.
+	// ProxyContract is the address of the user's PaymentFacilitator contract.
 	ProxyContract common.Address `json:"proxyContract"`
 	// Nonce is a large random number to ensure the uniqueness of the intent hash.
 	Nonce *big.Int `json:"nonce"`
 }
-
-// DeployedContracts holds the addresses of the contracts deployed by the user setup script.
-// This struct is serialized to JSON and read by the agent script.
+// DeployedContracts holds the addresses of the deployed contracts.
 type DeployedContracts struct {
-	// TokenUSDC is the address of the deployed ERC20 token contract.
-	TokenUSDC common.Address `json:"token_usdc"`
-	// AgentProxy is the address of the deployed AgentProxy contract.
-	AgentProxy common.Address `json:"agent_proxy"`
+	TokenUSDC          common.Address `json:"token_usdc"`
+	PaymentFacilitator common.Address `json:"payment_facilitator"`
 }
 
 // TaskData holds the user's signed mandate and the signature itself.
