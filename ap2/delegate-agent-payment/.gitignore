@@ -1,0 +1,7 @@
+.gemini/.env
+bin
+build
+contracts/lib
+contracts/cache
+contracts/out
+deployments
