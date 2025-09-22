@@ -25,6 +25,8 @@ type Config struct {
 	UserPrivateKey string `mapstructure:"USER_PRIVATE_KEY"`
 	// AgentPrivateKey is the private key of the agent/facilitator account.
 	AgentPrivateKey string `mapstructure:"AGENT_PRIVATE_KEY"`
+	// MerchantPrivateKey is the private key of the merchant account.
+	MerchantPrivateKey string `mapstructure:"MERCHANT_PRIVATE_KEY"`
 }
 
 // LoadConfig reads configuration from a file and environment variables.

@@ -60,7 +60,6 @@ contract PaymentFacilitatorTest is Test {
             token: address(usdc),
             maxPrice: 10e6, // Max price: 10 USDC
             expires: block.timestamp + 3600, // Intent expires in 1 hour
-            proxyContract: address(paymentFacilitator), // For EIP-712 domain
             nonce: 123 // Unique nonce to prevent replay attacks
         });
 
@@ -73,7 +72,6 @@ contract PaymentFacilitatorTest is Test {
             intent.token,
             intent.maxPrice,
             intent.expires,
-            intent.proxyContract,
             intent.nonce
         ));
 
@@ -96,19 +94,31 @@ contract PaymentFacilitatorTest is Test {
 
         vm.stopPrank(); // End pranking as user.
 
-        // 4. The agent receives the signed intent and prepares the cart for checkout.
+        // 5. The agent receives the signed intent and prepares the cart for checkout.
         PaymentFacilitator.CartMandate memory cart = PaymentFacilitator.CartMandate({
             merchant: merchant,
             token: address(usdc),
             amount: 5e6 // Actual price: 5 USDC
         });
 
-        // 5. The agent submits the transaction to the PaymentFacilitator contract.
+        // 6. The merchant signs the cart.
+        bytes32 cartStructHash = keccak256(abi.encode(
+            paymentFacilitator.CART_MANDATE_TYPEHASH(),
+            cart.merchant,
+            cart.token,
+            cart.amount
+        ));
+        bytes32 cartDigest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, cartStructHash));
+        (uint8 cartV, bytes32 cartR, bytes32 cartS) = vm.sign(MERCHANT_PK, cartDigest);
+        bytes memory cartSignature = abi.encodePacked(cartR, cartS, cartV);
+
+
+        // 7. The agent submits the transaction to the PaymentFacilitator contract.
         vm.startPrank(agent);
-        paymentFacilitator.executePurchase(intent, cart, signature);
+        paymentFacilitator.executePurchase(intent, cart, signature, cartSignature);
         vm.stopPrank(); // End pranking as agent.
 
-        // 6. Verify the outcome of the transaction.
+        // 8. Verify the outcome of the transaction.
         assertEq(usdc.balanceOf(user), 995e6, "User balance should be 995 USDC"); // 1000 - 5
         assertEq(usdc.balanceOf(merchant), 5e6, "Merchant balance should be 5 USDC");
         assertEq(usdc.balanceOf(address(paymentFacilitator)), 0, "Proxy balance should be 0");

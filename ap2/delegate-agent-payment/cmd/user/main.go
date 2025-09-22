@@ -5,10 +5,10 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"log"
 	"math/big"
+	"math/rand"
 	"os"
 	"time"
 
@@ -29,11 +29,11 @@ func main() {
 	// 1. Load configuration from config.toml and environment variables.
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %%v", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// 2. Connect to the blockchain as the USER.
-	// It uses the user's private key to create a transaction signer.
+	// This uses the `userPrivateKey` from the config.
 	ctx := context.Background()
 	userCfg := chain.Config{
 		RPCUrl:     cfg.RPCUrl,
@@ -42,89 +42,93 @@ func main() {
 	}
 	client, userAuth, err := chain.GetClientAndAuth(ctx, userCfg)
 	if err != nil {
-		log.Fatalf("Failed to connect as user: %%v", err)
+		log.Fatalf("Failed to connect as user: %v", err)
 	}
+	log.Printf("Loaded wallet for address: %s", userAuth.From.Hex())
 
-	// 3. Deploy the TokenUSDC contract.
-	// We mint 1,000 USDC (with 18 decimals for this mock) to the user upon deployment.
-	initialSupply := new(big.Int).Mul(big.NewInt(1000), big.NewInt(1e18))
-	usdcAddr, tx, usdcContract, err := bindings.DeployTokenUSDC(userAuth, client, initialSupply)
+	// 3. Deploy the contracts.
+	// The user pays the gas for these deployments.
+	log.Println("Deploying contracts...")
+	usdcAddress, tx, _, err := bindings.DeployTokenUSDC(userAuth, client, big.NewInt(0))
 	if err != nil {
-		log.Fatalf("Failed to deploy TokenUSDC: %%v", err)
+		log.Fatalf("Failed to deploy TokenUSDC contract: %v", err)
 	}
-	log.Printf("TokenUSDC deployed at: %%s (tx: %%s)", usdcAddr.Hex(), tx.Hash().Hex())
+	log.Printf("TokenUSDC deployed at: %s (tx: %s)", usdcAddress.Hex(), tx.Hash().Hex())
 
-	// Wait for the deployment transaction to be mined.
+	// Wait for the transaction to be mined to ensure the contract is available.
 	_, err = bind.WaitMined(ctx, client, tx)
 	if err != nil {
-		log.Fatalf("Failed to wait for TokenUSDC deployment: %%v", err)
+		log.Fatalf("Failed to wait for TokenUSDC deployment: %v", err)
 	}
 
-	// 4. Deploy the PaymentFacilitator contract.
-	// The `msg.sender` for this transaction (the user) will become the `owner`.
-	facilitatorAddr, tx, _, err := bindings.DeployPaymentFacilitator(userAuth, client)
+	facilitatorAddress, tx, _, err := bindings.DeployPaymentFacilitator(userAuth, client)
 	if err != nil {
-		log.Fatalf("Failed to deploy PaymentFacilitator: %%v", err)
+		log.Fatalf("Failed to deploy PaymentFacilitator contract: %v", err)
 	}
-	log.Printf("PaymentFacilitator deployed at: %%s (tx: %%s)", facilitatorAddr.Hex(), tx.Hash().Hex())
+	log.Printf("PaymentFacilitator deployed at: %s (tx: %s)", facilitatorAddress.Hex(), tx.Hash().Hex())
 
-	// Wait for the deployment transaction to be mined.
 	_, err = bind.WaitMined(ctx, client, tx)
 	if err != nil {
-		log.Fatalf("Failed to wait for PaymentFacilitator deployment: %%v", err)
+		log.Fatalf("Failed to wait for PaymentFacilitator deployment: %v", err)
 	}
 
-	// 5. Send the on-chain `approve` transaction.
-	// This is the crucial on-chain pre-approval step that allows the PaymentFacilitator
-	// contract to spend a certain amount of the user's USDC.
-	approveAmount := new(big.Int).Mul(big.NewInt(50), big.NewInt(1e18)) // 50 USDC
-	log.Printf("Approving PaymentFacilitator (%%s) to spend %%d tUSDC...", facilitatorAddr.Hex(), approveAmount)
-
-	tx, err = usdcContract.Approve(userAuth, facilitatorAddr, approveAmount)
+	// 4. Mint some mock USDC for the user.
+	usdcContract, err := bindings.NewTokenUSDC(usdcAddress, client)
 	if err != nil {
-		log.Fatalf("Failed to approve facilitator: %%v", err)
+		log.Fatalf("Failed to instantiate USDC contract: %v", err)
+	}
+	log.Println("Minting 1000 tUSDC for user...")
+	tx, err = usdcContract.Mint(userAuth, userAuth.From, new(big.Int).Mul(big.NewInt(1000), big.NewInt(1e18)))
+	if err != nil {
+		log.Fatalf("Failed to mint tokens: %v", err)
 	}
 	_, err = bind.WaitMined(ctx, client, tx)
 	if err != nil {
-		log.Fatalf("Failed to wait for approval: %%v", err)
+		log.Fatalf("Failed to wait for mint tx: %v", err)
 	}
-	log.Printf("...Approval successful! (tx: %%s)", tx.Hash().Hex())
+	log.Println("...Mint successful!")
 
-	// 6. Create and Sign the `IntentMandate` off-chain.
-	// This serves as the "permission slip" for the agent, defining the rules
-	// under which it can execute a payment on the user's behalf.
-
-	// Generate a secure random nonce for replay protection.
-	nonce, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	// 5. Approve the PaymentFacilitator to spend the user's USDC.
+	// This is the crucial on-chain step that gives the proxy permission.
+	allowance := new(big.Int).Mul(big.NewInt(50), big.NewInt(1e18)) // 50 USDC
+	log.Printf("Approving PaymentFacilitator (%s) to spend %d tUSDC...", facilitatorAddress.Hex(), allowance)
+	tx, err = usdcContract.Approve(userAuth, facilitatorAddress, allowance)
 	if err != nil {
-		log.Fatalf("Failed to generate nonce: %%v", err)
+		log.Fatalf("Failed to approve PaymentFacilitator: %v", err)
 	}
+	_, err = bind.WaitMined(ctx, client, tx)
+	if err != nil {
+		log.Fatalf("Failed to wait for approval tx: %v", err)
+	}
+	log.Printf("...Approval successful! (tx: %s)", tx.Hash().Hex())
 
+	// 6. Define the user's intent off-chain.
+	// This struct contains the rules the agent must follow.
 	mandate := &types.IntentMandate{
 		Task:          "Buy 'Blue Widget' if price is good",
-		Token:         usdcAddr,
-		MaxPrice:      approveAmount,                                     // Max price is 50 USDC
-		Expires:       big.NewInt(time.Now().Add(24 * time.Hour).Unix()), // Valid for 24 hours
-		ProxyContract: facilitatorAddr,
-		Nonce:         nonce,
+		Token:         usdcAddress,
+		MaxPrice:      allowance, // Max price is the same as the allowance
+		Expires:       big.NewInt(time.Now().Add(24 * time.Hour).Unix()),
+		Nonce:         big.NewInt(rand.Int63()), // Use a random nonce for demo purposes
 	}
 
-	// Sign the mandate using the EIP-712 standard.
-	userKey, err := crypto.HexToECDSA(cfg.UserPrivateKey)
+	// 7. Sign the intent using EIP-712.
+	// This signature is the agent's "permission slip".
+	userPrivateKey, err := crypto.HexToECDSA(cfg.UserPrivateKey)
 	if err != nil {
-		log.Fatalf("Failed to encode private key (hex) to ECDSA: %%v", err)
+		log.Fatalf("Failed to load user private key: %v", err)
 	}
-	signature, err := signing.SignIntentMandate(mandate, userKey, userCfg.ChainID)
+	signature, err := signing.SignIntentMandate(mandate, facilitatorAddress, userPrivateKey, big.NewInt(cfg.ChainID))
 	if err != nil {
-		log.Fatalf("Failed to sign intent mandate: %%v", err)
+		log.Fatalf("Failed to sign intent mandate: %v", err)
 	}
 
-	// 7. Save the generated artifacts to files for the agent to use.
-	// This includes the deployed contract addresses and the signed task data.
+	// 8. Save the deployed contract addresses and the signed task data.
+	// The agent will load these files to execute the task.
 	log.Println("Saving deployment addresses and task data...")
 	saveJSON(cfg.ContractsFile, types.DeployedContracts{
-		TokenUSDC:          usdcAddr,
-		PaymentFacilitator: facilitatorAddr,
+		TokenUSDC:          usdcAddress,
+		PaymentFacilitator: facilitatorAddress,
 	})
 	saveJSON(cfg.TaskFile, types.TaskData{
 		Mandate:   mandate,
@@ -138,9 +142,10 @@ func main() {
 func saveJSON(filePath string, data interface{}) {
 	file, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		log.Fatalf("Failed to marshal JSON: %%v", err)
+		log.Fatalf("Failed to marshal JSON for %s: %v", filePath, err)
 	}
+
 	if err := os.WriteFile(filePath, file, 0644); err != nil {
-		log.Fatalf("Failed to write JSON file: %%v", err)
+		log.Fatalf("Failed to write JSON to %s: %v", filePath, err)
 	}
 }

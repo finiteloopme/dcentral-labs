@@ -25,7 +25,7 @@ CONTRACTS := PaymentFacilitator TokenUSDC
 
 # Phony targets
 
-.PHONY: all install-deps update-forge-deps compile-contracts gen-bindings bindings compile-go build run-user-setup run-agent clean
+.PHONY: all install-deps update-forge-deps compile-contracts gen-bindings bindings compile-go build run-user-setup run-agent run-full-demo run-merchant clean
 
 all: build
 
@@ -67,6 +67,14 @@ test-contracts:
 	@echo "==> Testing Solidity contracts..."
 	@cd $(CONTRACTS_DIR) && forge test
 
+test-go:
+	@echo "==> Testing Go code..."
+	@go test -v ./...
+
+# Meta-target for all tests
+
+test: test-contracts test-go
+
 gen-bindings: compile-contracts
 	@echo "==> Generating Go bindings for contracts..."
 	@mkdir -p $(BINDINGS_DIR)
@@ -94,9 +102,17 @@ run-merchant:
 	@echo "==> (PHASE 2a) Starting Merchant Server..."
 	./$(GO_BUILD)/merchant
 
-run-agent: build
+run-agent:
 	@echo "==> (PHASE 2b) Running Agent..."
 	./$(GO_BUILD)/agent || true
+
+run-full-demo:
+	@echo "==> Running Full Demo Flow..."
+	@make run-user-setup
+	@echo "Starting merchant in background..."
+	@./$(GO_BUILD)/merchant &
+	@make run-agent
+	@killall merchant # Cleanup
 
 # ==============================================================================
 

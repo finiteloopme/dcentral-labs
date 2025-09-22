@@ -7,23 +7,22 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title PaymentFacilitator
- * @author Your Name
- * @notice This contract acts as a user-specific proxy that holds an ERC20 allowance
- * and executes purchases on the user's behalf. It is a core component of the
- * delegated agent payment flow, providing the on-chain security layer.
- *
- * It is designed to be called by a "facilitator" or "agent" who pays the gas for
- * the final transaction, but it only executes the payment if the call includes a
- * valid `IntentMandate` that has been signed off-chain by the `owner` (the user).
+ * @author DCentral Labs
+ * @notice This contract is the core of the delegated agent payment flow.
+ * It is a user-specific contract that holds an ERC20 allowance and executes purchases
+ * on the user's behalf, but only when authorized by a valid, user-signed EIP-712 message.
+ * This allows a third-party "agent" to submit transactions on behalf of the user,
+ * paying the gas fees, without having direct control over the user's funds.
  */
 contract PaymentFacilitator is EIP712 {
     // --- State Variables ---
 
     // @notice The user who deployed this contract and is authorized to sign intents.
+    // Only signatures from this address will be considered valid.
     address public owner;
 
     // @notice A mapping to store used nonces (specifically, the hash of the intent).
-    // This is a critical security measure to prevent replay attacks where an agent
+    // This is a critical security measure to prevent replay attacks, where an agent
     // could try to execute the same valid purchase multiple times.
     mapping(bytes32 => bool) public usedNonces;
 
@@ -34,9 +33,14 @@ contract PaymentFacilitator is EIP712 {
 
     // @notice The EIP-712 type hash for the IntentMandate struct.
     // This is the keccak256 hash of the struct's definition string.
-    // keccak256("IntentMandate(bytes32 task,address token,uint256 maxPrice,uint256 expires,address proxyContract,uint256 nonce)")
-    bytes32 public constant INTENT_MANDATE_TYPEHASH =
-        0x19ac96c45d832fdcb558cba6b351903a6e8ceed3234926732e8d5bdf7c0d5800;
+    bytes32 public constant INTENT_MANDATE_TYPEHASH = keccak256(
+        "IntentMandate(bytes32 task,address token,uint256 maxPrice,uint256 expires,uint256 nonce)"
+    );
+
+    // @notice The EIP-712 type hash for the CartMandate struct.
+    bytes32 public constant CART_MANDATE_TYPEHASH = keccak256(
+        "CartMandate(address merchant,address token,uint256 amount)"
+    );
 
     // --- Structs ---
 
@@ -46,12 +50,11 @@ contract PaymentFacilitator is EIP712 {
      * to the agent. The agent can only act within these predefined boundaries.
      */
     struct IntentMandate {
-        bytes32 task; // A hash of the human-readable description of the task.
-        address token; // The token address for the purchase (e.g., USDC).
-        uint256 maxPrice; // The maximum amount the agent is allowed to spend.
-        uint256 expires; // Unix timestamp when this intent is no longer valid.
-        address proxyContract; // This contract's address, for EIP-712 domain separation.
-        uint256 nonce; // A unique random number to prevent replay attacks.
+        bytes32 task;       // A hash of the human-readable description of the task.
+        address token;      // The token address for the purchase (e.g., USDC).
+        uint256 maxPrice;   // The maximum amount the agent is allowed to spend.
+        uint256 expires;    // Unix timestamp when this intent is no longer valid.
+        uint256 nonce;      // A unique random number to prevent replay attacks.
     }
 
     /**
@@ -59,16 +62,20 @@ contract PaymentFacilitator is EIP712 {
      * This contains the actual details of the purchase to be executed.
      */
     struct CartMandate {
-        address merchant; // The address to pay.
-        address token; // The token to pay with (must match the intent).
-        uint256 amount; // The exact amount to pay (must be <= maxPrice).
+        address merchant;   // The address to pay.
+        address token;      // The token to pay with (must match the intent).
+        uint256 amount;     // The exact amount to pay (must be <= maxPrice).
     }
 
     // --- Events ---
 
-    event SignerRecovered(bytes32 intentHash);
-    event SignerAddress(address signer);
-    event StructHash(bytes32 structHash);
+    /**
+     * @notice Emitted when a purchase is successfully executed.
+     * @param merchant The address of the merchant that was paid.
+     * @param token The address of the token used for payment.
+     * @param amount The amount of the token that was transferred.
+     * @param intentNonce The nonce of the intent that was executed.
+     */
     event PurchaseExecuted(
         address indexed merchant,
         address indexed token,
@@ -78,11 +85,12 @@ contract PaymentFacilitator is EIP712 {
 
     // --- Errors ---
 
-    error InvalidSignature(); // The signature does not match the owner.
-    error IntentExpired(); // The current block timestamp is past the intent's expiration.
-    error PriceTooHigh(); // The cart amount exceeds the intent's maxPrice.
-    error NonceAlreadyUsed(); // The intent's nonce has already been used.
-    error InvalidToken(); // The cart token does not match the intent token.
+    error InvalidSignature();     // The user's signature does not match the owner.
+    error InvalidCartSignature(); // The cart signature is not from the merchant.
+    error IntentExpired();        // The current block timestamp is past the intent's expiration.
+    error PriceTooHigh();         // The cart amount exceeds the intent's maxPrice.
+    error NonceAlreadyUsed();     // The intent's nonce has already been used.
+    error InvalidToken();         // The cart token does not match the intent token.
 
     /**
      * @notice The constructor sets the contract owner and the EIP-712 domain.
@@ -95,46 +103,39 @@ contract PaymentFacilitator is EIP712 {
     }
 
     /**
-     * @notice The main function called by the agent/facilitator to execute a payment.
+     * @notice The main function called by the agent to execute a payment.
      * @dev This function performs all security checks:
-     *      1. Recovers the signer from the signature to verify it's the owner.
-     *      2. Validates the intent against on-chain rules (expiration, price, nonce).
-     *      3. Marks the nonce as used.
-     *      4. Executes the ERC20 `transferFrom` call.
+     *      1. Verifies the user's signature to authorize the intent.
+     *      2. Verifies the merchant's signature to authenticate the cart.
+     *      3. Validates the intent against on-chain rules (expiration, price, nonce).
+     *      4. Marks the nonce as used to prevent replay attacks.
+     *      5. Executes the ERC20 `transferFrom` call to make the payment.
      * @param intent The user's signed IntentMandate.
-     * @param cart The merchant's cart/offer.
-     * @param signature The EIP-712 signature from the user.
+     * @param cart The merchant's signed CartMandate.
+     * @param userSignature The EIP-712 signature from the user for the intent.
+     * @param cartSignature The EIP-712 signature from the merchant for the cart.
      */
     function executePurchase(
         IntentMandate calldata intent,
         CartMandate calldata cart,
-        bytes calldata signature
+        bytes calldata userSignature,
+        bytes calldata cartSignature
     ) external {
-        // 1. Verify the signature to ensure the intent was authorized by the owner.
+        // 1. Verify the user's signature to ensure the intent was authorized by the owner.
         bytes32 intentHash = _hashIntentMandate(intent);
-        address signer = ECDSA.recover(intentHash, signature);
-        emit SignerRecovered(intentHash);
-        emit SignerAddress(signer);
-
-        // This struct hash is for debugging and comparison with off-chain logs.
-        bytes32 structHash = keccak256(
-            abi.encode(
-                INTENT_MANDATE_TYPEHASH,
-                intent.task,
-                intent.token,
-                intent.maxPrice,
-                intent.expires,
-                intent.proxyContract,
-                intent.nonce
-            )
-        );
-        emit StructHash(structHash);
-
-        if (signer != owner) {
+        address userSigner = ECDSA.recover(intentHash, userSignature);
+        if (userSigner != owner) {
             revert InvalidSignature();
         }
 
-        // 2. Check the on-chain rules against the intent and cart.
+        // 2. Verify the merchant's signature to ensure the cart is authentic.
+        bytes32 cartHash = _hashCartMandate(cart);
+        address merchantSigner = ECDSA.recover(cartHash, cartSignature);
+        if (merchantSigner != cart.merchant) {
+            revert InvalidCartSignature();
+        }
+
+        // 3. Check the on-chain rules against the intent and cart.
         if (block.timestamp > intent.expires) {
             revert IntentExpired();
         }
@@ -148,17 +149,15 @@ contract PaymentFacilitator is EIP712 {
             revert NonceAlreadyUsed();
         }
 
-        // 3. Mark the intent's hash as used to prevent replay attacks.
+        // 4. Mark the intent's hash as used to prevent replay attacks.
         usedNonces[intentHash] = true;
 
-        // 4. Execute the payment.
+        // 5. Execute the payment.
         // This call will only succeed if the user (owner) has previously called
-        // `approve(address(this), amount)` on the token contract. This is the
-        // crucial on-chain pre-approval step that gives this proxy contract
-        // permission to move funds on the user's behalf.
+        // `approve(address(this), amount)` on the token contract.
         IERC20(cart.token).transferFrom(owner, cart.merchant, cart.amount);
 
-        // 5. Emit an event to log the successful purchase.
+        // 6. Emit an event to log the successful purchase.
         emit PurchaseExecuted(cart.merchant, cart.token, cart.amount, intentHash);
     }
 
@@ -171,7 +170,6 @@ contract PaymentFacilitator is EIP712 {
     function _hashIntentMandate(
         IntentMandate calldata intent
     ) internal view returns (bytes32) {
-        // First, hash the struct data itself.
         bytes32 structHash = keccak256(
             abi.encode(
                 INTENT_MANDATE_TYPEHASH,
@@ -179,12 +177,27 @@ contract PaymentFacilitator is EIP712 {
                 intent.token,
                 intent.maxPrice,
                 intent.expires,
-                intent.proxyContract,
                 intent.nonce
             )
         );
+        return _hashTypedDataV4(structHash);
+    }
 
-        // Then, use the EIP712 standard to combine it with the domain separator.
+    /**
+     * @notice An internal helper function to compute the full EIP-712 hash for the CartMandate.
+     * @dev This follows the same EIP-712 hashing process as `_hashIntentMandate`.
+     */
+    function _hashCartMandate(
+        CartMandate calldata cart
+    ) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                CART_MANDATE_TYPEHASH,
+                cart.merchant,
+                cart.token,
+                cart.amount
+            )
+        );
         return _hashTypedDataV4(structHash);
     }
 
@@ -197,4 +210,3 @@ contract PaymentFacilitator is EIP712 {
         return _domainSeparatorV4();
     }
 }
-

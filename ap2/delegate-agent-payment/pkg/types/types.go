@@ -19,8 +19,6 @@ type IntentMandate struct {
 	MaxPrice *big.Int `json:"maxPrice"`
 	// Expires is the Unix timestamp when this intent becomes invalid.
 	Expires *big.Int `json:"expires"`
-	// ProxyContract is the address of the user's PaymentFacilitator contract.
-	ProxyContract common.Address `json:"proxyContract"`
 	// Nonce is a large random number to ensure the uniqueness of the intent hash.
 	Nonce *big.Int `json:"nonce"`
 }
@@ -36,5 +34,19 @@ type TaskData struct {
 	// Mandate is the user's intent.
 	Mandate *IntentMandate `json:"mandate"`
 	// Signature is the 65-byte EIP-712 signature of the mandate.
+	Signature []byte `json:"signature"`
+}
+
+// Cart represents the merchant's bill, which will be signed.
+// This struct must match the CartMandate in the Solidity contract.
+type Cart struct {
+	Merchant common.Address `json:"merchant"`
+	Token    common.Address `json:"token"`
+	Amount   *big.Int       `json:"amount"`
+}
+
+// SignedCart is the structure returned by the merchant's /cart endpoint.
+type SignedCart struct {
+	Cart      *Cart  `json:"cart"`
 	Signature []byte `json:"signature"`
 }
