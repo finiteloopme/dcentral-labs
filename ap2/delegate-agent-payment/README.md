@@ -51,6 +51,32 @@ This demo uses a dual-signature mechanism (user and merchant) to create a secure
 3.  **Agent Execution**: The agent is an untrusted facilitator. It fetches both signed mandates and presents them to the on-chain `PaymentFacilitator` contract.
 4.  **On-Chain Verification**: The contract is the single source of truth. It only executes the payment if **both** signatures are valid and all rules match (e.g., `cart.amount <= intent.maxPrice`). The agent cannot tamper with the cart without invalidating the merchant's signature.
 
+```mermaid
+graph TD
+    subgraph Off-Chain Steps
+        U[User] -- (1) Signs IntentMandate --> UM(Signed Intent);
+        M[Merchant] -- (2) Signs CartMandate --> MM(Signed Cart);
+    end
+
+    subgraph On-Chain Execution
+        A[Agent] -- (3) Search & Submit Txn --> C(PaymentFacilitator Contract);
+        UM -- Included in Txn --> C;
+        MM -- Included in Txn --> C;
+
+        C -- (4) Signatures & Rules --> V{Verfify Intent};
+        V -- All Checks Pass --> P(Process Txn);
+        V -- Any Check Fails --> R(Revert Txn);
+
+        P -- (5) User pays Merchant --> T[TokenUSDC Contract];
+        T -.-> M;
+    end
+
+    style U fill:#f9f,stroke:#333,stroke-width:2px
+    style M fill:#ccf,stroke:#333,stroke-width:2px
+    style A fill:#fcf,stroke:#333,stroke-width:2px
+    style C fill:#bfa,stroke:#333,stroke-width:2px
+```
+
 ### Phase 1: User Setup (`cmd/user`)
 
 The user runs this script *once* while they are "awake".
