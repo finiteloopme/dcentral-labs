@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-cardano
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cardano-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: cardano-node
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cardano-node
+    spec:
+      serviceAccountName: {{ include "midnight-node.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: cardano-node
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.cardanoNode.image.repository }}:{{ .Values.cardanoNode.image.tag }}"
+          imagePullPolicy: {{ .Values.cardanoNode.image.pullPolicy }}
+          env:
+            - name: NETWORK
+              value: {{ .Values.global.network }}
+            - name: CARDANO_NODE_SOCKET_PATH
+              value: {{ .Values.global.cardanoNodeSocketPath }}
+          ports:
+            {{- range .Values.cardanoNode.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          resources:
+            {{- toYaml .Values.cardanoNode.resources | nindent 12 }}
+          volumeMounts:
+            - name: cardano-data
+              mountPath: /data
+            - name: node-ipc
+              mountPath: /ipc
+      volumes:
+        - name: cardano-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-cardano-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: node-ipc
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-node-ipc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-cardano
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cardano-node
+spec:
+  type: ClusterIP
+  ports:
+    - name: cardano
+      port: 3001
+      targetPort: 3001
+      protocol: TCP
+  selector:
+    {{- include "midnight-node.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: cardano-node 

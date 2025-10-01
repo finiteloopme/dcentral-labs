@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-postgres
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          env:
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgres.generatePassword }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.postgres.environment.POSTGRES_PASSWORD }}
+              {{- end }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.environment.POSTGRES_DB }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.environment.POSTGRES_USER }}
+          ports:
+            {{- range .Values.postgres.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            {{- toYaml .Values.postgres.volumeMounts | nindent 12 }}
+      volumes:
+        - name: postgres-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-postgres-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-postgres
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    {{- range .Values.postgres.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "midnight-node.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres 

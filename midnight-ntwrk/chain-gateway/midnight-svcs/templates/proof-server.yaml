@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-proof-server
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proof-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: proof-server
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: proof-server
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: proof-server
+
+          image: "{{ .Values.proofServer.image.repository }}:{{ .Values.proofServer.image.tag }}"
+          imagePullPolicy: {{ .Values.proofServer.image.pullPolicy }}
+          ports:
+            {{- range .Values.proofServer.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          command:
+            {{- toYaml .Values.proofServer.command | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: 6300
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 6300
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.proofServer.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-proof-server
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proof-server
+spec:
+  type: ClusterIP
+  ports:
+    {{- range .Values.proofServer.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "midnight-node.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: proof-server 

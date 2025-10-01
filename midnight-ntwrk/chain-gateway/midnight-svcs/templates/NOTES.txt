@@ -1,0 +1,65 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your Midnight node validator with partner chains is now being deployed.
+
+To verify the deployment status, run:
+  kubectl get pods -l "app.kubernetes.io/instance={{ .Release.Name }}"
+
+The following components are deployed:
+- Midnight Node (WebSocket: 9944, P2P: 30333, Prometheus: 9615)
+- Cardano Node (WebSocket: 9944, P2P: 30333, Prometheus: 9615)
+- PostgreSQL (port 5432)
+- Cardano DB Sync
+- Ogmios (port 1337)
+- Proof Server (port 6300)
+
+To access the services within the cluster:
+  Midnight Node: {{ include "midnight-node.fullname" . }}-midnight:9944
+  Cardano Node: {{ include "midnight-node.fullname" . }}-cardano:9944
+  PostgreSQL: {{ include "midnight-node.fullname" . }}-postgres:5432
+  Ogmios: {{ include "midnight-node.fullname" . }}-ogmios:1337
+  Proof Server: {{ include "midnight-node.fullname" . }}-proof-server:6300
+
+To check the status of individual components:
+  kubectl get pods -l "app.kubernetes.io/name={{ include "midnight-node.name" . }}"
+  kubectl get services -l "app.kubernetes.io/name={{ include "midnight-node.name" . }}"
+
+To view logs for specific components:
+  kubectl logs -l "app.kubernetes.io/component=midnight-node" -f
+  kubectl logs -l "app.kubernetes.io/component=cardano-node" -f
+  kubectl logs -l "app.kubernetes.io/component=postgres" -f
+  kubectl logs -l "app.kubernetes.io/component=db-sync" -f
+  kubectl logs -l "app.kubernetes.io/component=ogmios" -f
+  kubectl logs -l "app.kubernetes.io/component=proof-server" -f
+
+Network Configuration:
+  Network: {{ .Values.global.network }}
+  Config Preset: {{ .Values.midnightNode.environment.CFG_PRESET }}
+
+{{- if .Values.ingress.enabled }}
+To access the application externally:
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+To access the Midnight Node WebSocket interface locally:
+  kubectl port-forward svc/{{ include "midnight-node.fullname" . }}-midnight 9944:9944
+  Then connect to: ws://localhost:9944
+
+To access the Ogmios interface locally:
+  kubectl port-forward svc/{{ include "midnight-node.fullname" . }}-ogmios 1337:1337
+  Then connect to: http://localhost:1337
+
+To access the Proof Server locally:
+  kubectl port-forward svc/{{ include "midnight-node.fullname" . }}-proof-server 6300:6300
+  Then connect to: http://localhost:6300
+{{- end }}
+
+For more information about the Midnight network, visit:
+  https://midnight.network/
+  https://docs.midnight.network/
+
+For troubleshooting and support:
+  https://github.com/midnightntwrk/midnight-node-docker

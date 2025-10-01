@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-db-sync
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: db-sync
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-sync
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:15.3
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -h {{ .Values.global.postgresHost }} -U {{ .Values.global.postgresUser }}; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "postgres is ready"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-password
+        - name: create-pgpass
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "{{ .Values.global.postgresHost }}:{{ .Values.global.postgresPort }}:{{ .Values.global.postgresDb }}:{{ .Values.global.postgresUser }}:$(cat /etc/postgres/password)" > /configuration/pgpass
+              chmod 0600 /configuration/pgpass
+              chown 1000:1000 /configuration/pgpass
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+            - name: postgres-password
+              mountPath: /etc/postgres
+      containers:
+        - name: cardano-db-sync
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.dbSync.image.repository }}:{{ .Values.dbSync.image.tag }}"
+          imagePullPolicy: {{ .Values.dbSync.image.pullPolicy }}
+          env:
+            - name: NETWORK
+              value: {{ .Values.global.network }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.global.postgresHost }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.global.postgresPort | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.global.postgresDb }}
+            - name: POSTGRES_USER
+              value: {{ .Values.global.postgresUser }}
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgres.generatePassword }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.postgres.environment.POSTGRES_PASSWORD }}
+              {{- end }}
+            - name: PGPASSFILE
+              value: /configuration/pgpass
+            - name: CARDANO_NODE_SOCKET_PATH
+              value: /node-ipc/node.socket
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -h
+                - {{ .Values.global.postgresHost }}
+                - -U
+                - {{ .Values.global.postgresUser }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -h
+                - {{ .Values.global.postgresHost }}
+                - -U
+                - {{ .Values.global.postgresUser }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.dbSync.resources | nindent 12 }}
+          volumeMounts:
+            - name: db-sync-data
+              mountPath: /var/lib
+            - name: node-ipc
+              mountPath: /node-ipc
+            - name: configuration
+              mountPath: /configuration
+            - name: log-dir
+              mountPath: /log-dir
+            - name: tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: db-sync-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-db-sync-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: node-ipc
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-node-ipc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: configuration
+          emptyDir: {}
+        - name: log-dir
+          emptyDir: {}
+        - name: tmp-dir
+          emptyDir: {}
+        - name: postgres-password
+          secret:
+            secretName: {{ .Values.postgres.secretName }}
+            items:
+              - key: postgres-password
+                path: password 

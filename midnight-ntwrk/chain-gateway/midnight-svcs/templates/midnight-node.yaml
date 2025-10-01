@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-midnight
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: midnight-node
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: midnight-node
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: midnight-node
+    spec:
+      serviceAccountName: {{ include "midnight-node.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-tx-out-table
+          image: postgres:15.3
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until PGPASSWORD=$(cat /etc/postgres/password) psql -h {{ .Values.global.postgresHost }} -U {{ .Values.global.postgresUser }} -d {{ .Values.global.postgresDb }} -c "SELECT 1 FROM tx_out LIMIT 1;" > /dev/null 2>&1; do
+                echo "Waiting for tx_out table to be created..."
+                sleep 2
+              done
+              echo "tx_out table is ready"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-password
+          volumeMounts:
+            - name: postgres-password
+              mountPath: /etc/postgres
+      containers:
+        - name: midnight
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.midnightNode.image.repository }}:{{ .Values.midnightNode.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.midnightNode.image.pullPolicy }}
+          env:
+            - name: APPEND_ARGS
+              value: {{ .Values.midnightNode.environment.APPEND_ARGS }}
+            - name: BOOTNODES
+              value: {{ .Values.midnightNode.environment.BOOTNODES }}
+            - name: CFG_PRESET
+              value: {{ .Values.midnightNode.environment.CFG_PRESET }}
+            - name: DB_SYNC_POSTGRES_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-connection-string
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-password
+            - name: NODE_KEY
+              {{- if .Values.key.generate }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.key.secretName }}
+                  key: node-key
+              {{- else }}
+              value: {{ .Values.key.existingKey | quote }}
+              {{- end }}
+          ports:
+            {{- range .Values.midnightNode.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: websocket
+            initialDelaySeconds: 30
+            periodSeconds: 2
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.midnightNode.resources | nindent 12 }}
+          volumeMounts:
+            - name: midnight-data
+              mountPath: /data
+            - name: chain-config
+              mountPath: /pc-chain-config.json
+              subPath: pc-chain-config.json
+            - name: node-data
+              mountPath: /node
+            - name: postgres-password
+              mountPath: /etc/postgres
+      volumes:
+        - name: midnight-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: midnight-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: chain-config
+          configMap:
+            name: chain-config
+        - name: node-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: node-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: postgres-password
+          secret:
+            secretName: {{ .Values.postgres.secretName }}
+            items:
+              - key: postgres-password
+                path: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-midnight
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: midnight-node
+spec:
+  type: ClusterIP
+  ports:
+    {{- range .Values.midnightNode.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "midnight-node.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: midnight-node

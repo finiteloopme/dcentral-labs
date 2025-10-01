@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-ogmios
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ogmios
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "midnight-node.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ogmios
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-node.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ogmios
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: cardano-ogmios
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.ogmios.image.repository }}:{{ .Values.ogmios.image.tag }}"
+          imagePullPolicy: {{ .Values.ogmios.image.pullPolicy }}
+          env:
+            - name: DATA_DIR
+              value: /data
+          ports:
+            {{- range .Values.ogmios.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          resources:
+            {{- toYaml .Values.ogmios.resources | nindent 12 }}
+          volumeMounts:
+            {{- toYaml .Values.ogmios.volumeMounts | nindent 12 }}
+          command:
+            - ogmios
+            - --node-socket
+            - /ipc/node.socket
+            - --node-config
+            - /config/{{ .Values.global.network }}/cardano-node/config.json
+            - --host
+            - 0.0.0.0
+      volumes:
+        - name: ogmios-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-ogmios-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: node-ipc
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "midnight-node.fullname" . }}-node-ipc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "midnight-node.fullname" . }}-ogmios
+  labels:
+    {{- include "midnight-node.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ogmios
+spec:
+  type: ClusterIP
+  ports:
+    {{- range .Values.ogmios.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "midnight-node.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ogmios 
