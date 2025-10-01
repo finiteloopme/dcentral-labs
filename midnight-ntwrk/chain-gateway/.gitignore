@@ -1,0 +1,6 @@
+hashicorp.gpg.gpg
+midnight-node.privatekey
+.gemini
+temp
+terraform/.terraform
+terraform/.terraform.lock.hcl
