@@ -17,18 +17,16 @@
 
 You can install this script with a single command using either `curl` or `wget`. This will download the script directly to `/usr/local/bin` and make it executable, which requires `sudo`.
 
-**Note:** The commands below use a placeholder URL. You must replace `https://raw.githubusercontent.com/your-user/your-repo/main/run-in-container.sh` with the actual raw URL of your script on GitHub or a similar service.
-
 ### Using `curl`
 
 ```bash
-sudo curl -L https://raw.githubusercontent.com/your-user/your-repo/main/run-in-container.sh -o /usr/local/bin/run-in-container.sh && sudo chmod +x /usr/local/bin/run-in-container.sh
+sudo curl -L https://raw.githubusercontent.com/finiteloopme/dcentral-labs/refs/heads/main/utils/run-in-container.sh -o /usr/local/bin/run-in-container.sh && sudo chmod +x /usr/local/bin/run-in-container.sh
 ```
 
 ### Using `wget`
 
 ```bash
-sudo wget https://raw.githubusercontent.com/your-user/your-repo/main/run-in-container.sh -O /usr/local/bin/run-in-container.sh && sudo chmod +x /usr/local/bin/run-in-container.sh
+sudo wget https://raw.githubusercontent.com/finiteloopme/dcentral-labs/refs/heads/main/utils/run-in-container.sh -O /usr/local/bin/run-in-container.sh && sudo chmod +x /usr/local/bin/run-in-container.sh
 ```
 
 After installation, you can run the utility from any directory:
