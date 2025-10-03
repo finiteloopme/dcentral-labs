@@ -89,18 +89,15 @@ Any images defined in `~/.utils/images.yaml` will take precedence over the scrip
 
 ## Advanced Usage
 
-The script's power is unlocked via environment variables that allow you to pass any additional flags to the container runtime command.
-
--   `EXTRA_PODMAN_ARGS`: For Podman-specific arguments.
--   `EXTRA_DOCKER_ARGS`: For Docker-specific arguments.
+The script's power is unlocked via the `EXTRA_ARGS` environment variable, which allows you to pass any additional flags to the container runtime command.
 
 ### Example 1: Cached Rust Builds
 
 To speed up builds, you can mount your local Cargo cache directories into the container.
 
 ```bash
-# Set the environment variable for Podman
-export EXTRA_PODMAN_ARGS="-v $HOME/.cargo/registry:/usr/local/cargo/registry -v $HOME/.cargo/git:/usr/local/cargo/git"
+# Set the environment variable to mount the cargo registry and git caches
+export EXTRA_ARGS="-v $HOME/.cargo/registry:/usr/local/cargo/registry -v $HOME/.cargo/git:/usr/local/cargo/git"
 
 # Run the build command from your project's root directory
 run-in-container.sh rust cargo build --release
@@ -115,14 +112,16 @@ You can build a `Dockerfile` by giving the `podman` container access to your hos
     podman info --format '{{.Host.RemoteSocket.Path}}'
     ```
 
-2.  **Set `EXTRA_PODMAN_ARGS` to mount the socket:**
+2.  **Set `EXTRA_ARGS` to mount the socket:**
     ```bash
+    # Replace the path with the output from the command above
     export PODMAN_SOCKET=$(podman info --format '{{.Host.RemoteSocket.Path}}')
-    export EXTRA_PODMAN_ARGS="-v $PODMAN_SOCKET:/run/podman/podman.sock"
+    export EXTRA_ARGS="-v $PODMAN_SOCKET:/run/podman/podman.sock"
     ```
 
 3.  **Run the build:**
     ```bash
+    # Run from the directory containing your Dockerfile
     run-in-container.sh podman build -t my-awesome-app .
     ```
 
@@ -135,9 +134,10 @@ To use `gcloud` commands, you need to provide authentication credentials to the 
     gcloud auth application-default login
     ```
 
-2.  **Set `EXTRA_PODMAN_ARGS` to mount the config directory:**
+2.  **Set `EXTRA_ARGS` to mount the config directory:**
     ```bash
-    export EXTRA_PODMAN_ARGS="-v $HOME/.config/gcloud:/root/.config/gcloud"
+    # This makes your local gcloud credentials available inside the container
+    export EXTRA_ARGS="-v $HOME/.config/gcloud:/root/.config/gcloud"
     ```
 
 3.  **Run your `gcloud` command:**

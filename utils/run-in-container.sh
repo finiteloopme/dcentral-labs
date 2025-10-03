@@ -175,25 +175,25 @@ echo "--------------------------------------------------------------------------
 # Execute the command using the selected container runtime
 case "$RUNTIME" in
   podman)
-    # The EXTRA_PODMAN_ARGS variable is intentionally not quoted to allow for word splitting.
+    # The EXTRA_ARGS variable is intentionally not quoted to allow for word splitting.
     exec podman run \
       --rm \
       -it \
       -v "$USER_CWD:$USER_CWD" \
       -w "$USER_CWD" \
       --security-opt label=disable \
-      $EXTRA_PODMAN_ARGS \
+      $EXTRA_ARGS \
       "$CONTAINER_IMAGE" \
       "$@"
     ;;
   docker)
-    # The EXTRA_DOCKER_ARGS variable is intentionally not quoted to allow for word splitting.
+    # The EXTRA_ARGS variable is intentionally not quoted to allow for word splitting.
     exec docker run \
       --rm \
       -it \
       -v "$USER_CWD:$USER_CWD" \
       -w "$USER_CWD" \
-      $EXTRA_DOCKER_ARGS \
+      $EXTRA_ARGS \
       "$CONTAINER_IMAGE" \
       "$@"
     ;;
