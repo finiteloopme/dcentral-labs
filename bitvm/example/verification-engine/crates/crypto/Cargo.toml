@@ -1,0 +1,31 @@
+[package]
+name = "bitvm3-crypto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Real cryptographic libraries from arkworks
+ark-bn254 = { version = "0.5.0", features = ["curve", "scalar_field"], default-features = false }
+ark-ff = "0.5.0"
+ark-ec = "0.5.0"
+ark-groth16 = "0.5.0"
+ark-serialize = "0.5.0"
+ark-snark = "0.5.0"
+ark-relations = "0.5.0"
+ark-std = { version = "0.5.0", default-features = false, features = ["std"] }
+sha2 = { workspace = true }
+blake3 = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rand = "0.8"
+bitcoin = { workspace = true }
+
+# BitVM integration
+bitvm = { git = "https://github.com/BitVM/BitVM", branch = "main" }
+bitcoin-script = { git = "https://github.com/BitVM/rust-bitcoin-script" }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true }

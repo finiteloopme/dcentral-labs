@@ -1,0 +1,19 @@
+[package]
+name = "bitvm3-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitvm3-crypto = { path = "../crypto" }
+bitcoin = { workspace = true }
+secp256k1 = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+sha2 = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+proptest = { workspace = true }

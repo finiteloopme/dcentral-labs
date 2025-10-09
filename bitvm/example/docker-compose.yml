@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Verification Engine API
+  bitvm3-verification-engine:
+    build:
+      context: ./verification-engine
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"      # REST API port
+      - "50051:50051"    # gRPC port (optional)
+    environment:
+      - PORT=8080
+      - RUST_LOG=info
+      - DATABASE_URL=postgresql://bitvm3:password@postgres:5432/bitvm3
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./data:/app/data
+    networks:
+      - bitvm3-network
+
+  # Vault Protocol Client (optional - for development)
+  # Note: vault-protocol is primarily a client SDK, not a server
+  # This container could be used for running demos or tests
+  bitvm3-vault-demo:
+    build:
+      context: ./vault-protocol
+      dockerfile: Dockerfile
+    environment:
+      - RUST_API_URL=http://bitvm3-verification-engine:8080
+      - NODE_ENV=production
+    depends_on:
+      - bitvm3-backend
+    networks:
+      - bitvm3-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=bitvm3
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=bitvm3
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - bitvm3-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - bitvm3-network
+
+  # Bitcoin Core (Regtest)
+  bitcoin:
+    image: ruimarinho/bitcoin-core:latest
+    command:
+      - -regtest
+      - -server
+      - -rpcuser=bitvm3
+      - -rpcpassword=password
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+    ports:
+      - "18443:18443" # RPC port
+      - "18444:18444" # P2P port
+    volumes:
+      - bitcoin-data:/home/bitcoin/.bitcoin
+    networks:
+      - bitvm3-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  bitcoin-data:
+
+networks:
+  bitvm3-network:
+    driver: bridge

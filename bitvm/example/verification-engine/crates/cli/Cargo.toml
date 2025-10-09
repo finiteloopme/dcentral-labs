@@ -1,0 +1,21 @@
+[package]
+name = "bitvm3-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "bitvm3-cli"
+path = "src/main.rs"
+
+[dependencies]
+bitvm3-core = { path = "../core" }
+bitvm3-crypto = { path = "../crypto" }
+bitvm3-vault = { path = "../vault" }
+
+clap = { version = "4.4", features = ["derive"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

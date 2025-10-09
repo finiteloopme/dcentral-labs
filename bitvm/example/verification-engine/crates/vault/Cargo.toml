@@ -1,0 +1,15 @@
+[package]
+name = "bitvm3-vault"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitvm3-core = { path = "../core" }
+bitvm3-crypto = { path = "../crypto" }
+
+serde = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
