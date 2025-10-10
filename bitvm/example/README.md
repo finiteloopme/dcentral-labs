@@ -19,17 +19,10 @@ An implementation of the BitVM3 protocol featuring **garbled circuits**, **BitVM
 
 **Result**: Full DeFi capabilities on Bitcoin without soft forks or bridges.
 
-## 🎯 The Problem We're Solving
-
-Bitcoin's limited scripting capabilities prevent complex financial operations like lending, vaults, and DeFi. BitVM3 solves this by:
-- Enabling SNARK verification on Bitcoin (normally impossible due to script limitations)
-- Using garbled circuits for efficient off-chain computation
-- Creating trustless vaults without centralized custodians
-- Supporting complex operations like lending with only Bitcoin scripts
-
 ## 🏗️ System Architecture
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#1f2937', 'primaryTextColor':'#f3f4f6', 'primaryBorderColor':'#4b5563', 'lineColor':'#6b7280', 'secondaryColor':'#374151', 'tertiaryColor':'#1f2937', 'background':'#111827', 'mainBkg':'#1f2937', 'secondBkg':'#374151', 'tertiaryBkg':'#111827', 'clusterBkg':'#1f2937', 'clusterBorder':'#4b5563', 'fontFamily':'monospace'}}}%%
 graph TB
     subgraph "Off-Chain Components"
         Client[TypeScript Client<br/>vault-protocol]
@@ -58,6 +51,11 @@ graph TB
 ## 🔐 Three-Layer Cryptographic Stack
 
 ### 1. **Garbled Circuits** (Off-chain Privacy)
+
+> **Why:** Alice and Bob need to validate lending terms (interest rates, collateral ratios) without revealing their private financial positions to each other.
+> 
+> **How it helps:** Garbled circuits allow them to jointly compute whether a loan is acceptable based on private inputs (balances, risk parameters) without either party learning the other's data. Only the result (approved/rejected) is revealed.
+
 Yao's garbled circuits implementation with:
 - **AES-128 encrypted wire labels** for secure computation
 - **Point-and-permute optimization** for efficient evaluation
@@ -72,6 +70,11 @@ let result = circuit.evaluate(&private_inputs).await?;
 ```
 
 ### 2. **Groth16 SNARKs** (Succinct Proofs)
+
+> **Why:** Bitcoin's script size limit (520 bytes per element, ~4MB per transaction) makes it impossible to verify complex computations directly.
+> 
+> **How it helps:** SNARKs compress the entire vault state transition (deposits, withdrawals, lending operations) into a 256-byte proof that Bitcoin can verify. This enables complex DeFi logic that would otherwise require gigabytes of script.
+
 Using BitVM library for on-chain verification:
 - **256-byte proofs** (2 G1 + 1 G2 points on BN254)
 - **530KB verification scripts** for Bitcoin
@@ -85,6 +88,11 @@ let script = verifier.create_verify_script(&proof)?; // 530KB!
 ```
 
 ### 3. **Taproot Scripts** (On-chain Enforcement)
+
+> **Why:** Participants need guarantees that funds can be recovered even if other parties become unresponsive or malicious.
+> 
+> **How it helps:** Pre-signed transaction graphs create multiple "escape hatches" - if Bob disappears, Alice can withdraw via emergency path after timeout. If someone cheats, the challenge path activates. This ensures funds are never permanently locked.
+
 Pre-signed transaction graphs with multiple spending paths:
 - **Normal withdrawal**: Requires Groth16 proof
 - **Emergency withdrawal**: After 144 blocks timeout
@@ -95,6 +103,7 @@ Pre-signed transaction graphs with multiple spending paths:
 ### Complete Transaction Flow
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#1f2937', 'primaryTextColor':'#f3f4f6', 'primaryBorderColor':'#4b5563', 'lineColor':'#6b7280', 'secondaryColor':'#374151', 'background':'#111827', 'mainBkg':'#1f2937', 'actorBkg':'#374151', 'actorBorder':'#4b5563', 'actorTextColor':'#f3f4f6', 'actorLineColor':'#6b7280', 'signalColor':'#f3f4f6', 'signalTextColor':'#f3f4f6', 'labelBoxBkgColor':'#1f2937', 'labelBoxBorderColor':'#4b5563', 'labelTextColor':'#f3f4f6', 'loopTextColor':'#f3f4f6', 'noteBorderColor':'#4b5563', 'noteBkgColor':'#1f2937', 'noteTextColor':'#f3f4f6', 'activationBorderColor':'#4b5563', 'activationBkgColor':'#374151', 'sequenceNumberColor':'#111827'}}}%%
 sequenceDiagram
     participant Alice
     participant Bob
@@ -122,20 +131,43 @@ sequenceDiagram
 ## 🚀 Quick Start
 
 ```bash
-# Install dependencies
+# Install and build
 make install
-
-# Build everything
 make build
 
-# Run complete demo with all components
-make demo-all
+# Run the complete demo
+make demo-all        # Runs all demos sequentially
+```
 
-# Or run individual demos:
-make demo           # Simple vault operations
-make demo-real      # BitVM integration
-make demo-taproot   # Taproot transaction graphs
-make demo-garbled   # Garbled circuit evaluation
+### Available Demos
+
+| Demo | Command | Description |
+|------|---------|-------------|
+| **Simple** | `make demo` | Basic vault operations with deposits/withdrawals |
+| **BitVM** | `make demo-real` | BitVM integration with 530KB verification scripts |
+| **Taproot** | `make demo-taproot` | Pre-signed transaction graphs with multiple paths |
+| **Garbled** | `make demo-garbled` | Secure two-party computation with AES encryption |
+| **Regtest** | `make demo-regtest` | Full demo with actual Bitcoin transactions |
+
+### 🔗 Bitcoin Regtest Demo
+
+The most comprehensive demo runs on a local Bitcoin network:
+
+```bash
+make demo-regtest    # Automatically starts Bitcoin node and runs full demo
+```
+
+This demonstrates:
+- Creating Taproot vaults on Bitcoin (regtest)
+- Broadcasting and confirming transactions  
+- Funding vaults with actual BTC
+- Verifying transactions on-chain
+
+For manual control:
+```bash
+make regtest-start                  # Start Bitcoin node
+make regtest-cli ARGS="getbalance"  # Run Bitcoin CLI commands
+make regtest-stop                   # Stop Bitcoin node
 ```
 
 ## 📊 Implementation Status
@@ -148,18 +180,9 @@ make demo-garbled   # Garbled circuit evaluation
 | **State Management** | ✅ | Merkle trees | SHA256 commitments |
 | **Challenge System** | ✅ | Time-locked | 144 block timeout |
 
-## 🔬 Garbled Circuit Implementation
+## 📋 Example Usage
 
-This implementation provides **secure two-party computation**:
-
-### Features
-- **Wire Label Generation**: 128-bit secure labels with random generation
-- **Gate Garbling**: AND, OR, XOR, NOT gates with encrypted truth tables
-- **AES Encryption**: Each gate entry encrypted with input-derived keys
-- **Oblivious Transfer**: Secure input sharing without revealing choices
-- **Proof Generation**: SHA256-based cryptographic proofs
-
-### Example Usage
+### Garbled Circuit (Private Computation)
 ```typescript
 // Evaluate withdrawal validation privately
 const client = new GarbledCircuitClient();
@@ -170,15 +193,6 @@ const result = await client.evaluateWithdrawal(
 );
 // Result: approved/rejected + cryptographic proof
 ```
-
-### Performance Metrics
-> **Note**: This implementation focuses on demonstrating functionality rather than performance optimization. The metrics below are observations from the demo environment and not benchmarks.
-
-| Operation | Time | Gates | Proof Size |
-|-----------|------|-------|------------|
-| Circuit Build | <1ms | 4-6 | - |
-| Evaluation | <1ms | 4-6 | 32 bytes |
-| Verification | <1ms | - | 32 bytes |
 
 ## 🔑 BitVM Integration Details
 
@@ -199,36 +213,20 @@ use bitvm::signatures::winternitz;
 | SHA256 Hash | 530KB | State commitments |
 | Winternitz Sigs | Variable | Signature verification |
 
-## 🌳 Taproot Implementation
+## 📡 API Endpoints
 
-### Three Spending Paths
-```
-Taproot Address
-    ├── Key Path: 2-of-2 multisig (fast path)
-    └── Script Path (Tapscript tree):
-        ├── Withdrawal with Groth16 proof
-        ├── Emergency withdrawal (144 blocks)
-        └── Collaborative close (n-of-n)
-```
-
-### API Endpoints
-
-#### Garbled Circuits (NEW!)
 ```bash
-POST /api/garbled/evaluate    # Evaluate garbled circuit
-POST /api/garbled/verify      # Verify computation
-```
+# Garbled Circuits
+POST /api/garbled/evaluate        # Evaluate garbled circuit
+POST /api/garbled/verify          # Verify computation
 
-#### BitVM Operations
-```bash
+# BitVM Operations  
 POST /api/groth16/generate-proof  # Generate SNARK proof
 POST /api/groth16/verify          # Verify proof
 GET  /api/bitvm/scripts           # Get verification scripts
 POST /api/bitvm/state-transition  # Verify state changes
-```
 
-#### Taproot Operations
-```bash
+# Taproot Operations
 POST /api/taproot/create-vault    # Create Taproot vault
 POST /api/taproot/pre-sign        # Pre-sign transactions
 GET  /api/taproot/get-graph       # Get transaction graph
@@ -260,19 +258,7 @@ GET  /api/taproot/get-graph       # Get transaction graph
 └── Makefile                    # Build automation
 ```
 
-## 🎮 Available Demos
 
-### 1. Simple Demo (`make demo`)
-Basic vault operations with deposits, withdrawals, and lending.
-
-### 2. BitVM Demo (`make demo-real`)
-Shows BitVM library integration with 530KB scripts.
-
-### 3. Taproot Demo (`make demo-taproot`)
-Demonstrates pre-signed transaction graphs with multiple paths.
-
-### 4. Garbled Circuit Demo (`make demo-garbled`)
-Secure two-party computation with AES encryption.
 
 ## 📈 Performance & Scale
 
@@ -303,41 +289,8 @@ make fmt
 make clean
 ```
 
-## 🎯 Tech Features
 
-1. **BitVM3 Implementation**: All three cryptographic layers working together
-2. **Garbled Circuits**: Using AES encryption and wire labels
-3. **BitVM Library**: Using Groth16 verifier from BitVM
-4. **Taproot**: Complete pre-signed transaction graphs
-5. **Inputs**: Merkle roots with state transitions
-
-## 📚 Technical Deep Dive
-
-### Why Garbled Circuits?
-- **Privacy**: Compute on encrypted data without revealing inputs
-- **Efficiency**: Faster than homomorphic encryption for boolean circuits
-- **Compatibility**: Results can be converted to SNARKs for on-chain verification
-
-### Why BitVM?
-- **Bitcoin Native**: No soft fork required
-- **SNARK Support**: Enables complex verification on Bitcoin
-- **Chunking**: Handles Bitcoin's script size limits
-
-### Why Taproot?
-- **Privacy**: Hides unexecuted paths
-- **Efficiency**: Key path spending is just a signature
-- **Flexibility**: Multiple spending conditions
-
-## 🤝 Contributing
-
-This is a complete demonstration implementation. For production:
-1. Security audit required for garbled circuits
-2. Optimize BitVM scripts for size
-3. Add more comprehensive error handling
-4. Implement full challenge-response protocol
 
 ## 📄 License
 
 MIT
-
----

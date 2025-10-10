@@ -5,6 +5,7 @@ pub mod transaction;
 pub mod types;
 pub mod bitvm_protocol;
 pub mod taproot;
+pub mod bitcoin_rpc;
 
 use bitcoin::{Network, Address};
 use secp256k1::{Secp256k1, SecretKey};
@@ -28,6 +29,9 @@ pub enum BitVM3Error {
     
     #[error("State error: {0}")]
     StateError(String),
+    
+    #[error("Network error: {0}")]
+    NetworkError(String),
 }
 
 impl From<bitvm3_crypto::CryptoError> for BitVM3Error {

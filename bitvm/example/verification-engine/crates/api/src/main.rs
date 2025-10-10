@@ -627,7 +627,8 @@ async fn create_taproot_vault(
     
     tracing::info!("Creating Taproot vault with {} participants", req.participants.len());
     
-    let network = BitcoinNetwork::Testnet;
+    // Use Regtest for demo purposes
+    let network = BitcoinNetwork::Regtest;
     let mut builder = VaultTaprootBuilder::new(network);
     
     // Create Taproot participants

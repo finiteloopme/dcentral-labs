@@ -240,6 +240,40 @@ demo-all: ## Run all demos sequentially
 	@make demo-garbled
 	@echo "$(GREEN)✅ All demos complete!$(NC)"
 
+.PHONY: demo-regtest
+demo-regtest: ## Run demo with Bitcoin regtest network
+	@echo "$(BLUE)⛓️  Running BitVM3 with Bitcoin Regtest...$(NC)"
+	@chmod +x scripts/run-regtest-demo.sh
+	@bash scripts/run-regtest-demo.sh
+
+.PHONY: regtest-quick
+regtest-quick: ## Quick Bitcoin regtest demo (simplified)
+	@echo "$(BLUE)⚡ Running quick regtest demo...$(NC)"
+	@chmod +x scripts/quick-regtest.sh
+	@bash scripts/quick-regtest.sh
+
+.PHONY: regtest-start
+regtest-start: ## Start Bitcoin regtest node
+	@echo "$(BLUE)🚀 Starting Bitcoin regtest node...$(NC)"
+	@$(DOCKER_COMPOSE) up -d bitcoin
+	@echo "$(GREEN)✅ Bitcoin regtest running on port 18443$(NC)"
+
+.PHONY: regtest-stop
+regtest-stop: ## Stop Bitcoin regtest node
+	@echo "$(BLUE)🛑 Stopping Bitcoin regtest...$(NC)"
+	@$(DOCKER_COMPOSE) stop bitcoin
+
+.PHONY: regtest-cli
+regtest-cli: ## Open Bitcoin CLI for regtest
+	@$(DOCKER) exec -it $$($(DOCKER) ps -qf "name=bitcoin") \
+		bitcoin-cli -regtest -rpcuser=bitvm3 -rpcpassword=password $(ARGS)
+
+.PHONY: regtest-info
+regtest-info: ## Show regtest blockchain info
+	@echo "$(BLUE)⛓️  Bitcoin Regtest Info$(NC)"
+	@$(DOCKER) exec -i $$($(DOCKER) ps -qf "name=bitcoin") \
+		bitcoin-cli -regtest -rpcuser=bitvm3 -rpcpassword=password getblockchaininfo | jq .
+
 .PHONY: server
 server: ## Start the verification engine API server
 	@echo "$(BLUE)🚀 Starting verification engine API server...$(NC)"
