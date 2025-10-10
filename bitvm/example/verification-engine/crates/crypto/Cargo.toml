@@ -21,6 +21,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 rand = "0.8"
 bitcoin = { workspace = true }
+aes = "0.8"
 
 # BitVM integration
 bitvm = { git = "https://github.com/BitVM/BitVM", branch = "main" }

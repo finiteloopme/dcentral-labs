@@ -168,6 +168,9 @@ async fn main() {
         .route("/api/taproot/create-vault", post(create_taproot_vault))
         .route("/api/taproot/pre-sign", post(pre_sign_transactions))
         .route("/api/taproot/get-graph", get(get_transaction_graph))
+        // Garbled Circuit endpoints
+        .route("/api/garbled/evaluate", post(evaluate_garbled_circuit))
+        .route("/api/garbled/verify", post(verify_garbled_computation))
         // Add CORS
         .layer(CorsLayer::permissive())
         // Add state
@@ -795,11 +798,129 @@ async fn pre_sign_transactions(
 }
 
 async fn get_transaction_graph() -> impl IntoResponse {
-    tracing::info!("Retrieving transaction graph");
+    tracing::info!("Getting transaction graph");
     
-    // In production, this would retrieve stored transaction graphs
+    // Return mock transaction graph for demo
     Json(json!({
-        "graphs": [],
-        "message": "Transaction graphs would be stored and retrieved here"
+        "nodes": [
+            {"id": "funding", "type": "funding"},
+            {"id": "withdrawal_proof", "type": "withdrawal_with_proof"},
+            {"id": "emergency", "type": "emergency_withdrawal"},
+            {"id": "collaborative", "type": "collaborative_close"}
+        ],
+        "edges": [
+            {"from": "funding", "to": "withdrawal_proof"},
+            {"from": "funding", "to": "emergency"},
+            {"from": "funding", "to": "collaborative"}
+        ]
     }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GarbledEvaluateRequest {
+    circuit_type: String,
+    inputs: Vec<bool>,
+    withdrawal_amount: Option<u64>,
+    vault_balance: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GarbledEvaluateResponse {
+    result: Vec<bool>,
+    proof: String,
+    execution_time_ms: u128,
+    gate_count: usize,
+}
+
+async fn evaluate_garbled_circuit(
+    State(state): State<AppState>,
+    Json(req): Json<GarbledEvaluateRequest>,
+) -> impl IntoResponse {
+    tracing::info!("Evaluating garbled circuit: {}", req.circuit_type);
+    
+    let mut garbled = state.garbled_circuit.write().await;
+    
+    // Build appropriate circuit based on type
+    match req.circuit_type.as_str() {
+        "withdrawal_validation" => {
+            // Build withdrawal validation circuit
+            if let Err(e) = garbled.build_withdrawal_circuit(req.inputs.len()) {
+                return (StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": format!("Failed to build circuit: {}", e)})))
+                    .into_response();
+            }
+        },
+        _ => {
+            return (StatusCode::BAD_REQUEST,
+                Json(json!({"error": "Unknown circuit type"})))
+                .into_response();
+        }
+    }
+    
+    // Evaluate the circuit
+    match garbled.evaluate(&req.inputs).await {
+        Ok(computation) => {
+            (StatusCode::OK,
+                Json(GarbledEvaluateResponse {
+                    result: computation.result,
+                    proof: hex::encode(&computation.proof),
+                    execution_time_ms: computation.execution_time_ms,
+                    gate_count: garbled.gate_count(),
+                }))
+                .into_response()
+        },
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Circuit evaluation failed: {}", e)})))
+                .into_response()
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GarbledVerifyRequest {
+    result: Vec<bool>,
+    proof: String,
+    expected_outputs: Vec<bool>,
+}
+
+async fn verify_garbled_computation(
+    State(state): State<AppState>,
+    Json(req): Json<GarbledVerifyRequest>,
+) -> impl IntoResponse {
+    tracing::info!("Verifying garbled circuit computation");
+    
+    let garbled = state.garbled_circuit.read().await;
+    
+    // Decode proof
+    let proof_bytes = match hex::decode(&req.proof) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST,
+                Json(json!({"error": format!("Invalid proof hex: {}", e)})))
+                .into_response();
+        }
+    };
+    
+    let computation = bitvm3_crypto::garbled::GarbledComputation {
+        result: req.result,
+        proof: proof_bytes,
+        execution_time_ms: 0, // Not needed for verification
+    };
+    
+    match garbled.verify(&computation, &req.expected_outputs) {
+        Ok(valid) => {
+            (StatusCode::OK,
+                Json(json!({
+                    "valid": valid,
+                    "message": if valid { "Computation verified successfully" } else { "Invalid computation" }
+                })))
+                .into_response()
+        },
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Verification failed: {}", e)})))
+                .into_response()
+        }
+    }
 }

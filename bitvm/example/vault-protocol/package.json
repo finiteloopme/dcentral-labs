@@ -8,7 +8,9 @@
     "test": "jest",
     "demo": "ts-node src/simple-demo.ts",
     "full-demo": "ts-node src/demo.ts",
-    "real-demo": "ts-node src/real-bitvm-demo.ts"
+    "real-demo": "ts-node src/real-bitvm-demo.ts",
+    "taproot-demo": "ts-node src/taproot-demo.ts",
+    "garbled-demo": "ts-node src/garbled-demo.ts"
   },
   "keywords": [
     "bitvm3",

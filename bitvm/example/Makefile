@@ -218,6 +218,28 @@ demo-full: ## Run the full feature demo
 demo-real: ## Run demo with real BitVM verification (starts server automatically)
 	@bash scripts/run-real-demo.sh
 
+.PHONY: demo-taproot
+demo-taproot: ## Run Taproot integration demo
+	@echo "$(BLUE)🌳 Running Taproot demo...$(NC)"
+	@cd $(PROTOCOL_DIR) && $(NPM) run taproot-demo
+
+.PHONY: demo-garbled
+demo-garbled: ## Run garbled circuit demo
+	@echo "$(BLUE)🔌 Running Garbled Circuit demo...$(NC)"
+	@cd $(PROTOCOL_DIR) && $(NPM) run garbled-demo
+
+.PHONY: demo-all
+demo-all: ## Run all demos sequentially
+	@echo "$(BLUE)🎯 Running all BitVM3 demos...$(NC)"
+	@make demo
+	@echo ""
+	@make demo-real
+	@echo ""
+	@make demo-taproot
+	@echo ""
+	@make demo-garbled
+	@echo "$(GREEN)✅ All demos complete!$(NC)"
+
 .PHONY: server
 server: ## Start the verification engine API server
 	@echo "$(BLUE)🚀 Starting verification engine API server...$(NC)"
