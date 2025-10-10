@@ -14,6 +14,19 @@ import axios from 'axios';
 const RUST_API_URL = process.env.RUST_API_URL || 'http://localhost:8080';
 
 /**
+ * Simple hash function to convert string to number (for demo purposes)
+ */
+function hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+}
+
+/**
  * Enhanced demo that uses real BitVM components via Rust backend
  */
 export async function runRealBitVMDemo() {
@@ -63,11 +76,37 @@ async function runWithRealComponents(protocol: BitVM3Protocol) {
     console.log('-------------------------------\n');
 
     // Step 1: Generate real Groth16 proof via Rust backend
-    console.log('📝 Generating real Groth16 proof...');
+    console.log('📝 Generating real Groth16 proof for initial state verification...');
     try {
+        // Realistic inputs for state initialization proof
+        const initialState = protocol.getVaultState();
+        
+        // Public inputs for state initialization
+        const publicInputs = [
+            0,  // Previous state (genesis)
+            parseInt(initialState.lastStateRoot.slice(0, 8) || '0', 16),  // Current state root
+            initialState.totalBTC,  // Total BTC in vault
+            initialState.totalUSDT,  // Total USDT in vault  
+            initialState.blockHeight  // Current block height
+        ];
+        
+        // Witness for state initialization (proves correct setup)
+        const witness = [
+            hashCode('alice'),  // Alice's identifier
+            hashCode('bob'),    // Bob's identifier
+            200000000,  // Alice's initial BTC (2 BTC)
+            2000000,    // Bob's initial USDT (20,000 USDT)
+            Date.now() % 1000000,  // Timestamp
+            42  // Nonce
+        ];
+        
+        console.log('   🔐 Using realistic circuit inputs:');
+        console.log(`      • State root: ${publicInputs[1]}`);
+        console.log(`      • Vault totals: ${publicInputs[2]} sats BTC, ${publicInputs[3]} cents USDT`);
+        
         const proofResponse = await axios.post(`${RUST_API_URL}/api/groth16/generate-proof`, {
-            public_inputs: [1, 2, 3],
-            witness: [4, 5, 6]
+            public_inputs: publicInputs,
+            witness: witness
         });
         
         const proofData = proofResponse.data;
@@ -101,9 +140,16 @@ async function runWithRealComponents(protocol: BitVM3Protocol) {
 
         // Step 4: Test state transition with real proof
         console.log('🔄 Testing state transition with real proof...');
+        
+        // Create realistic state hashes (simulating Merkle roots)
+        const oldStateRoot = protocol.getVaultState().lastStateRoot || '0x' + '00'.repeat(32);
+        const newStateRoot = '0x' + require('crypto').createHash('sha256')
+            .update(oldStateRoot + 'transition')
+            .digest('hex');
+        
         const transitionResponse = await axios.post(`${RUST_API_URL}/api/bitvm/state-transition`, {
-            old_state: '0x' + '00'.repeat(32),
-            new_state: '0x' + '01'.repeat(32),
+            old_state: oldStateRoot,
+            new_state: newStateRoot,
             proof: proofData.proof
         });
 
@@ -189,10 +235,46 @@ async function demonstrateVaultOperations(protocol: BitVM3Protocol, useRealCompo
     if (useRealComponents) {
         console.log('   🔬 Using real Groth16 verification...');
         try {
+            // Generate realistic inputs for withdrawal proof
+            const withdrawalAmount = 1000 * 100; // 1000 USDT in cents
+            const currentVaultState = protocol.getVaultState();
+            
+            // Public inputs (what everyone can see)
+            const publicInputs = [
+                // Old state root (as integer representation)
+                parseInt(currentVaultState.lastStateRoot.slice(0, 8) || '0', 16),
+                // New state root (simulated after withdrawal)
+                parseInt(currentVaultState.lastStateRoot.slice(0, 8) || '0', 16) + 1,
+                // Withdrawal amount
+                withdrawalAmount,
+                // Participant identifier (hash of address)
+                hashCode('alice'),
+                // Current block height
+                currentVaultState.blockHeight
+            ];
+            
+            // Private witness (secret knowledge that proves the right to withdraw)
+            const witness = [
+                // Merkle path in state tree (simulated with 4 hashes)
+                0x1234567890abcdef,  // sibling hash 1
+                0xfedcba0987654321,  // sibling hash 2
+                0xaabbccdd11223344,  // sibling hash 3
+                0x5566778899aabbcc,  // sibling hash 4
+                // Previous balance (Alice's USDT balance before withdrawal)
+                0,  // Alice starts with 0 USDT
+                // Nonce for replay protection
+                Date.now() % 1000000
+            ];
+            
+            console.log('   🔐 Generating proof with realistic inputs:');
+            console.log(`      • State transition: ${publicInputs[0]} → ${publicInputs[1]}`);
+            console.log(`      • Amount: ${withdrawalAmount / 100} USDT`);
+            console.log(`      • Block height: ${publicInputs[4]}`);
+            
             // Generate a proof for the withdrawal
             const proofResponse = await axios.post(`${RUST_API_URL}/api/groth16/generate-proof`, {
-                public_inputs: [1000, 100], // amount, participant_id
-                witness: [1, 2, 3, 4]  // witness data
+                public_inputs: publicInputs,
+                witness: witness
             });
             
             console.log('   📝 Generated withdrawal proof');

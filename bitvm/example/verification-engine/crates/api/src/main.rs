@@ -12,11 +12,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tracing_subscriber;
 
-use bitvm3_core::BitVM3Protocol;
+use bitvm3_core::{BitVM3Protocol, TaprootParticipant, VaultTaprootBuilder, PreSignedTransactionGraph};
 use bitvm3_crypto::garbled::BitVM3GarbledCircuit;
 use bitvm3_crypto::bitvm_integration::{BitVMScriptBuilder, HashType};
+use bitcoin::consensus;
 
 // BitVM imports for real Groth16 verification
 use ark_bn254::{Bn254, Fr as ScalarField};
@@ -162,6 +164,10 @@ async fn main() {
         .route("/api/groth16/verify", post(verify_groth16_proof))
         .route("/api/bitvm/scripts", get(get_bitvm_scripts))
         .route("/api/bitvm/state-transition", post(handle_state_transition))
+        // Taproot endpoints
+        .route("/api/taproot/create-vault", post(create_taproot_vault))
+        .route("/api/taproot/pre-sign", post(pre_sign_transactions))
+        .route("/api/taproot/get-graph", get(get_transaction_graph))
         // Add CORS
         .layer(CorsLayer::permissive())
         // Add state
@@ -580,6 +586,220 @@ async fn handle_state_transition(
     }))
 }
 
-// Add these dependencies to Cargo.toml
-// uuid = { version = "1.6", features = ["v4"] }
-// chrono = "0.4"
+// Taproot transaction endpoints
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CreateVaultRequest {
+    participants: Vec<String>,
+    amount_btc: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CreateVaultResponse {
+    vault_address: String,
+    funding_tx_hex: String,
+    taproot_tree_info: TaprootTreeInfo,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TaprootTreeInfo {
+    internal_key: String,
+    merkle_root: Option<String>,
+    script_paths: Vec<ScriptPathInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ScriptPathInfo {
+    name: String,
+    script_hex: String,
+    leaf_version: u8,
+}
+
+async fn create_taproot_vault(
+    State(state): State<AppState>,
+    Json(req): Json<CreateVaultRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use bitvm3_core::{TaprootParticipant, VaultTaprootBuilder, BitcoinNetwork, TaprootSecretKey};
+    use bitcoin::Amount;
+    
+    tracing::info!("Creating Taproot vault with {} participants", req.participants.len());
+    
+    let network = BitcoinNetwork::Testnet;
+    let mut builder = VaultTaprootBuilder::new(network);
+    
+    // Create Taproot participants
+    let mut participants_info = Vec::new();
+    for (i, name) in req.participants.iter().enumerate() {
+        // Generate deterministic keys for demo (in production, use proper key management)
+        let secret_key = match TaprootSecretKey::from_slice(&[i as u8 + 1; 32]) {
+            Ok(key) => key,
+            Err(e) => {
+                tracing::error!("Failed to create secret key: {}", e);
+                return Err((StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": format!("Failed to create secret key: {}", e)}))));
+            }
+        };
+        
+        let participant = TaprootParticipant::new(name, secret_key, network);
+        participants_info.push(json!({
+            "name": name,
+            "address": participant.address.to_string(),
+            "pubkey": participant.public_key.to_string(),
+        }));
+        builder.add_participant(participant);
+    }
+    
+    // Get Groth16 verification script from BitVM
+    let groth16_script = {
+        let script_builder = BitVMScriptBuilder::new();
+        // For demo, use a simplified script
+        match script_builder.build_hash_script(HashType::SHA256) {
+            Ok(script) => script,
+            Err(e) => {
+                tracing::error!("Failed to build BitVM script: {}", e);
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, 
+                    Json(json!({"error": format!("Failed to build BitVM script: {}", e)}))));
+            }
+        }
+    };
+    
+    // Build the vault output with Taproot
+    let (taproot_spend_info, vault_address) = match builder.build_vault_output(groth16_script) {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::error!("Failed to build vault output: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to build vault output: {}", e)}))));
+        }
+    };
+    
+    // Create funding transaction
+    let amount = Amount::from_btc(req.amount_btc).unwrap();
+    let funding_tx = bitcoin::Transaction {
+        version: bitcoin::transaction::Version::TWO,
+        lock_time: bitcoin::locktime::absolute::LockTime::ZERO,
+        input: vec![],  // Would be funded from participants
+        output: vec![
+            bitcoin::TxOut {
+                value: amount,
+                script_pubkey: vault_address.script_pubkey(),
+            }
+        ],
+    };
+    
+    // Prepare response with tree information
+    let tree_info = TaprootTreeInfo {
+        internal_key: taproot_spend_info.internal_key().to_string(),
+        merkle_root: taproot_spend_info.merkle_root().map(|r| r.to_string()),
+        script_paths: vec![
+            ScriptPathInfo {
+                name: "withdrawal_with_proof".to_string(),
+                script_hex: "".to_string(),  // Would include actual script
+                leaf_version: 0xc0,
+            },
+            ScriptPathInfo {
+                name: "emergency_withdrawal".to_string(),
+                script_hex: "".to_string(),
+                leaf_version: 0xc0,
+            },
+            ScriptPathInfo {
+                name: "collaborative_close".to_string(),
+                script_hex: "".to_string(),
+                leaf_version: 0xc0,
+            },
+        ],
+    };
+    
+    Ok(Json(json!(CreateVaultResponse {
+        vault_address: vault_address.to_string(),
+        funding_tx_hex: hex::encode(bitcoin::consensus::encode::serialize(&funding_tx)),
+        taproot_tree_info: tree_info,
+    })))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PreSignRequest {
+    vault_address: String,
+    participants: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PreSignResponse {
+    transaction_graph: TransactionGraphInfo,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TransactionGraphInfo {
+    funding_tx: String,
+    withdrawal_txs: Vec<SignedTransaction>,
+    emergency_tx: String,
+    collaborative_close_tx: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SignedTransaction {
+    participant: String,
+    tx_hex: String,
+    signature: Option<String>,
+}
+
+async fn pre_sign_transactions(
+    Json(req): Json<PreSignRequest>,
+) -> impl IntoResponse {
+    use bitvm3_core::{PreSignedTransactionGraph, TaprootParticipant, BitcoinNetwork, TaprootSecretKey};
+    use bitcoin::Amount;
+    
+    tracing::info!("Pre-signing transactions for vault {}", req.vault_address);
+    
+    let network = BitcoinNetwork::Testnet;
+    
+    // Recreate participants (in production, load from storage)
+    let mut participants = Vec::new();
+    for (i, name) in req.participants.iter().enumerate() {
+        let secret_key = TaprootSecretKey::from_slice(&[i as u8 + 1; 32]).unwrap();
+        participants.push(TaprootParticipant::new(name, secret_key, network));
+    }
+    
+    // Create simplified Groth16 script
+    let groth16_script = bitcoin::ScriptBuf::new();
+    
+    // Create pre-signed transaction graph
+    let graph = PreSignedTransactionGraph::create(
+        &participants,
+        Amount::from_btc(1.0).unwrap(),  // Demo amount
+        groth16_script,
+        network,
+    ).map_err(|e| {
+        tracing::error!("Failed to create transaction graph: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    }).unwrap();
+    
+    // Convert to response format
+    let withdrawal_txs: Vec<SignedTransaction> = graph.withdrawal_txs
+        .into_iter()
+        .map(|(name, tx)| SignedTransaction {
+            participant: name,
+            tx_hex: hex::encode(bitcoin::consensus::encode::serialize(&tx)),
+            signature: None,  // Would include actual signatures
+        })
+        .collect();
+    
+    Json(PreSignResponse {
+        transaction_graph: TransactionGraphInfo {
+            funding_tx: hex::encode(bitcoin::consensus::encode::serialize(&graph.funding_tx)),
+            withdrawal_txs,
+            emergency_tx: hex::encode(bitcoin::consensus::encode::serialize(&graph.emergency_tx)),
+            collaborative_close_tx: hex::encode(bitcoin::consensus::encode::serialize(&graph.collaborative_close_tx)),
+        },
+    })
+}
+
+async fn get_transaction_graph() -> impl IntoResponse {
+    tracing::info!("Retrieving transaction graph");
+    
+    // In production, this would retrieve stored transaction graphs
+    Json(json!({
+        "graphs": [],
+        "message": "Transaction graphs would be stored and retrieved here"
+    }))
+}

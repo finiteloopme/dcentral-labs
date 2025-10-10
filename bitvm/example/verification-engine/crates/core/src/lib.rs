@@ -4,8 +4,9 @@ pub mod protocol;
 pub mod transaction;
 pub mod types;
 pub mod bitvm_protocol;
+pub mod taproot;
 
-use bitcoin::{Network, Address, key::CompressedPublicKey};
+use bitcoin::{Network, Address};
 use secp256k1::{Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -303,3 +304,11 @@ impl BitVM3Protocol {
         self.participants.get(name)
     }
 }
+// Re-export Taproot functionality
+pub use crate::taproot::{
+    TaprootParticipant,
+    VaultTaprootBuilder,
+    PreSignedTransactionGraph,
+    TaprootSecretKey,
+    BitcoinNetwork,
+};
