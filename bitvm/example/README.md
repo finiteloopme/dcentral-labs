@@ -1,6 +1,6 @@
 # BitVM3: Trustless BTC/USDT Vault on Bitcoin
 
-A complete implementation of the BitVM3 protocol featuring **real garbled circuits**, **actual BitVM SNARK verification**, and **Taproot-based transaction graphs** for trustless vault operations on Bitcoin.
+An implementation of the BitVM3 protocol featuring **garbled circuits**, **BitVM SNARK verification**, and **Taproot-based transaction graphs** for trustless vault operations on Bitcoin.
 
 ## 📖 Use Case: Cross-Asset DeFi on Bitcoin
 
@@ -58,27 +58,27 @@ graph TB
 ## 🔐 Three-Layer Cryptographic Stack
 
 ### 1. **Garbled Circuits** (Off-chain Privacy)
-Real Yao's garbled circuits implementation with:
+Yao's garbled circuits implementation with:
 - **AES-128 encrypted wire labels** for secure computation
 - **Point-and-permute optimization** for efficient evaluation
 - **Oblivious transfer** for private input sharing
 - **SHA256-based proofs** of correct computation
 
 ```rust
-// Real garbled circuit evaluation
+// Garbled circuit evaluation
 let circuit = BitVM3GarbledCircuit::new();
 circuit.build_withdrawal_circuit(num_inputs)?;
 let result = circuit.evaluate(&private_inputs).await?;
 ```
 
 ### 2. **Groth16 SNARKs** (Succinct Proofs)
-Using actual BitVM library for on-chain verification:
+Using BitVM library for on-chain verification:
 - **256-byte proofs** (2 G1 + 1 G2 points on BN254)
 - **530KB verification scripts** for Bitcoin
-- **Realistic state transitions** with Merkle roots
+- **State transitions** with Merkle roots
 
 ```rust
-// Actual BitVM Groth16 verification
+// BitVM Groth16 verification
 let verifier = BitVMGroth16Verifier::new();
 let proof = verifier.prove(&witness, &public_inputs)?;
 let script = verifier.create_verify_script(&proof)?; // 530KB!
@@ -133,7 +133,7 @@ make demo-all
 
 # Or run individual demos:
 make demo           # Simple vault operations
-make demo-real      # Real BitVM integration
+make demo-real      # BitVM integration
 make demo-taproot   # Taproot transaction graphs
 make demo-garbled   # Garbled circuit evaluation
 ```
@@ -142,15 +142,15 @@ make demo-garbled   # Garbled circuit evaluation
 
 | Component | Status | Type | Details |
 |-----------|--------|------|---------|
-| **Garbled Circuits** | ✅ Real | Implemented | AES encryption, wire labels, gate evaluation |
-| **Groth16 Verifier** | ✅ Real | BitVM library | Actual BN254 curve operations |
-| **Taproot Support** | ✅ Real | Bitcoin Core | Pre-signed transaction graphs |
-| **State Management** | ✅ Real | Merkle trees | SHA256 commitments |
-| **Challenge System** | ✅ Real | Time-locked | 144 block timeout |
+| **Garbled Circuits** | ✅ | Implemented | AES encryption, wire labels, gate evaluation |
+| **Groth16 Verifier** | ✅ | BitVM library | BN254 curve operations |
+| **Taproot Support** | ✅ | Bitcoin Core | Pre-signed transaction graphs |
+| **State Management** | ✅ | Merkle trees | SHA256 commitments |
+| **Challenge System** | ✅ | Time-locked | 144 block timeout |
 
 ## 🔬 Garbled Circuit Implementation
 
-Our implementation provides **real secure two-party computation**:
+This implementation provides **secure two-party computation**:
 
 ### Features
 - **Wire Label Generation**: 128-bit secure labels with random generation
@@ -182,9 +182,9 @@ const result = await client.evaluateWithdrawal(
 
 ## 🔑 BitVM Integration Details
 
-### Real Components Used
+### Components Used
 ```rust
-// From actual BitVM library
+// From BitVM library
 use bitvm::groth16::{g16, hinted};
 use bitvm::bn254::{fp254impl::Fp254Impl, fq::Fq};
 use bitvm::hash::sha256::sha256;
@@ -252,7 +252,7 @@ GET  /api/taproot/get-graph       # Get transaction graph
 │   │   ├── taproot.rs          # Taproot support
 │   │   └── bitvm_protocol.rs   # BitVM integration
 │   ├── crypto/
-│   │   ├── garbled.rs          # Real garbled circuits
+│   │   ├── garbled.rs          # Garbled circuits
 │   │   ├── groth16_verifier.rs # SNARK verification
 │   │   └── bitvm_integration.rs # BitVM library usage
 │   └── api/                    # REST endpoints
@@ -265,14 +265,14 @@ GET  /api/taproot/get-graph       # Get transaction graph
 ### 1. Simple Demo (`make demo`)
 Basic vault operations with deposits, withdrawals, and lending.
 
-### 2. Real BitVM Demo (`make demo-real`)
-Shows actual BitVM library integration with 530KB scripts.
+### 2. BitVM Demo (`make demo-real`)
+Shows BitVM library integration with 530KB scripts.
 
 ### 3. Taproot Demo (`make demo-taproot`)
 Demonstrates pre-signed transaction graphs with multiple paths.
 
 ### 4. Garbled Circuit Demo (`make demo-garbled`)
-Real secure two-party computation with AES encryption.
+Secure two-party computation with AES encryption.
 
 ## 📈 Performance & Scale
 
