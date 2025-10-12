@@ -1,210 +1,210 @@
-# BitVM3: Trustless Multi-Party Bitcoin Vault
+# BitVM3: Trustless Bitcoin DeFi Vaults
 
-A **trustless vault system for Bitcoin** that enables complex multi-party financial operations using BitVM's SNARK verification - no custodians or intermediaries required.
+Enabling DeFi for Bitcoin holders through trustless multi-party vaults powered by BitVM's SNARK verification.
 
-## 🎯 Core Innovation: Trustless Bitcoin Vaults
+## 🎯 Overview: DeFi for Bitcoin
 
-**The Problem**: Bitcoin's limited scripting prevents complex multi-party financial operations (lending, collateralized loans, liquidity provision) from running trustlessly on-chain.
+**The Problem**: Bitcoin holders can't access DeFi yields without trusting centralized exchanges or wrapping services. Bitcoin's limited scripting prevents complex financial operations like lending, borrowing, and yield farming from running natively.
 
-**BitVM3 Solution**: Create trustless vaults where multiple parties can deposit BTC/stablecoins and execute complex operations verified by BitVM's 530KB Groth16 scripts - all without custodians.
+**Our Solution**: BitVM3 creates trustless vaults where BTC holders can:
+- Use BTC as collateral for loans without custodians
+- Access DeFi yields while maintaining Bitcoin security
+- Execute complex financial operations verified on Bitcoin L1
+- Participate in lending markets without wrapping BTC
 
-**Key Trade-off**: ALL participants (operators, liquidators, borrowers) must be determined at vault creation time due to the pre-signed nature of Bitcoin transactions. This is less flexible than EVM smart contracts but still maintains trustless execution.
+## 🏗️ System Architecture
 
-## 📊 Primary Use Case: Leveraged Yield Farming with BTC Collateral
-
-The vault enables users to leverage BTC for DeFi yield:
-1. **Deposit BTC** as collateral (up to 50% LTV)
-2. **Borrow USDT** against BTC collateral at 5% APR
-3. **Auto-deploy** borrowed funds to yield protocols (8-15% APY)
-4. **Earn spread** between yield earned and borrow cost
-5. **Liquidation** if BTC price drops below 150% collateralization
-
-**Example Strategy**:
-- Deposit 2 BTC ($100k) → Borrow $50k USDT
-- Deploy to Aave/Compound at 8-9% APY
-- Net profit: 3-4% APY on $50k = $1,500-2,000/year
-- Keep BTC exposure while earning yield
-
-**All verified trustlessly via BitVM's 530KB Groth16 scripts on Bitcoin.**
-
-### Liquidation Mechanism & Limitations
-
-**⚠️ Important BitVM Constraint**: Liquidators must be **pre-designated** during vault creation.
-
-Unlike fully permissionless systems (Aave, Compound), BitVM requires:
-1. **Fixed Liquidator Set**: Choose liquidators during initial setup
-2. **Pre-signed Transactions**: Each liquidator gets a pre-signed Taproot path
-3. **Cannot Add Later**: New liquidators cannot be added after vault creation
-
-**How It Works**:
-```
-Vault Setup (Day 0):
-├── Borrower deposits 2 BTC collateral
-├── Select 3-5 trusted liquidators (e.g., protocol operators)
-├── Pre-sign Taproot branches for each liquidator
-└── Each branch: IF (health < 1.5 AND liquidator pays debt) THEN release BTC
-
-During Operation:
-├── Any pre-designated liquidator monitors positions
-├── When health ratio < 1.5, they can execute their branch
-├── Provide USDT, receive BTC + 5% bonus
-└── Competition between designated liquidators keeps system healthy
+```mermaid
+%%{init: {'theme':'dark'}}%%
+graph LR
+    BH[Bitcoin<br/>Holder] -->|Deposit BTC| BTC[Bitcoin L1<br/>Taproot Vaults]
+    BTC <-->|Verify Proofs| BVM[BitVM<br/>SNARK Generation<br/>State Management]
+    BVM <-->|Bridge Assets| EVM[EVM Chain<br/>DeFi Protocols]
+    EVM -->|Yield Returns| BH
 ```
 
-**Practical Approach**:
-- **Protocol Operators**: Run liquidation bots as a service
-- **Professional Liquidators**: Well-known entities included at setup
-- **DAO Members**: Governance token holders act as liquidators
-- **Federated Model**: 5-10 reliable liquidators per vault
+## 📊 Primary Use Case: Leveraged Yield Farming
 
-### Vault Operation Model
+### How It Works
 
-**Who Operates the Vault?**
+```mermaid
+%%{init: {'theme':'dark'}}%%
+sequenceDiagram
+    participant User as BTC Holder
+    participant BTC as Bitcoin L1
+    participant BitVM as BitVM Layer<br/>(Off-chain)
+    participant Bridge as Bridge<br/>(Off-chain)
+    participant EVM as EVM Chain
+    participant DeFi as Aave/Compound
 
-Each BitVM vault has **fixed operators** determined at creation:
+    Note over User,DeFi: Leveraged Yield Farming Flow
+    
+    rect rgb(40, 40, 40)
+        Note left of User: 1. Deposit Collateral
+        User->>BTC: Deposit 2 BTC ($100k)
+        BTC->>BitVM: Lock in Taproot vault
+        BitVM->>BitVM: Generate vault state
+    end
 
+    rect rgb(40, 40, 40)
+        Note left of User: 2. Borrow Against Collateral
+        User->>BitVM: Request $50k USDT loan
+        BitVM->>BitVM: Verify collateral ratio
+        BitVM->>BitVM: Generate SNARK proof
+        BitVM->>Bridge: Initiate bridge transfer
+        Bridge->>EVM: Mint wrapped BTC claim
+        EVM->>User: Transfer $50k USDT
+    end
+
+    rect rgb(40, 40, 40)
+        Note left of User: 3. Deploy to Yield Protocol
+        User->>EVM: Approve USDT spending
+        EVM->>DeFi: Deposit USDT
+        DeFi->>DeFi: Generate 8-15% APY
+        DeFi->>User: Accrue yield tokens
+    end
+
+    rect rgb(40, 40, 40)
+        Note left of User: 4. Monitor & Liquidation (if needed)
+        BitVM->>BitVM: Monitor health ratio
+        alt Health Ratio < 1.5
+            BitVM->>BitVM: Trigger liquidation
+            BitVM->>BTC: Execute pre-signed tx
+            BTC->>Bridge: Release collateral
+            Bridge->>EVM: Liquidator repays debt
+        end
+    end
+
+    rect rgb(40, 40, 40)
+        Note left of User: 5. Withdraw & Repay
+        User->>DeFi: Withdraw position
+        DeFi->>User: Return USDT + yield
+        User->>EVM: Repay loan + interest
+        EVM->>Bridge: Burn debt token
+        Bridge->>BitVM: Generate repayment proof
+        BitVM->>BTC: Unlock collateral
+        BTC->>User: Return 2 BTC
+    end
 ```
-Typical Vault Structure:
-├── Operators: 2-of-3 multisig
-│   ├── Vault Creator (initiator)
-│   ├── Protocol DAO (governance)
-│   └── Oracle Service (price feeds)
-├── Borrowers: Fixed list (1-10 users)
-├── Lenders: Pool managed by operators
-└── Liquidators: 3-5 pre-designated services
-```
 
-**Critical Constraints**:
-- ❌ **Cannot add operators** after vault creation
-- ❌ **Cannot modify multisig** threshold
-- ❌ **Cannot add borrowers** to existing vault
-- ❌ **Cannot change any participants**
-- ❌ **Cannot add collateral** to existing positions
-- ❌ **Cannot modify loan amounts** after creation
+### Example Strategy
+1. **Deposit**: 2 BTC as collateral ($100k)
+2. **Borrow**: $50k USDT at 5% APR
+3. **Deploy**: To Aave/Compound earning 8-9% APY
+4. **Profit**: 3-4% net yield on $50k = $1,500-2,000/year
+5. **Maintain**: BTC exposure while earning yield
 
-**Practical Implications**:
+## 🔧 Technical Architecture
 
-1. **Vault-per-Position Model**: 
-   - Each loan might need its own vault
-   - Or create vaults with 5-10 pre-approved borrowers
-   - New users = new vault creation
+### Why BitVM Enables This
 
-2. **Operator Responsibilities**:
-   - Execute pre-signed transactions
-   - Manage oracle price updates
-   - Cannot steal funds (BitVM enforces rules)
-   - Cannot prevent valid liquidations
+BitVM provides the critical components that make trustless Bitcoin DeFi possible:
 
-3. **Trust Assumptions**:
-   - Trust that K-of-N operators stay online
-   - Trust at least one liquidator will act
-   - Don't trust them with funds (BitVM prevents theft)
+| BitVM Component | What It Does | How It Enables DeFi | Technical Details |
+|-----------------|--------------|---------------------|-------------------|
+| **Groth16 SNARK Verifier** | Verifies complex computations on Bitcoin L1 | Enables Bitcoin to verify DeFi operations (collateral ratios, interest calculations, liquidations) without executing them | 530KB script that can verify any computation compressed into a 256-byte proof |
+| **Taproot Script Trees** | Creates pre-signed transaction paths | Allows multi-party vaults without custodians - each participant has their own pre-signed withdrawal/liquidation path | Pre-signed trees with conditions like "IF health < 1.5 AND liquidator pays debt THEN release BTC" |
+| **Garbled Circuits** | Private multi-party computation | Keeps sensitive financial data private while still proving correctness (e.g., proving solvency without revealing positions) | Computes interest, collateral ratios, and liquidation triggers without exposing user balances |
+| **State Machine** | Manages vault lifecycle off-chain | Coordinates cross-chain operations and generates proofs for state transitions | Tracks deposits, loans, yields, and liquidations across Bitcoin and EVM chains |
+| **Bridge Integration** | Trustless cross-chain messaging | Enables BTC collateral to access EVM DeFi yields without wrapping through centralized services | Generates proofs that Bitcoin locked = EVM tokens minted, verified by BitVM |
 
-**Comparison to DeFi**:
-| Feature | Ethereum DeFi | BitVM Vaults |
-|---------|--------------|--------------|
-| Add new users | ✅ Anytime | ❌ Need new vault |
-| Change operators | ✅ Via governance | ❌ Fixed forever |
-| Permissionless entry | ✅ Anyone | ❌ Pre-approved only |
-| Trustless execution | ✅ Smart contracts | ✅ BitVM verification |
-| Capital efficiency | ✅ One pool for all | ❌ Fragmented vaults |
+**Key Innovation**: BitVM compresses ANY complex DeFi logic into a 256-byte proof that Bitcoin can verify with a 530KB script, bypassing Bitcoin's computational limitations while maintaining its security guarantees.
 
-### Managing Collateral in BitVM Vaults
+### Component Breakdown
 
-**Can borrowers add more BTC collateral?**
-No, not to the same vault. Pre-signed transactions are immutable.
-
-**Solutions for Additional Collateral**:
-
-1. **Vault Composition** (Recommended):
-   ```
-   Original Vault (2 BTC) + Supplementary Vault (1 BTC) = 3 BTC total
-   - Create new vault for additional collateral
-   - Link vaults at protocol layer
-   - Manage as unified position in UI
-   ```
-
-2. **Pre-signed Flexibility** (Complex):
-   ```
-   At creation, pre-sign multiple paths:
-   - Path A: 2 BTC collateral, borrow up to 50k
-   - Path B: 3 BTC collateral, borrow up to 75k  
-   - Path C: 4 BTC collateral, borrow up to 100k
-   User chooses path based on needs
-   ```
-
-3. **Close and Recreate** (Expensive):
-   ```
-   - Repay existing loan
-   - Close current vault
-   - Create new vault with total desired collateral
-   - Costs: fees, time, potential loss of yield position
-   ```
-
-**Practical Impact**:
-- Users must plan collateral needs upfront
-- Adding collateral requires new vault creation
-- Protocol UX must abstract vault composition complexity
-- More on-chain transactions = higher costs
-
-While more constrained than EVM DeFi, BitVM still enables sophisticated financial operations on Bitcoin without custodians.
-
-## 🔑 How BitVM Enables Trustless Vaults
-
-### Core Vault Capabilities
-- **Multi-party deposits**: N participants can pool funds trustlessly
-- **Complex operations**: Lending, borrowing, liquidity provision, derivatives
-- **Non-custodial**: No intermediaries or trusted third parties
-- **Bitcoin-native**: All verification happens on Bitcoin L1
-
-### BitVM Technology Stack
+#### 1. **Groth16 SNARK Verification** (530KB Scripts)
 ```rust
-// BitVM components powering the vault
-use bitvm::groth16::{g16, hinted};  // SNARK verification
-use bitvm::bn254::{fp254impl, fq};  // Elliptic curve operations
-use bitvm::treepp::*;               // Script generation
+// Why we need it: Compress complex DeFi logic into Bitcoin-verifiable proofs
+use bitvm::groth16::{g16, hinted};
+
+// What it enables:
+// - Verify collateral ratios (100KB logic → 256 byte proof)
+// - Calculate compound interest (50KB math → 256 byte proof)
+// - Process liquidations (80KB checks → 256 byte proof)
+// - All verifiable on Bitcoin L1 within script size limits
+```
+
+#### 2. **Taproot Script Trees**
+```rust
+// Why we need it: Create multi-party vaults without intermediaries
+use bitvm::treepp::*;
+
+// Pre-signed transaction tree structure:
+Vault Root
+├── Normal Operations (2-of-3 multisig)
+│   ├── Withdraw (borrower + verification)
+│   ├── Repay (borrower + proof)
+│   └── Yield claim (borrower + proof)
+├── Liquidation Branches (health < 1.5)
+│   ├── Liquidator 1 path
+│   ├── Liquidator 2 path
+│   └── Liquidator 3 path
+└── Emergency Recovery (timelock + operators)
+```
+
+#### 3. **Garbled Circuits for Privacy**
+```rust
+// Why we need it: Private computation of sensitive financial data
+use bitvm::garbled::*;
+
+// Enables private:
+// - Interest accrual without revealing positions
+// - Collateral verification without exposing amounts
+// - Liquidation checks without broadcasting health ratios
 ```
 
 ### Proof Compression Magic
+
 BitVM compresses any vault operation into Bitcoin-verifiable proofs:
 
-| Vault Operation | Computation Size | BitVM Proof |
-|-----------------|------------------|-------------|
-| Multi-party withdrawal | ~50KB logic | 256 bytes |
-| Collateral verification | ~100KB checks | 256 bytes |
-| Interest calculation | ~20KB math | 256 bytes |
-| Liquidity rebalancing | ~80KB state | 256 bytes |
+| DeFi Operation | Traditional Size | BitVM Proof | Verification Cost |
+|----------------|------------------|-------------|-------------------|
+| Collateral Check | ~100KB logic | 256 bytes | 530KB script |
+| Interest Update | ~50KB math | 256 bytes | 530KB script |
+| Liquidation | ~80KB state | 256 bytes | 530KB script |
+| Yield Distribution | ~120KB calc | 256 bytes | 530KB script |
 
-**Result**: Bitcoin can verify ANY complex vault operation through BitVM's 530KB Groth16 scripts.
+## ⚠️ Design Constraints & Solutions
 
-### Alternative: DV-SNARK Instead of Groth16
+### BitVM Limitations
 
-We could potentially use **Designated Verifier SNARKs** as an alternative proof system:
+Due to Bitcoin's pre-signed transaction model, vaults have these constraints:
 
-| Aspect | Groth16 (Current) | DV-SNARK (Alternative) |
-|--------|-------------------|------------------------|
-| **Script Size** | ~530KB | ~350KB (33% smaller) |
-| **Proof Size** | 256 bytes | ~350 bytes |
-| **Setup** | Requires trusted ceremony | No trusted setup |
-| **Verifier** | Anyone (public) | Designated parties only |
-| **Bitcoin Limits** | Near limit | More headroom |
+**Fixed at Creation:**
+- All participants (borrowers, operators, liquidators) must be pre-determined
+- Cannot add new users after vault creation
+- Cannot change operator multisig threshold
+- Cannot add or remove liquidators
+- Cannot modify collateral amounts in existing positions
+- Cannot adjust loan terms after creation
 
-**Benefits of DV-SNARK**:
-- ✅ Smaller verification scripts (350KB vs 530KB)
-- ✅ No trusted setup ceremony required
-- ✅ Aligns with BitVM's designated operator model
+**Operational Constraints:**
+- Each vault requires pre-signed transaction trees
+- New users require new vault creation
+- Capital fragmentation across multiple vaults
+- Higher on-chain transaction costs vs single pool model
+- Liquidators must be trusted entities chosen upfront
 
-**Limitations**:
-- ❌ Still requires pre-signed transactions (core constraint remains)
-- ❌ Cannot add participants or collateral (Bitcoin limitation)
-- ❌ Adds designated verifier as potential failure point
-- ❌ Slightly larger proofs to transmit
+**Solutions:**
+- **Vault Factories**: Automate creation of dedicated vaults per user
+- **Vault Composition**: Link multiple vaults at protocol layer
+- **Professional Operators**: Dedicated services for liquidation and management
 
-**Verdict**: DV-SNARK would provide modest improvements (smaller scripts) but wouldn't solve the fundamental limitations of BitVM vaults. The inability to modify vaults after creation is due to Bitcoin's pre-signed transaction model, not the proof system.
+### Practical Architecture
 
+Instead of one pool for all users (Aave model), we use isolated vaults:
 
+```
+User Request → Vault Factory → Dedicated Vault
+                    ↓
+            [Fixed Operators]
+            [Fixed Liquidators]  
+            [User as Borrower]
+                    ↓
+            BitVM Verification → Bitcoin L1
+```
 
-
+This maintains trustlessness while working within Bitcoin's constraints.
 
 ## 🚀 Quick Start
 
@@ -215,95 +215,47 @@ make install  # Install all dependencies
 make build    # Build TypeScript and Rust components
 ```
 
-### Run Demos
-
+### Run Primary Demo
 ```bash
-# Primary demo - Leveraged Yield Farming
+# Leveraged Yield Farming Demo
 make demo-lending
 
-# Other demos
-make demo-real     # BitVM SNARK verification  
-make demo-regtest  # Full Bitcoin integration
-make demo-all      # Run all demos
+# Full BitVM Integration
+make demo-real
+
+# All Demos
+make demo-all
 ```
-
-### Demo Scenarios
-
-The demos showcase different vault capabilities:
-
-1. **Leveraged Yield** (`make demo-lending`) - Use BTC to farm DeFi yields
-2. **BitVM Verification** (`make demo-real`) - 530KB script generation  
-3. **Private Computation** (`make demo-garbled`) - Garbled circuits for privacy
-4. **AMM Liquidity** (`make demo-amm`) - Cross-chain liquidity provision
-5. **Bitcoin Integration** (`make demo-regtest`) - Real Bitcoin transactions
-
-
-
-## 💻 Vault Architecture
-
-```
-    Multi-Party Deposits → BitVM3 Vault → Complex Operations
-            ↓                    ↓                ↓
-     Taproot Scripts      Garbled Circuits   Groth16 Proofs
-            ↓                    ↓                ↓
-         Bitcoin          Private Compute    BitVM Verification
-```
-
-### Core Components
-- **Trustless Vault**: Multi-party Taproot addresses with pre-signed tx graphs
-- **BitVM Groth16**: 530KB scripts verify any vault operation on Bitcoin
-- **Garbled Circuits**: Private multi-party computation for sensitive data
-- **Flexible Operations**: Supports lending, AMMs, derivatives, or custom logic
-
-
-
-
-
-## 🚧 Realistic Vault Applications
-
-Given BitVM's constraints (fixed participants), the most practical applications are:
-
-### Works Well ✅
-- **Private Lending Clubs**: 5-10 known members create shared vault
-- **Institutional Vaults**: Fixed set of institutions as operators/users
-- **DAO Treasury**: Pre-defined signers with spending rules
-- **Bilateral Contracts**: Two-party agreements (options, swaps)
-
-### Challenging ❌
-- **Open Lending Pools**: Would need new vault per borrower
-- **Permissionless AMMs**: Cannot add new LPs after creation
-- **Dynamic Governance**: Cannot change operator set
-
-### Practical Architecture
-```
-Instead of: One vault for all users (Aave model)
-Use: Vault factory creating isolated vaults per user/group
-
-Example Flow:
-1. User requests loan via UI
-2. Protocol creates new vault with:
-   - User as borrower
-   - Protocol operators (fixed set)
-   - Professional liquidators (fixed set)
-3. User deposits collateral to their vault
-4. Operates independently with BitVM verification
-```
-
-This "vault-per-user" model is less capital efficient but maintains Bitcoin's security guarantees.
 
 ## 📦 Project Structure
 
 ```
-vault-protocol/           # TypeScript client demos
-verification-engine/      # Rust BitVM integration  
-contracts/               # EVM smart contracts
+vault-protocol/          # TypeScript vault implementation
+├── src/
+│   ├── vault/          # TrustlessVault core logic
+│   ├── core/           # BitVM3 protocol integration
+│   ├── crypto/         # SNARK and garbled circuits
+│   └── demos/          # Example implementations
+verification-engine/     # Rust BitVM integration
+├── crates/
+│   ├── crypto/         # Groth16 verifier implementation
+│   ├── core/           # Bitcoin transaction management
+│   └── vault/          # Vault-specific logic
+contracts/              # Supporting smart contracts
 ```
+
+## 🎯 Why This Matters
+
+BitVM3 demonstrates that Bitcoin can support sophisticated DeFi operations without:
+- Wrapping BTC on other chains
+- Trusting centralized exchanges
+- Compromising Bitcoin's security model
+- Adding new opcodes to Bitcoin
+
+While more constrained than EVM DeFi, it enables real yield opportunities for Bitcoin holders who want to maintain custody and security.
 
 ## 🔗 Resources
 
 - [BitVM GitHub](https://github.com/BitVM/BitVM)
 - [BitVM Whitepaper](https://bitvm.org/bitvm.pdf)
-- [Example Demos](./vault-protocol/src/)
-
-
-
+- [Technical Documentation](./verification-engine-guide.md)
