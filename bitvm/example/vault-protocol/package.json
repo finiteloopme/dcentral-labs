@@ -10,7 +10,9 @@
     "full-demo": "ts-node src/demo.ts",
     "real-demo": "ts-node src/real-bitvm-demo.ts",
     "taproot-demo": "ts-node src/taproot-demo.ts",
-    "garbled-demo": "ts-node src/garbled-demo.ts"
+    "garbled-demo": "ts-node src/garbled-demo.ts",
+    "lending-demo": "ts-node src/lending-demo.ts",
+    "amm-demo": "ts-node src/amm-liquidity-demo.ts"
   },
   "keywords": [
     "bitvm3",

@@ -1,296 +1,309 @@
-# BitVM3: Trustless BTC/USDT Vault on Bitcoin
+# BitVM3: Trustless Multi-Party Bitcoin Vault
 
-An implementation of the BitVM3 protocol featuring **garbled circuits**, **BitVM SNARK verification**, and **Taproot-based transaction graphs** for trustless vault operations on Bitcoin.
+A **trustless vault system for Bitcoin** that enables complex multi-party financial operations using BitVM's SNARK verification - no custodians or intermediaries required.
 
-## 📖 Use Case: Cross-Asset DeFi on Bitcoin
+## 🎯 Core Innovation: Trustless Bitcoin Vaults
 
-**Scenario**: Alice has BTC, Bob has USDT. They want to:
-1. **Pool assets** in a trustless vault (no custodian)
-2. **Lend to each other** (Bob lends USDT to Alice for BTC collateral)
-3. **Earn yield** from vault operations
-4. **Withdraw anytime** with cryptographic proof of authorization
+**The Problem**: Bitcoin's limited scripting prevents complex multi-party financial operations (lending, collateralized loans, liquidity provision) from running trustlessly on-chain.
 
-**The Challenge**: Bitcoin can't natively verify complex operations or handle USDT.
+**BitVM3 Solution**: Create trustless vaults where multiple parties can deposit BTC/stablecoins and execute complex operations verified by BitVM's 530KB Groth16 scripts - all without custodians.
 
-**BitVM3 Solution**: 
-- **Garbled Circuits**: Private validation of lending terms off-chain
-- **SNARK Proofs**: Compress complex logic into Bitcoin-verifiable proofs  
-- **Taproot Vaults**: Pre-signed transactions enforce all possible outcomes
+**Key Trade-off**: ALL participants (operators, liquidators, borrowers) must be determined at vault creation time due to the pre-signed nature of Bitcoin transactions. This is less flexible than EVM smart contracts but still maintains trustless execution.
 
-**Result**: Full DeFi capabilities on Bitcoin without soft forks or bridges.
+## 📊 Primary Use Case: Leveraged Yield Farming with BTC Collateral
 
-## 🏗️ System Architecture
+The vault enables users to leverage BTC for DeFi yield:
+1. **Deposit BTC** as collateral (up to 50% LTV)
+2. **Borrow USDT** against BTC collateral at 5% APR
+3. **Auto-deploy** borrowed funds to yield protocols (8-15% APY)
+4. **Earn spread** between yield earned and borrow cost
+5. **Liquidation** if BTC price drops below 150% collateralization
 
-```mermaid
-%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#1f2937', 'primaryTextColor':'#f3f4f6', 'primaryBorderColor':'#4b5563', 'lineColor':'#6b7280', 'secondaryColor':'#374151', 'tertiaryColor':'#1f2937', 'background':'#111827', 'mainBkg':'#1f2937', 'secondBkg':'#374151', 'tertiaryBkg':'#111827', 'clusterBkg':'#1f2937', 'clusterBorder':'#4b5563', 'fontFamily':'monospace'}}}%%
-graph TB
-    subgraph "Off-Chain Components"
-        Client[TypeScript Client<br/>vault-protocol]
-        Server[Rust Verification Engine<br/>verification-engine]
-        GC[Garbled Circuits<br/>2-Party Computation]
-        BitVM[BitVM Library<br/>SNARK Verifier]
-        Taproot[Taproot Builder<br/>Pre-signed Tx Graph]
-    end
-    
-    subgraph "On-Chain (Bitcoin)"
-        TapScript[Tapscript Tree<br/>3 Spending Paths]
-        Scripts[Bitcoin Scripts<br/>530KB Groth16 Verifier]
-        Blockchain[Bitcoin Blockchain]
-    end
-    
-    Client -->|Private Inputs| GC
-    GC -->|Computation Result| Server
-    Server -->|Generate SNARK| BitVM
-    Server -->|Build Taproot Tree| Taproot
-    BitVM -->|Create Verification Script| Scripts
-    Taproot -->|Embed Scripts| TapScript
-    Client -->|Broadcast Transaction| Blockchain
-    TapScript -->|Execute Path| Blockchain
+**Example Strategy**:
+- Deposit 2 BTC ($100k) → Borrow $50k USDT
+- Deploy to Aave/Compound at 8-9% APY
+- Net profit: 3-4% APY on $50k = $1,500-2,000/year
+- Keep BTC exposure while earning yield
+
+**All verified trustlessly via BitVM's 530KB Groth16 scripts on Bitcoin.**
+
+### Liquidation Mechanism & Limitations
+
+**⚠️ Important BitVM Constraint**: Liquidators must be **pre-designated** during vault creation.
+
+Unlike fully permissionless systems (Aave, Compound), BitVM requires:
+1. **Fixed Liquidator Set**: Choose liquidators during initial setup
+2. **Pre-signed Transactions**: Each liquidator gets a pre-signed Taproot path
+3. **Cannot Add Later**: New liquidators cannot be added after vault creation
+
+**How It Works**:
+```
+Vault Setup (Day 0):
+├── Borrower deposits 2 BTC collateral
+├── Select 3-5 trusted liquidators (e.g., protocol operators)
+├── Pre-sign Taproot branches for each liquidator
+└── Each branch: IF (health < 1.5 AND liquidator pays debt) THEN release BTC
+
+During Operation:
+├── Any pre-designated liquidator monitors positions
+├── When health ratio < 1.5, they can execute their branch
+├── Provide USDT, receive BTC + 5% bonus
+└── Competition between designated liquidators keeps system healthy
 ```
 
-## 🔐 Three-Layer Cryptographic Stack
+**Practical Approach**:
+- **Protocol Operators**: Run liquidation bots as a service
+- **Professional Liquidators**: Well-known entities included at setup
+- **DAO Members**: Governance token holders act as liquidators
+- **Federated Model**: 5-10 reliable liquidators per vault
 
-### 1. **Garbled Circuits** (Off-chain Privacy)
+### Vault Operation Model
 
-> **Why:** Alice and Bob need to validate lending terms (interest rates, collateral ratios) without revealing their private financial positions to each other.
-> 
-> **How it helps:** Garbled circuits allow them to jointly compute whether a loan is acceptable based on private inputs (balances, risk parameters) without either party learning the other's data. Only the result (approved/rejected) is revealed.
+**Who Operates the Vault?**
 
-Yao's garbled circuits implementation with:
-- **AES-128 encrypted wire labels** for secure computation
-- **Point-and-permute optimization** for efficient evaluation
-- **Oblivious transfer** for private input sharing
-- **SHA256-based proofs** of correct computation
+Each BitVM vault has **fixed operators** determined at creation:
 
+```
+Typical Vault Structure:
+├── Operators: 2-of-3 multisig
+│   ├── Vault Creator (initiator)
+│   ├── Protocol DAO (governance)
+│   └── Oracle Service (price feeds)
+├── Borrowers: Fixed list (1-10 users)
+├── Lenders: Pool managed by operators
+└── Liquidators: 3-5 pre-designated services
+```
+
+**Critical Constraints**:
+- ❌ **Cannot add operators** after vault creation
+- ❌ **Cannot modify multisig** threshold
+- ❌ **Cannot add borrowers** to existing vault
+- ❌ **Cannot change any participants**
+- ❌ **Cannot add collateral** to existing positions
+- ❌ **Cannot modify loan amounts** after creation
+
+**Practical Implications**:
+
+1. **Vault-per-Position Model**: 
+   - Each loan might need its own vault
+   - Or create vaults with 5-10 pre-approved borrowers
+   - New users = new vault creation
+
+2. **Operator Responsibilities**:
+   - Execute pre-signed transactions
+   - Manage oracle price updates
+   - Cannot steal funds (BitVM enforces rules)
+   - Cannot prevent valid liquidations
+
+3. **Trust Assumptions**:
+   - Trust that K-of-N operators stay online
+   - Trust at least one liquidator will act
+   - Don't trust them with funds (BitVM prevents theft)
+
+**Comparison to DeFi**:
+| Feature | Ethereum DeFi | BitVM Vaults |
+|---------|--------------|--------------|
+| Add new users | ✅ Anytime | ❌ Need new vault |
+| Change operators | ✅ Via governance | ❌ Fixed forever |
+| Permissionless entry | ✅ Anyone | ❌ Pre-approved only |
+| Trustless execution | ✅ Smart contracts | ✅ BitVM verification |
+| Capital efficiency | ✅ One pool for all | ❌ Fragmented vaults |
+
+### Managing Collateral in BitVM Vaults
+
+**Can borrowers add more BTC collateral?**
+No, not to the same vault. Pre-signed transactions are immutable.
+
+**Solutions for Additional Collateral**:
+
+1. **Vault Composition** (Recommended):
+   ```
+   Original Vault (2 BTC) + Supplementary Vault (1 BTC) = 3 BTC total
+   - Create new vault for additional collateral
+   - Link vaults at protocol layer
+   - Manage as unified position in UI
+   ```
+
+2. **Pre-signed Flexibility** (Complex):
+   ```
+   At creation, pre-sign multiple paths:
+   - Path A: 2 BTC collateral, borrow up to 50k
+   - Path B: 3 BTC collateral, borrow up to 75k  
+   - Path C: 4 BTC collateral, borrow up to 100k
+   User chooses path based on needs
+   ```
+
+3. **Close and Recreate** (Expensive):
+   ```
+   - Repay existing loan
+   - Close current vault
+   - Create new vault with total desired collateral
+   - Costs: fees, time, potential loss of yield position
+   ```
+
+**Practical Impact**:
+- Users must plan collateral needs upfront
+- Adding collateral requires new vault creation
+- Protocol UX must abstract vault composition complexity
+- More on-chain transactions = higher costs
+
+While more constrained than EVM DeFi, BitVM still enables sophisticated financial operations on Bitcoin without custodians.
+
+## 🔑 How BitVM Enables Trustless Vaults
+
+### Core Vault Capabilities
+- **Multi-party deposits**: N participants can pool funds trustlessly
+- **Complex operations**: Lending, borrowing, liquidity provision, derivatives
+- **Non-custodial**: No intermediaries or trusted third parties
+- **Bitcoin-native**: All verification happens on Bitcoin L1
+
+### BitVM Technology Stack
 ```rust
-// Garbled circuit evaluation
-let circuit = BitVM3GarbledCircuit::new();
-circuit.build_withdrawal_circuit(num_inputs)?;
-let result = circuit.evaluate(&private_inputs).await?;
+// BitVM components powering the vault
+use bitvm::groth16::{g16, hinted};  // SNARK verification
+use bitvm::bn254::{fp254impl, fq};  // Elliptic curve operations
+use bitvm::treepp::*;               // Script generation
 ```
 
-### 2. **Groth16 SNARKs** (Succinct Proofs)
+### Proof Compression Magic
+BitVM compresses any vault operation into Bitcoin-verifiable proofs:
 
-> **Why:** Bitcoin's script size limit (520 bytes per element, ~4MB per transaction) makes it impossible to verify complex computations directly.
-> 
-> **How it helps:** SNARKs compress the entire vault state transition (deposits, withdrawals, lending operations) into a 256-byte proof that Bitcoin can verify. This enables complex DeFi logic that would otherwise require gigabytes of script.
+| Vault Operation | Computation Size | BitVM Proof |
+|-----------------|------------------|-------------|
+| Multi-party withdrawal | ~50KB logic | 256 bytes |
+| Collateral verification | ~100KB checks | 256 bytes |
+| Interest calculation | ~20KB math | 256 bytes |
+| Liquidity rebalancing | ~80KB state | 256 bytes |
 
-Using BitVM library for on-chain verification:
-- **256-byte proofs** (2 G1 + 1 G2 points on BN254)
-- **530KB verification scripts** for Bitcoin
-- **State transitions** with Merkle roots
+**Result**: Bitcoin can verify ANY complex vault operation through BitVM's 530KB Groth16 scripts.
 
-```rust
-// BitVM Groth16 verification
-let verifier = BitVMGroth16Verifier::new();
-let proof = verifier.prove(&witness, &public_inputs)?;
-let script = verifier.create_verify_script(&proof)?; // 530KB!
-```
+### Alternative: DV-SNARK Instead of Groth16
 
-### 3. **Taproot Scripts** (On-chain Enforcement)
+We could potentially use **Designated Verifier SNARKs** as an alternative proof system:
 
-> **Why:** Participants need guarantees that funds can be recovered even if other parties become unresponsive or malicious.
-> 
-> **How it helps:** Pre-signed transaction graphs create multiple "escape hatches" - if Bob disappears, Alice can withdraw via emergency path after timeout. If someone cheats, the challenge path activates. This ensures funds are never permanently locked.
+| Aspect | Groth16 (Current) | DV-SNARK (Alternative) |
+|--------|-------------------|------------------------|
+| **Script Size** | ~530KB | ~350KB (33% smaller) |
+| **Proof Size** | 256 bytes | ~350 bytes |
+| **Setup** | Requires trusted ceremony | No trusted setup |
+| **Verifier** | Anyone (public) | Designated parties only |
+| **Bitcoin Limits** | Near limit | More headroom |
 
-Pre-signed transaction graphs with multiple spending paths:
-- **Normal withdrawal**: Requires Groth16 proof
-- **Emergency withdrawal**: After 144 blocks timeout
-- **Collaborative close**: All parties agree
+**Benefits of DV-SNARK**:
+- ✅ Smaller verification scripts (350KB vs 530KB)
+- ✅ No trusted setup ceremony required
+- ✅ Aligns with BitVM's designated operator model
 
-## 💡 How It Works
+**Limitations**:
+- ❌ Still requires pre-signed transactions (core constraint remains)
+- ❌ Cannot add participants or collateral (Bitcoin limitation)
+- ❌ Adds designated verifier as potential failure point
+- ❌ Slightly larger proofs to transmit
 
-### Complete Transaction Flow
+**Verdict**: DV-SNARK would provide modest improvements (smaller scripts) but wouldn't solve the fundamental limitations of BitVM vaults. The inability to modify vaults after creation is due to Bitcoin's pre-signed transaction model, not the proof system.
 
-```mermaid
-%%{init: {'theme':'dark', 'themeVariables': { 'primaryColor':'#1f2937', 'primaryTextColor':'#f3f4f6', 'primaryBorderColor':'#4b5563', 'lineColor':'#6b7280', 'secondaryColor':'#374151', 'background':'#111827', 'mainBkg':'#1f2937', 'actorBkg':'#374151', 'actorBorder':'#4b5563', 'actorTextColor':'#f3f4f6', 'actorLineColor':'#6b7280', 'signalColor':'#f3f4f6', 'signalTextColor':'#f3f4f6', 'labelBoxBkgColor':'#1f2937', 'labelBoxBorderColor':'#4b5563', 'labelTextColor':'#f3f4f6', 'loopTextColor':'#f3f4f6', 'noteBorderColor':'#4b5563', 'noteBkgColor':'#1f2937', 'noteTextColor':'#f3f4f6', 'activationBorderColor':'#4b5563', 'activationBkgColor':'#374151', 'sequenceNumberColor':'#111827'}}}%%
-sequenceDiagram
-    participant Alice
-    participant Bob
-    participant GC as Garbled Circuit
-    participant SNARK as BitVM SNARK
-    participant Bitcoin
-    
-    Note over Alice,Bob: Setup Phase
-    Alice->>Bob: Share garbled circuit
-    Bob->>Alice: Oblivious transfer for inputs
-    
-    Note over Alice,Bob: Computation Phase
-    Alice->>GC: Private inputs (encrypted)
-    Bob->>GC: Private inputs (via OT)
-    GC->>GC: Evaluate gates
-    GC->>SNARK: Result + witness
-    
-    Note over SNARK,Bitcoin: Verification Phase
-    SNARK->>SNARK: Generate Groth16 proof
-    SNARK->>Bitcoin: 530KB verification script
-    Bitcoin->>Bitcoin: Execute script
-    Bitcoin->>Alice: Release funds if valid
-```
+
+
+
 
 ## 🚀 Quick Start
 
+### Prerequisites
 ```bash
-# Install and build
-make install
-make build
-
-# Run the complete demo
-make demo-all        # Runs all demos sequentially
+# Required: Node.js 18+, Rust 1.70+, Bitcoin Core 25+
+make install  # Install all dependencies
+make build    # Build TypeScript and Rust components
 ```
 
-### Available Demos
-
-| Demo | Command | Description |
-|------|---------|-------------|
-| **Simple** | `make demo` | Basic vault operations with deposits/withdrawals |
-| **BitVM** | `make demo-real` | BitVM integration with 530KB verification scripts |
-| **Taproot** | `make demo-taproot` | Pre-signed transaction graphs with multiple paths |
-| **Garbled** | `make demo-garbled` | Secure two-party computation with AES encryption |
-| **Regtest** | `make demo-regtest` | Full demo with actual Bitcoin transactions |
-
-### 🔗 Bitcoin Regtest Demo
-
-The most comprehensive demo runs on a local Bitcoin network:
+### Run Demos
 
 ```bash
-make demo-regtest    # Automatically starts Bitcoin node and runs full demo
+# Primary demo - Leveraged Yield Farming
+make demo-lending
+
+# Other demos
+make demo-real     # BitVM SNARK verification  
+make demo-regtest  # Full Bitcoin integration
+make demo-all      # Run all demos
 ```
 
-This demonstrates:
-- Creating Taproot vaults on Bitcoin (regtest)
-- Broadcasting and confirming transactions  
-- Funding vaults with actual BTC
-- Verifying transactions on-chain
+### Demo Scenarios
 
-For manual control:
-```bash
-make regtest-start                  # Start Bitcoin node
-make regtest-cli ARGS="getbalance"  # Run Bitcoin CLI commands
-make regtest-stop                   # Stop Bitcoin node
+The demos showcase different vault capabilities:
+
+1. **Leveraged Yield** (`make demo-lending`) - Use BTC to farm DeFi yields
+2. **BitVM Verification** (`make demo-real`) - 530KB script generation  
+3. **Private Computation** (`make demo-garbled`) - Garbled circuits for privacy
+4. **AMM Liquidity** (`make demo-amm`) - Cross-chain liquidity provision
+5. **Bitcoin Integration** (`make demo-regtest`) - Real Bitcoin transactions
+
+
+
+## 💻 Vault Architecture
+
+```
+    Multi-Party Deposits → BitVM3 Vault → Complex Operations
+            ↓                    ↓                ↓
+     Taproot Scripts      Garbled Circuits   Groth16 Proofs
+            ↓                    ↓                ↓
+         Bitcoin          Private Compute    BitVM Verification
 ```
 
-## 📊 Implementation Status
+### Core Components
+- **Trustless Vault**: Multi-party Taproot addresses with pre-signed tx graphs
+- **BitVM Groth16**: 530KB scripts verify any vault operation on Bitcoin
+- **Garbled Circuits**: Private multi-party computation for sensitive data
+- **Flexible Operations**: Supports lending, AMMs, derivatives, or custom logic
 
-| Component | Status | Type | Details |
-|-----------|--------|------|---------|
-| **Garbled Circuits** | ✅ | Implemented | AES encryption, wire labels, gate evaluation |
-| **Groth16 Verifier** | ✅ | BitVM library | BN254 curve operations |
-| **Taproot Support** | ✅ | Bitcoin Core | Pre-signed transaction graphs |
-| **State Management** | ✅ | Merkle trees | SHA256 commitments |
-| **Challenge System** | ✅ | Time-locked | 144 block timeout |
 
-## 📋 Example Usage
 
-### Garbled Circuit (Private Computation)
-```typescript
-// Evaluate withdrawal validation privately
-const client = new GarbledCircuitClient();
-const result = await client.evaluateWithdrawal(
-  1000,  // withdrawal amount (private)
-  5000,  // vault balance (private)
-  [true, false]  // additional conditions
-);
-// Result: approved/rejected + cryptographic proof
+
+
+## 🚧 Realistic Vault Applications
+
+Given BitVM's constraints (fixed participants), the most practical applications are:
+
+### Works Well ✅
+- **Private Lending Clubs**: 5-10 known members create shared vault
+- **Institutional Vaults**: Fixed set of institutions as operators/users
+- **DAO Treasury**: Pre-defined signers with spending rules
+- **Bilateral Contracts**: Two-party agreements (options, swaps)
+
+### Challenging ❌
+- **Open Lending Pools**: Would need new vault per borrower
+- **Permissionless AMMs**: Cannot add new LPs after creation
+- **Dynamic Governance**: Cannot change operator set
+
+### Practical Architecture
+```
+Instead of: One vault for all users (Aave model)
+Use: Vault factory creating isolated vaults per user/group
+
+Example Flow:
+1. User requests loan via UI
+2. Protocol creates new vault with:
+   - User as borrower
+   - Protocol operators (fixed set)
+   - Professional liquidators (fixed set)
+3. User deposits collateral to their vault
+4. Operates independently with BitVM verification
 ```
 
-## 🔑 BitVM Integration Details
-
-### Components Used
-```rust
-// From BitVM library
-use bitvm::groth16::{g16, hinted};
-use bitvm::bn254::{fp254impl::Fp254Impl, fq::Fq};
-use bitvm::hash::sha256::sha256;
-use bitvm::signatures::winternitz;
-```
-
-### Script Generation
-| Script Type | Size | Purpose |
-|------------|------|---------|
-| Groth16 Verifier | 530KB | Full SNARK verification |
-| BN254 Operations | 439B | Elliptic curve math |
-| SHA256 Hash | 530KB | State commitments |
-| Winternitz Sigs | Variable | Signature verification |
-
-## 📡 API Endpoints
-
-```bash
-# Garbled Circuits
-POST /api/garbled/evaluate        # Evaluate garbled circuit
-POST /api/garbled/verify          # Verify computation
-
-# BitVM Operations  
-POST /api/groth16/generate-proof  # Generate SNARK proof
-POST /api/groth16/verify          # Verify proof
-GET  /api/bitvm/scripts           # Get verification scripts
-POST /api/bitvm/state-transition  # Verify state changes
-
-# Taproot Operations
-POST /api/taproot/create-vault    # Create Taproot vault
-POST /api/taproot/pre-sign        # Pre-sign transactions
-GET  /api/taproot/get-graph       # Get transaction graph
-```
+This "vault-per-user" model is less capital efficient but maintains Bitcoin's security guarantees.
 
 ## 📦 Project Structure
 
 ```
-├── vault-protocol/              # TypeScript client
-│   ├── core/                   # Protocol logic
-│   ├── crypto/
-│   │   └── GarbledCircuit.ts   # Garbled circuit client
-│   ├── vault/                  # Vault operations
-│   ├── real-bitvm-demo.ts      # BitVM integration demo
-│   ├── taproot-demo.ts         # Taproot demo
-│   └── garbled-demo.ts         # Garbled circuit demo
-│
-├── verification-engine/         # Rust backend
-│   ├── core/
-│   │   ├── protocol.rs         # Core protocol
-│   │   ├── taproot.rs          # Taproot support
-│   │   └── bitvm_protocol.rs   # BitVM integration
-│   ├── crypto/
-│   │   ├── garbled.rs          # Garbled circuits
-│   │   ├── groth16_verifier.rs # SNARK verification
-│   │   └── bitvm_integration.rs # BitVM library usage
-│   └── api/                    # REST endpoints
-│
-└── Makefile                    # Build automation
+vault-protocol/           # TypeScript client demos
+verification-engine/      # Rust BitVM integration  
+contracts/               # EVM smart contracts
 ```
 
+## 🔗 Resources
 
-
-## 📈 Performance & Scale
-
-> **Note**: This implementation prioritizes demonstrating the complete BitVM3 architecture over performance optimization. These metrics are observational data from the demo environment, not optimized benchmarks.
-
-| Component | Metric | Value |
-|-----------|--------|-------|
-| Garbled Circuit Evaluation | < 1ms | 4-6 gates |
-| Groth16 Proof Generation | ~50ms | 256 bytes |
-| BitVM Script Generation | ~100ms | 530KB |
-| Taproot Tree Building | < 1ms | 3 paths |
-| State Update | < 1ms | Merkle root |
-
-## 🔧 Development
-
-```bash
-# Development mode with auto-reload
-make dev
-
-# Run tests
-make test
-
-# Lint and format
-make lint
-make fmt
-
-# Clean build artifacts
-make clean
-```
+- [BitVM GitHub](https://github.com/BitVM/BitVM)
+- [BitVM Whitepaper](https://bitvm.org/bitvm.pdf)
+- [Example Demos](./vault-protocol/src/)
 
 
 
-## 📄 License
-
-MIT

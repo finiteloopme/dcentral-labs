@@ -228,6 +228,16 @@ demo-garbled: ## Run garbled circuit demo
 	@echo "$(BLUE)🔌 Running Garbled Circuit demo...$(NC)"
 	@cd $(PROTOCOL_DIR) && $(NPM) run garbled-demo
 
+.PHONY: demo-lending
+demo-lending: ## Run decentralized lending demo with liquidations
+	@echo "$(BLUE)💰 Running Decentralized Lending demo...$(NC)"
+	@cd $(PROTOCOL_DIR) && $(NPM) run lending-demo
+
+.PHONY: demo-amm
+demo-amm: ## Run AMM liquidity provision demo
+	@echo "$(BLUE)🏊 Running AMM Liquidity demo...$(NC)"
+	@cd $(PROTOCOL_DIR) && $(NPM) run amm-demo
+
 .PHONY: demo-all
 demo-all: ## Run all demos sequentially
 	@echo "$(BLUE)🎯 Running all BitVM3 demos...$(NC)"
@@ -238,6 +248,10 @@ demo-all: ## Run all demos sequentially
 	@make demo-taproot
 	@echo ""
 	@make demo-garbled
+	@echo ""
+	@make demo-lending
+	@echo ""
+	@make demo-amm
 	@echo "$(GREEN)✅ All demos complete!$(NC)"
 
 .PHONY: demo-regtest
