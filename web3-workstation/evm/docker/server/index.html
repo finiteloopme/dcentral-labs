@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1e1e1e;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background: #2d2d30;
+            color: #cccccc;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 400;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ec9b0;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .terminal-container {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        #terminal {
+            width: 100%;
+            height: 100%;
+            max-width: 1400px;
+            background: #1e1e1e;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .footer {
+            background: #2d2d30;
+            color: #808080;
+            padding: 5px 20px;
+            font-size: 12px;
+            text-align: center;
+            border-top: 1px solid #3e3e42;
+        }
+        
+        .shortcuts {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        .shortcut {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .key {
+            background: #3e3e42;
+            color: #cccccc;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔷 OpenCode Terminal</h1>
+        <div class="status">
+            <span class="status-indicator"></span>
+            <span>Connected</span>
+        </div>
+    </div>
+    
+    <div class="terminal-container">
+        <div id="terminal"></div>
+    </div>
+    
+    <div class="footer">
+        <div class="shortcuts">
+            <div class="shortcut">
+                <span class="key">Ctrl+C</span>
+                <span>Copy</span>
+            </div>
+            <div class="shortcut">
+                <span class="key">Ctrl+V</span>
+                <span>Paste</span>
+            </div>
+            <div class="shortcut">
+                <span class="key">Ctrl+D</span>
+                <span>Exit</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
+    <script>
+        // Initialize xterm.js
+        const term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: '"Cascadia Code", "Courier New", monospace',
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#cccccc',
+                cursor: '#cccccc',
+                black: '#000000',
+                red: '#cd3131',
+                green: '#0dbc79',
+                yellow: '#e5e510',
+                blue: '#2472c8',
+                magenta: '#bc3fbc',
+                cyan: '#11a8cd',
+                white: '#e5e5e5',
+                brightBlack: '#666666',
+                brightRed: '#f14c4c',
+                brightGreen: '#23d18b',
+                brightYellow: '#f5f543',
+                brightBlue: '#3b8eea',
+                brightMagenta: '#d670d6',
+                brightCyan: '#29b8db',
+                brightWhite: '#e5e5e5'
+            }
+        });
+
+        // Initialize addons
+        const fitAddon = new FitAddon.FitAddon();
+        const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+        
+        term.loadAddon(fitAddon);
+        term.loadAddon(webLinksAddon);
+        
+        // Open terminal in the container
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'resize',
+                    cols: term.cols,
+                    rows: term.rows
+                }));
+            }
+        });
+
+        // WebSocket connection
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}`);
+        
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            document.querySelector('.status-indicator').style.background = '#4ec9b0';
+            
+            // Send initial terminal size
+            ws.send(JSON.stringify({
+                type: 'resize',
+                cols: term.cols,
+                rows: term.rows
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'output') {
+                term.write(msg.data);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            document.querySelector('.status-indicator').style.background = '#f14c4c';
+            document.querySelector('.status span:last-child').textContent = 'Disconnected';
+            term.write('\r\n\x1b[31mConnection lost. Please refresh the page.\x1b[0m\r\n');
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            term.write('\r\n\x1b[31mConnection error. Please refresh the page.\x1b[0m\r\n');
+        };
+
+        // Handle terminal input
+        term.onData((data) => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'input',
+                    data: data
+                }));
+            }
+        });
+
+        // Handle paste events
+        term.attachCustomKeyEventHandler((event) => {
+            if (event.ctrlKey && event.key === 'v' && event.type === 'keydown') {
+                navigator.clipboard.readText().then(text => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'input',
+                            data: text
+                        }));
+                    }
+                });
+                return false;
+            }
+            return true;
+        });
+
+        // Focus terminal on load
+        term.focus();
+    </script>
+</body>
+</html>

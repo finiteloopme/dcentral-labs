@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars and update with your values
+
+# Required: Your GCP Project ID
+project_id = "your-gcp-project-id"
+
+# Optional: Override default values
+# region                   = "us-central1"
+# zone                     = "us-central1-a"
+# workstation_cluster_name = "web3-workstation-cluster"
+# workstation_config_name  = "web3-dev-config"
+# artifact_registry_repo   = "web3-workstation-images"
+# terraform_state_bucket   = "web3-workstation-terraform-state"
+# network_name             = "workstation-network"
+# subnet_name              = "workstation-subnet"
+# subnet_cidr              = "10.0.0.0/24"
+# machine_type             = "e2-standard-4"
+# boot_disk_size           = 50
+# idle_timeout             = 14400  # 4 hours
+# running_timeout          = 43200  # 12 hours
+
+# API Management
+# disable_apis_on_destroy  = false  # Keep APIs enabled when destroying resources
+# enable_cloudbuild        = true   # Enable Cloud Build integration
+
+# labels = {
+#   environment = "development"
+#   purpose     = "web3-development"
+#   managed_by  = "terraform"
+# }

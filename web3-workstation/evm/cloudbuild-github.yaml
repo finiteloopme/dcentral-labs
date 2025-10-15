@@ -1,0 +1,216 @@
+# Alternative Cloud Build configuration for GitHub repositories
+# Use this file if you're using GitHub instead of Cloud Source Repositories
+
+steps:
+  # Step 1: Clone the repository (for GitHub)
+  - name: 'gcr.io/cloud-builders/git'
+    id: 'clone-repo'
+    args:
+      - 'clone'
+      - 'https://github.com/${_GITHUB_OWNER}/${_GITHUB_REPO}.git'
+      - '.'
+    waitFor: ['-']
+
+  # Step 2: Build container image using Kaniko (rootless, Podman-compatible)
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    id: 'build-image'
+    args:
+      - '--context=dir://docker'
+      - '--dockerfile=docker/Dockerfile'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:${SHORT_SHA}'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:latest'
+      - '--cache=true'
+      - '--cache-ttl=24h'
+      - '--compressed-caching=false'
+      - '--use-new-run'
+      - '--snapshot-mode=redo'
+    waitFor: ['clone-repo']
+    
+  # Step 3: Push image with Git tag (if exists) using Kaniko
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    id: 'push-image-tag'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        if [ -n "${TAG_NAME}" ]; then
+          /kaniko/executor \
+            --context=dir://docker \
+            --dockerfile=docker/Dockerfile \
+            --destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:${TAG_NAME} \
+            --cache=true \
+            --cache-ttl=24h
+          echo "Pushed image with tag: ${TAG_NAME}"
+        else
+          echo "No Git tag found, skipping tagged image push"
+        fi
+    waitFor: ['build-image']
+
+  # Step 6: Generate Terraform variables file
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'generate-tfvars'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cat > terraform/terraform.tfvars <<EOF
+        project_id             = "${PROJECT_ID}"
+        region                 = "${_REGION}"
+        artifact_registry_repo = "${_ARTIFACT_REPO}"
+        terraform_state_bucket = "${_TERRAFORM_STATE_BUCKET}"
+        
+        # Cloud Build metadata
+        labels = {
+          environment = "${_ENVIRONMENT}"
+          purpose     = "web3-development"
+          managed_by  = "terraform"
+          deployed_by = "cloud-build"
+          commit_sha  = "${SHORT_SHA}"
+          build_id    = "${BUILD_ID}"
+          github_repo = "${_GITHUB_REPO}"
+        }
+        EOF
+        
+        echo "Generated terraform.tfvars:"
+        cat terraform/terraform.tfvars
+    waitFor: ['clone-repo']
+
+  # Step 7: Initialize Terraform
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${_TERRAFORM_STATE_BUCKET}" \
+          -backend-config="prefix=terraform/state/${_ENVIRONMENT}" \
+          -reconfigure
+    waitFor: ['generate-tfvars']
+
+  # Step 8: Validate Terraform configuration
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-validate'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform validate
+    waitFor: ['terraform-init']
+
+  # Step 9: Plan Terraform changes
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform plan \
+          -out=tfplan \
+          -var="project_id=${PROJECT_ID}"
+    waitFor: ['terraform-validate', 'build-image']
+
+  # Step 10: Post plan results to GitHub PR (if PR build)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'post-pr-comment'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${_PR_NUMBER}" != "false" ]; then
+          cd terraform
+          PLAN_OUTPUT=$(terraform show -no-color tfplan 2>&1)
+          
+          # Create a comment file
+          cat > /tmp/comment.json <<EOF
+        {
+          "body": "## Terraform Plan Results\\n\\n<details>\\n<summary>Click to expand</summary>\\n\\n\`\`\`\\n${PLAN_OUTPUT}\\n\`\`\`\\n</details>"
+        }
+        EOF
+          
+          # Post comment to GitHub PR (requires GitHub App or PAT setup)
+          echo "Plan output generated. Configure GitHub integration to post comments."
+        else
+          echo "Not a PR build, skipping comment posting"
+        fi
+    waitFor: ['terraform-plan']
+
+  # Step 11: Apply Terraform changes (only on main branch or tags)
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "master" ] || [ -n "${TAG_NAME}" ] || [ "${_FORCE_APPLY}" = "true" ]; then
+          echo "Applying Terraform changes..."
+          cd terraform
+          terraform apply -auto-approve tfplan
+        else
+          echo "Skipping Terraform apply. Only runs on main/master branch, tags, or when FORCE_APPLY is true."
+          echo "Current branch: ${BRANCH_NAME}"
+          echo "Tag: ${TAG_NAME}"
+        fi
+    waitFor: ['terraform-plan']
+
+  # Step 12: Show Terraform outputs
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-output'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        echo "=================================="
+        echo "Deployment Summary:"
+        echo "=================================="
+        echo "Environment: ${_ENVIRONMENT}"
+        echo "Docker Image: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:${SHORT_SHA}"
+        echo "Commit SHA: ${SHORT_SHA}"
+        echo "Build ID: ${BUILD_ID}"
+        echo ""
+        echo "Terraform Outputs:"
+        echo "----------------------------------"
+        terraform output
+        echo "=================================="
+    waitFor: ['terraform-apply']
+
+  # Step 13: Send notification (optional)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'send-notification'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${_SEND_NOTIFICATION}" = "true" ]; then
+          echo "Deployment completed successfully!"
+          echo "Workstation URL: https://console.cloud.google.com/workstations/list?project=${PROJECT_ID}"
+          # Add your notification logic here (Slack, email, etc.)
+        fi
+    waitFor: ['terraform-output']
+
+# Substitutions (default values, can be overridden)
+substitutions:
+  _REGION: 'us-central1'
+  _ARTIFACT_REPO: 'web3-workstation-images'
+  _IMAGE_NAME: 'web3-workstation'
+  _TERRAFORM_STATE_BUCKET: '${PROJECT_ID}-web3-workstation-terraform-state'
+  _ENVIRONMENT: 'development'
+  _FORCE_APPLY: 'false'
+  _GITHUB_OWNER: 'your-github-org'
+  _GITHUB_REPO: 'web3-workstation'
+  _PR_NUMBER: 'false'
+  _SEND_NOTIFICATION: 'false'
+
+# Build configuration
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_STANDARD_4'
+  substitutionOption: 'ALLOW_LOOSE'
+  dynamicSubstitutions: true
+
+# Build timeout
+timeout: '3600s'

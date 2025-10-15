@@ -1,0 +1,137 @@
+steps:
+  # Step 1: Build container image using Kaniko (Podman-compatible, rootless builder)
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    id: 'build-image'
+    args:
+      - '--context=dir://docker'
+      - '--dockerfile=docker/Dockerfile'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:${SHORT_SHA}'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_ARTIFACT_REPO}/${_IMAGE_NAME}:latest'
+      - '--cache=true'
+      - '--cache-ttl=24h'
+      - '--compressed-caching=false'
+      - '--use-new-run'
+      - '--snapshot-mode=redo'
+    waitFor: ['-']
+
+  # Step 4: Generate Terraform variables file
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'generate-tfvars'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cat > terraform/terraform.tfvars <<EOF
+        project_id             = "${PROJECT_ID}"
+        region                 = "${_REGION}"
+        artifact_registry_repo = "${_ARTIFACT_REPO}"
+        terraform_state_bucket = "${_TERRAFORM_STATE_BUCKET}"
+        
+        # Cloud Build metadata
+        labels = {
+          environment = "${_ENVIRONMENT}"
+          purpose     = "web3-development"
+          managed_by  = "terraform"
+          deployed_by = "cloud-build"
+          commit_sha  = "${SHORT_SHA}"
+          build_id    = "${BUILD_ID}"
+        }
+        EOF
+        
+        echo "Generated terraform.tfvars:"
+        cat terraform/terraform.tfvars
+    waitFor: ['-']
+
+  # Step 5: Initialize Terraform
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${_TERRAFORM_STATE_BUCKET}" \
+          -backend-config="prefix=terraform/state" \
+          -reconfigure
+    waitFor: ['generate-tfvars']
+
+  # Step 6: Validate Terraform configuration
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-validate'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform validate
+    waitFor: ['terraform-init']
+
+  # Step 7: Plan Terraform changes
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform plan \
+          -out=tfplan \
+          -var="project_id=${PROJECT_ID}"
+    waitFor: ['terraform-validate', 'build-image']
+
+  # Step 8: Apply Terraform changes (only on main branch)
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "master" ] || [ "${_FORCE_APPLY}" = "true" ]; then
+          echo "Applying Terraform changes..."
+          cd terraform
+          terraform apply -auto-approve tfplan
+        else
+          echo "Skipping Terraform apply. Only runs on main/master branch or when FORCE_APPLY is true."
+          echo "Current branch: ${BRANCH_NAME}"
+        fi
+    waitFor: ['terraform-plan']
+
+  # Step 9: Show Terraform outputs
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'terraform-output'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        echo "=================================="
+        echo "Terraform Outputs:"
+        echo "=================================="
+        terraform output
+    waitFor: ['terraform-apply']
+
+# Substitutions (default values, can be overridden)
+substitutions:
+  _REGION: 'us-central1'
+  _ARTIFACT_REPO: 'web3-workstation-images'
+  _IMAGE_NAME: 'web3-workstation'
+  _TERRAFORM_STATE_BUCKET: '${PROJECT_ID}-web3-workstation-terraform-state'
+  _ENVIRONMENT: 'development'
+  _FORCE_APPLY: 'false'
+
+# Build configuration
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_STANDARD_4'
+  substitutionOption: 'ALLOW_LOOSE'
+
+# Build timeout
+timeout: '3600s'
+
+# Required IAM permissions for Cloud Build service account:
+# - roles/artifactregistry.writer (push Docker images)
+# - roles/storage.admin (manage Terraform state)
+# - roles/compute.admin (manage VPC resources)
+# - roles/workstations.admin (manage workstation resources)
+# - roles/iam.serviceAccountUser (create resources)

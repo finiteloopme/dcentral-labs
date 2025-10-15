@@ -1,0 +1,14 @@
+{
+  "name": "opencode-web-terminal",
+  "version": "1.0.0",
+  "description": "Web-based terminal for opencode TUI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-pty": "^1.0.0",
+    "ws": "^8.14.2"
+  }
+}
