@@ -1,0 +1,20 @@
+# Deterministic Build Configuration for Reproducible MRTD
+
+[build]
+# Use a single codegen unit for deterministic output
+# Note: Removed conflicting flags (embed-bitcode with lto)
+rustflags = [
+    "-C", "codegen-units=1",
+    "-C", "opt-level=3",
+    "-C", "debuginfo=0",
+    "-C", "overflow-checks=no",
+    "-C", "link-arg=-Wl,--build-id=none",
+    "-C", "link-arg=-Wl,--hash-style=gnu",
+]
+
+# Profile for deterministic builds (use with --profile release-deterministic)
+# This is in Cargo.toml, not here
+
+[env]
+# Set SOURCE_DATE_EPOCH for reproducible timestamps
+SOURCE_DATE_EPOCH = "1700000000"

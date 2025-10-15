@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "shared",
+    "server", 
+    "client"
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.release-deterministic]
+inherits = "release"
+codegen-units = 1
+lto = true
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+panic = "abort"
+incremental = false
+rpath = false
+strip = true
