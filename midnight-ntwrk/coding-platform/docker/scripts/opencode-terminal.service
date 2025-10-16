@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenCode AI Web Terminal
+After=network.target
+
+[Service]
+Type=simple
+# User will be determined at runtime
+WorkingDirectory=/opt/opencode-terminal
+Environment="WORKSPACE=/workspace"
+Environment="TERMINAL_PORT=7681"
+ExecStart=/usr/bin/node /opt/opencode-terminal/web-terminal.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

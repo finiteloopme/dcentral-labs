@@ -1,0 +1,70 @@
+#!/bin/bash
+# Midnight Development Platform - Terminal Profile
+
+# Set up the prompt
+export PS1='\[\033[01;32m\]midnight\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ '
+
+# Set terminal title
+echo -ne "\033]0;Midnight Development Platform\007"
+
+# Aliases
+alias ll='ls -la'
+alias cls='clear'
+alias opencode='opencode-ai'
+alias workspace='cd /workspace'
+alias templates='cd /workspace/templates'
+alias projects='cd /workspace/projects'
+
+# Functions
+midnight() {
+    if [ -f /usr/local/bin/midnight ]; then
+        /usr/local/bin/midnight "$@"
+    else
+        echo "Midnight CLI not found. Initializing..."
+        /etc/workstation-startup.d/200_midnight_setup.sh
+        /usr/local/bin/midnight "$@"
+    fi
+}
+
+# Helper function to create and navigate to a new project
+new-project() {
+    if [ -z "$1" ]; then
+        echo "Usage: new-project <project-name>"
+        return 1
+    fi
+    midnight new "$1" && cd "/workspace/projects/$1"
+}
+
+# Show help
+help() {
+    echo "Midnight Development Platform - Help"
+    echo "===================================="
+    echo ""
+    echo "Commands:"
+    echo "  opencode-ai          - Launch AI code assistant"
+    echo "  midnight new <name>  - Create new DApp project"
+    echo "  midnight compile     - Compile Compact contracts"
+    echo "  midnight test        - Run tests"
+    echo "  midnight prove       - Generate ZK proofs"
+    echo "  midnight deploy      - Deploy to testnet"
+    echo ""
+    echo "Shortcuts:"
+    echo "  workspace           - Go to /workspace"
+    echo "  templates           - Go to templates directory"
+    echo "  projects            - Go to projects directory"
+    echo "  new-project <name>  - Create and navigate to new project"
+    echo ""
+    echo "Tools:"
+    echo "  compactc            - Midnight Compact compiler"
+    echo "  prove               - Proof generator"
+    echo "  npm, node           - JavaScript tools"
+    echo "  git                 - Version control"
+}
+
+# Set working directory
+cd /workspace
+
+# Export functions
+export -f midnight
+export -f new-project
+export -f help

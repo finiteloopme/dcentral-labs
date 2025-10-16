@@ -1,0 +1,121 @@
+// Midnight Basic Token Contract
+// This is a simple ERC20-like token implementation for Midnight Network
+
+contract Token {
+    // Token metadata
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+    uint256 public totalSupply;
+    
+    // Balances mapping
+    mapping(address => uint256) private balances;
+    
+    // Allowances mapping
+    mapping(address => mapping(address => uint256)) private allowances;
+    
+    // Events
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Mint(address indexed to, uint256 value);
+    event Burn(address indexed from, uint256 value);
+    
+    // Constructor
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals,
+        uint256 _initialSupply
+    ) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+        totalSupply = _initialSupply;
+        balances[msg.sender] = _initialSupply;
+        
+        emit Transfer(address(0), msg.sender, _initialSupply);
+    }
+    
+    // Get balance of an account
+    function balanceOf(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    // Transfer tokens
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(to != address(0), "Transfer to zero address");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    // Transfer tokens from another account
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public returns (bool) {
+        require(from != address(0), "Transfer from zero address");
+        require(to != address(0), "Transfer to zero address");
+        require(balances[from] >= amount, "Insufficient balance");
+        require(allowances[from][msg.sender] >= amount, "Insufficient allowance");
+        
+        balances[from] -= amount;
+        balances[to] += amount;
+        allowances[from][msg.sender] -= amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    // Approve spending
+    function approve(address spender, uint256 amount) public returns (bool) {
+        require(spender != address(0), "Approve to zero address");
+        
+        allowances[msg.sender][spender] = amount;
+        
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    // Get allowance
+    function allowance(address owner, address spender) public view returns (uint256) {
+        return allowances[owner][spender];
+    }
+    
+    // Mint new tokens (only owner)
+    function mint(address to, uint256 amount) public onlyOwner returns (bool) {
+        require(to != address(0), "Mint to zero address");
+        
+        totalSupply += amount;
+        balances[to] += amount;
+        
+        emit Mint(to, amount);
+        emit Transfer(address(0), to, amount);
+        return true;
+    }
+    
+    // Burn tokens
+    function burn(uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+        totalSupply -= amount;
+        
+        emit Burn(msg.sender, amount);
+        emit Transfer(msg.sender, address(0), amount);
+        return true;
+    }
+    
+    // Modifier for owner-only functions
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not authorized");
+        _;
+    }
+    
+    address private owner;
+}

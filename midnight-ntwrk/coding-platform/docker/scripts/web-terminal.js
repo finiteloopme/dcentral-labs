@@ -166,6 +166,84 @@ app.get('/vscode', (req, res) => {
     });
 });
 
+// Debug terminal page
+app.get('/debug', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    <style>
+        body { margin: 0; padding: 20px; background: #1e1e1e; color: white; font-family: monospace; }
+        #terminal { height: 400px; }
+        #status { margin: 10px 0; }
+        #log { background: #333; padding: 10px; margin-top: 10px; height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Terminal Debug Test</h1>
+    <div id="status">Status: <span id="status-text">Initializing...</span></div>
+    <div id="terminal"></div>
+    <div id="log"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script>
+        const log = (msg) => {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += msg + '<br>';
+            console.log(msg);
+        };
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            log('DOM loaded');
+            log('window.Terminal available: ' + (typeof window.Terminal !== 'undefined'));
+            
+            if (!window.Terminal) {
+                log('ERROR: Terminal not loaded!');
+                return;
+            }
+            
+            try {
+                log('Creating terminal...');
+                const term = new window.Terminal();
+                log('Opening terminal in DOM...');
+                term.open(document.getElementById('terminal'));
+                
+                log('Creating WebSocket to: ws://' + window.location.host + '/terminal');
+                const ws = new WebSocket('ws://' + window.location.host + '/terminal');
+                
+                ws.onopen = () => {
+                    log('WebSocket connected!');
+                    document.getElementById('status-text').textContent = 'Connected';
+                };
+                
+                ws.onmessage = (event) => {
+                    term.write(event.data);
+                };
+                
+                ws.onerror = (error) => {
+                    log('WebSocket error');
+                };
+                
+                ws.onclose = () => {
+                    log('WebSocket closed');
+                };
+                
+                term.onData((data) => {
+                    ws.send(data);
+                });
+                
+            } catch (e) {
+                log('ERROR: ' + e.message);
+            }
+        });
+    </script>
+</body>
+</html>
+    `);
+});
+
 // Landing page with service links
 app.get('/services', (req, res) => {
     res.send(`
@@ -405,8 +483,19 @@ app.get('/', (req, res) => {
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.js"></script>
     <script>
-        const term = new Terminal({
-            cursorBlink: true,
+        // Wait for libraries to load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Initializing terminal...');
+            
+            // Check if libraries are loaded
+            if (!window.Terminal) {
+                console.error('Terminal library not loaded!');
+                document.getElementById('status-text').textContent = 'Error: Terminal library not loaded';
+                return;
+            }
+            
+            const term = new window.Terminal({
+                cursorBlink: true,
             fontSize: 14,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             allowTransparency: true,
@@ -437,16 +526,17 @@ app.get('/', (req, res) => {
             }
         });
         
-        const fitAddon = new AddonFit.FitAddon();
-        const webLinksAddon = new AddonWebLinks.WebLinksAddon();
-        const searchAddon = new AddonSearch.SearchAddon();
+        // Check for addons and create them if available
+        const fitAddon = window.FitAddon ? new window.FitAddon.FitAddon() : null;
+        const webLinksAddon = window.WebLinksAddon ? new window.WebLinksAddon.WebLinksAddon() : null;
+        const searchAddon = window.SearchAddon ? new window.SearchAddon.SearchAddon() : null;
         
-        term.loadAddon(fitAddon);
-        term.loadAddon(webLinksAddon);
-        term.loadAddon(searchAddon);
+        if (fitAddon) term.loadAddon(fitAddon);
+        if (webLinksAddon) term.loadAddon(webLinksAddon);
+        if (searchAddon) term.loadAddon(searchAddon);
         
         term.open(document.getElementById('terminal'));
-        fitAddon.fit();
+        if (fitAddon) fitAddon.fit();
         
         // WebSocket connection - fix for proper WebSocket URL
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -482,7 +572,7 @@ app.get('/', (req, res) => {
         
         // Resize handling
         window.addEventListener('resize', () => {
-            fitAddon.fit();
+            if (fitAddon) fitAddon.fit();
         });
         
         // Control functions
@@ -505,6 +595,10 @@ app.get('/', (req, res) => {
         }
         
         function searchTerminal() {
+            if (!searchAddon) {
+                alert('Search addon not loaded');
+                return;
+            }
             const searchTerm = prompt('Search for:');
             if (searchTerm) {
                 searchAddon.findNext(searchTerm, {
@@ -528,6 +622,7 @@ app.get('/', (req, res) => {
                 clearTerminal();
             }
         });
+        }); // End of DOMContentLoaded
     </script>
 </body>
 </html>
