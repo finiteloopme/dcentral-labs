@@ -1,0 +1,86 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Container runtime (Docker/Podman)
+.dockerignore
+.containerignore
+*.tar
+*.tar.gz
+*.oci
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+build/
+dist/
+proofs/
+*.proof
+*.json.compiled
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+service-account.json
+credentials.json
+
+# Backup files
+*.backup
+*.bak
+
+# GCP specific
+gcloud/
+.gcloudignore
+
+
+# Misc
+PROMPT.md
+TEST.md
+WHY.md
