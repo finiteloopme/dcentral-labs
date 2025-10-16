@@ -230,16 +230,32 @@ Access points when running locally:
 - **Proof Service API**: http://localhost:8080 (ZK proof generation)
 - **DApp Server**: http://localhost:3000 (When running)
 
-You can also use custom ports:
+You can also use custom ports or external services:
 ```bash
 # Run with custom ports
 APP_PORT=3001 PROOF_PORT=8081 make run-local
+
+# Use external proof service instead of local mock
+PROOF_SERVICE_URL=https://proof-api.midnight.network make run-local
 
 # Or use the script directly
 ./scripts/run-local.sh
 
 # Run specific image version
 ./scripts/run-local.sh midnight-workstation v1.0
+```
+
+#### Using External Proof Service
+
+By default, the platform runs a mock proof service for development. To use an external proof service:
+
+```bash
+# Set the environment variable when running locally
+PROOF_SERVICE_URL=https://your-proof-service.com make run-local
+
+# Or in production workstations, set it in the container configuration
+gcloud workstations configs update midnight-config \
+    --env=PROOF_SERVICE_URL=https://your-proof-service.com
 ```
 
 Manual container run (if needed):

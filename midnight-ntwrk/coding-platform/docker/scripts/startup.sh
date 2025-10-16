@@ -98,9 +98,19 @@ git config --global user.name "Midnight Developer"
 git config --global user.email "developer@midnight.network"
 git config --global init.defaultBranch main
 
-# Initialize proof service mock (runs in background)
+# Configure proof service
+# If PROOF_SERVICE_URL is set, use external service; otherwise start local mock
+PROOF_SERVICE_URL="${PROOF_SERVICE_URL:-}"
 PROOF_PORT="${PROOF_PORT:-8080}"
-cat > /tmp/proof-service.js <<EOF
+
+if [ -n "$PROOF_SERVICE_URL" ]; then
+    echo "✓ Using external proof service: $PROOF_SERVICE_URL"
+    # Export for use by other services
+    export PROOF_SERVICE_URL
+else
+    echo "Starting local mock proof service..."
+    # Initialize proof service mock (runs in background)
+    cat > /tmp/proof-service.js <<EOF
 const http = require('http');
 const url = require('url');
 const PORT = ${PROOF_PORT};
@@ -161,14 +171,17 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 EOF
 
-# Start the proof service in background
-echo "Starting proof service on port $PROOF_PORT..."
-nohup node /tmp/proof-service.js > /var/log/proof-service.log 2>&1 &
-sleep 1
-if pgrep -f "node /tmp/proof-service.js" > /dev/null; then
-    echo "✓ Proof service running on port $PROOF_PORT"
-else
-    echo "⚠ Proof service failed to start. Check /var/log/proof-service.log"
+    # Start the proof service in background
+    echo "Starting proof service on port $PROOF_PORT..."
+    nohup node /tmp/proof-service.js > /var/log/proof-service.log 2>&1 &
+    sleep 1
+    if pgrep -f "node /tmp/proof-service.js" > /dev/null; then
+        echo "✓ Proof service running on port $PROOF_PORT"
+        # Set the URL for local service
+        export PROOF_SERVICE_URL="http://localhost:$PROOF_PORT"
+    else
+        echo "⚠ Proof service failed to start. Check /var/log/proof-service.log"
+    fi
 fi
 
 # Create initial workspace structure if not exists

@@ -349,11 +349,11 @@ app.get('/services', (req, res) => {
                 <div class="service-url">http://localhost:7681/vscode</div>
             </a>
             
-            <a href="http://localhost:8080/health" target="_blank" class="service-card">
+            <a href="${process.env.PROOF_SERVICE_URL || 'http://localhost:8080'}/health" target="_blank" class="service-card">
                 <div class="service-icon">🔐</div>
                 <div class="service-title">Proof Service</div>
                 <div class="service-desc">Zero-knowledge proof generation and verification API</div>
-                <div class="service-url">http://localhost:8080</div>
+                <div class="service-url">${process.env.PROOF_SERVICE_URL || 'http://localhost:8080'}</div>
             </a>
             
             <a href="http://localhost:3000" target="_blank" class="service-card">

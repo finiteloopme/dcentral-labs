@@ -184,6 +184,10 @@ RUN chmod +x /opt/midnight/bin/prove
 # Add Midnight tools to PATH
 ENV PATH="/opt/midnight/bin:${PATH}"
 
+# Proof service configuration (can be overridden at runtime)
+ENV PROOF_SERVICE_URL=""
+ENV PROOF_PORT="8080"
+
 # Create workspace directories
 RUN mkdir -p /workspace/templates && \
     mkdir -p /workspace/projects && \

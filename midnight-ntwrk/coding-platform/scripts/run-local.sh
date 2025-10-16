@@ -7,16 +7,27 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
+# Load environment variables from .env file if it exists
+if [ -f "${SCRIPT_DIR}/../.env" ]; then
+    log_info "Loading configuration from .env file"
+    set -a
+    source "${SCRIPT_DIR}/../.env"
+    set +a
+fi
+
 # Configuration
-IMAGE_NAME="${1:-midnight-workstation}"
-IMAGE_TAG="${2:-latest}"
-CONTAINER_NAME="midnight-local"
+IMAGE_NAME="${1:-${IMAGE_NAME:-midnight-workstation}}"
+IMAGE_TAG="${2:-${IMAGE_TAG:-latest}}"
+CONTAINER_NAME="${CONTAINER_NAME:-midnight-local}"
 
 # Port configuration
 APP_PORT="${APP_PORT:-3000}"
 PROOF_PORT="${PROOF_PORT:-8080}"
 CODE_PORT="${CODE_PORT:-8443}"
 TERMINAL_PORT="${TERMINAL_PORT:-7681}"
+
+# External services
+PROOF_SERVICE_URL="${PROOF_SERVICE_URL:-}"
 
 # Check if container is already running
 check_running() {
@@ -90,7 +101,7 @@ run_container() {
             --network=host \
             -v "${SCRIPT_DIR}/../docker/templates:/workspace/templates${vol_flags}" \
             -e "MIDNIGHT_ENV=local" \
-            -e "PROOF_SERVICE_URL=http://localhost:8080" \
+            -e "PROOF_SERVICE_URL=${PROOF_SERVICE_URL:-}" \
             -e "TERMINAL_PORT=${TERMINAL_PORT}" \
             -e "APP_PORT=${APP_PORT}" \
             -e "PROOF_PORT=${PROOF_PORT}" \
@@ -103,7 +114,7 @@ run_container() {
             --network=host \
             -v "${SCRIPT_DIR}/../docker/templates:/workspace/templates${vol_flags}" \
             -e "MIDNIGHT_ENV=local" \
-            -e "PROOF_SERVICE_URL=http://localhost:8080" \
+            -e "PROOF_SERVICE_URL=${PROOF_SERVICE_URL:-}" \
             -e "TERMINAL_PORT=${TERMINAL_PORT}" \
             -e "APP_PORT=${APP_PORT}" \
             -e "PROOF_PORT=${PROOF_PORT}" \
@@ -144,9 +155,10 @@ Run container locally for testing
 Usage: $0 [IMAGE_NAME] [IMAGE_TAG]
 
 Environment Variables:
-  APP_PORT    - Local port for DApp (default: 3000)
-  PROOF_PORT  - Local port for proof service (default: 8080)
-  CODE_PORT   - Local port for VS Code (default: 8443)
+  APP_PORT          - Local port for DApp (default: 3000)
+  PROOF_PORT        - Local port for proof service (default: 8080)
+  CODE_PORT         - Local port for VS Code (default: 8443)
+  PROOF_SERVICE_URL - External proof service URL (optional, uses local mock if not set)
 
 Examples:
   # Run with defaults
@@ -157,6 +169,9 @@ Examples:
 
   # Run with custom ports
   APP_PORT=3001 PROOF_PORT=8081 $0
+  
+  # Use external proof service
+  PROOF_SERVICE_URL=https://proof-api.midnight.network $0
 EOF
     exit 0
 fi
