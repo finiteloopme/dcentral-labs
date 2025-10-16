@@ -847,7 +847,10 @@ exec bash --login
         env: Object.assign({}, process.env, {
             COLORTERM: 'truecolor',
             TERM: 'xterm-256color',
-            PS1: '\\[\\033[01;32m\\]midnight\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]$ '
+            PS1: '\\[\\033[01;32m\\]midnight\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]$ ',
+            EDITOR: 'nano',
+            BROWSER: 'none',
+            OPENCODE_NO_VSCODE: '1'
         })
     });
 
@@ -879,15 +882,23 @@ exec bash --login
 
 // WebSocket for OpenCode AI
 app.ws('/opencode-ws', (ws, req) => {
-    // Spawn opencode-ai directly
-    const ptyProcess = pty.spawn('opencode-ai', [], {
+    // Try to find opencode command (could be opencode or opencode-ai)
+    const opencodeCmd = require('fs').existsSync('/usr/bin/opencode') ? 'opencode' : 
+                       require('fs').existsSync('/usr/bin/opencode-ai') ? 'opencode-ai' : 
+                       'opencode';
+    
+    // Spawn opencode with environment to prevent external editor launches
+    const ptyProcess = pty.spawn(opencodeCmd, [], {
         name: 'xterm-color',
         cols: 80,
         rows: 30,
         cwd: process.env.WORKSPACE || '/workspace',
         env: Object.assign({}, process.env, {
             COLORTERM: 'truecolor',
-            TERM: 'xterm-256color'
+            TERM: 'xterm-256color',
+            EDITOR: 'nano',
+            BROWSER: 'none',
+            OPENCODE_NO_VSCODE: '1'
         })
     });
 
