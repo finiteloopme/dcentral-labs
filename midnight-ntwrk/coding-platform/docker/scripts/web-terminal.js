@@ -850,7 +850,9 @@ exec bash --login
             PS1: '\\[\\033[01;32m\\]midnight\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]$ ',
             EDITOR: 'nano',
             BROWSER: 'none',
-            OPENCODE_NO_VSCODE: '1'
+            OPENCODE_NO_VSCODE: '1',
+            OPENCODE_OPENEDITOR: 'false',
+            OPENCODE_NOEDITOR: 'true'
         })
     });
 
@@ -898,7 +900,9 @@ app.ws('/opencode-ws', (ws, req) => {
             TERM: 'xterm-256color',
             EDITOR: 'nano',
             BROWSER: 'none',
-            OPENCODE_NO_VSCODE: '1'
+            OPENCODE_NO_VSCODE: '1',
+            OPENCODE_OPENEDITOR: 'false',
+            OPENCODE_NOEDITOR: 'true'
         })
     });
 
