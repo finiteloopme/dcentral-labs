@@ -5,8 +5,8 @@ A cloud-native development platform for building privacy-preserving DApps on Mid
 ## 🚀 Features
 
 - **Zero Local Setup**: Browser-based development environment
-- **Pre-configured Tools**: Midnight compiler, proof generator, and development tools
-- **AI Code Assistant**: OpenCode AI with modern web terminal interface (@xterm/xterm)
+- **Pre-configured Tools**: Midnight compiler, proof generator, Compact language support
+- **Multi-Model AI Assistant**: OpenCode with Claude Opus 4.1 & Gemini 2.5 via Vertex AI
 - **Quick Start Template**: Basic token DApp template ready to deploy
 - **Integrated Proof Service**: Generate and verify zero-knowledge proofs
 - **Cloud-Native**: Fully managed infrastructure on Google Cloud Platform
@@ -381,6 +381,9 @@ Then access:
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICK_START.md) - Get up and running in 10 minutes
+- [Configuration Guide](docs/CONFIGURATION.md) - Complete configuration reference
+- [Compact Development](docs/COMPACT_DEVELOPMENT.md) - Developing with Midnight's Compact language
+- [Vertex AI Setup](docs/VERTEX_AI_SETUP.md) - Configure OpenCode with multiple LLMs
 - [Architecture Overview](docs/ARCHITECTURE.md) - System design and components
 - [API Documentation](docs/API.md) - Proof service API reference
 - [Workstation Management](docs/WORKSTATION_MANAGEMENT.md) - Complete workstation control guide

@@ -50,3 +50,25 @@ variable "state_bucket_location" {
   type        = string
   default     = "US"
 }
+
+variable "proof_service_url" {
+  description = "External proof service URL (optional, uses local mock if not set)"
+  type        = string
+  default     = ""
+}
+
+variable "proof_service_config" {
+  description = "Proof service configuration"
+  type = object({
+    enabled      = bool
+    url          = string
+    port         = number
+    api_key      = string
+  })
+  default = {
+    enabled      = false
+    url          = ""
+    port         = 8080
+    api_key      = ""
+  }
+}

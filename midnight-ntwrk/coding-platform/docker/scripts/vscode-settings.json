@@ -1,0 +1,45 @@
+{
+  "files.associations": {
+    "*.compact": "compact",
+    "*.zk": "compact"
+  },
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "editor.rulers": [80, 120],
+  "editor.wordWrap": "on",
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.fontFamily": "Fira Code, monospace",
+  "workbench.colorTheme": "Default Dark+",
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "extensions.autoUpdate": true,
+  "[compact]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "editor.autoIndent": "full",
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    }
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "midnight.compact": {
+    "formatOnSave": true,
+    "lintOnSave": true,
+    "compiler": {
+      "path": "/opt/midnight/bin/compactc",
+      "outputDir": "build"
+    }
+  }
+}

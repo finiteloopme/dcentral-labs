@@ -64,7 +64,9 @@ module "workstations" {
   subnet_id    = module.networking.subnet_id
   registry_url = module.registry.registry_url
   
-  workstation_config = var.workstation_config
+  workstation_config    = var.workstation_config
+  proof_service_url     = var.proof_service_url
+  proof_service_config  = var.proof_service_config
   
   depends_on = [
     google_project_service.apis,

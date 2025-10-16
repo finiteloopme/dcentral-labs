@@ -32,6 +32,14 @@ help:
 	@echo "  clean      - Clean local artifacts"
 	@echo "  destroy    - Destroy infrastructure"
 	@echo ""
+	@echo "Docker Compose Commands:"
+	@echo "  compose-up      - Start services with docker-compose"
+	@echo "  compose-down    - Stop services"
+	@echo "  compose-logs    - View service logs"
+	@echo "  compose-ps      - List services"
+	@echo "  compose-build   - Build service images"
+	@echo "  compose-restart - Restart services"
+	@echo ""
 	@echo "Workstation Commands:"
 	@echo "  workstation    - Show workstation management help"
 	@echo "  list           - List all workstations"
@@ -76,6 +84,33 @@ status:
 # Run container locally for testing
 run-local:
 	@./scripts/run-local.sh
+
+# Docker Compose commands
+compose-up:
+	@echo "Starting services with docker-compose..."
+	@cd docker && $(CONTAINER_RUNTIME)-compose up -d
+	@echo "Services started. Access at:"
+	@echo "  • Web Terminal: http://localhost:7681"
+	@echo "  • VS Code: http://localhost:8443"
+	@echo "  • Services Dashboard: http://localhost:7681/services"
+
+compose-down:
+	@echo "Stopping services..."
+	@cd docker && $(CONTAINER_RUNTIME)-compose down
+
+compose-logs:
+	@cd docker && $(CONTAINER_RUNTIME)-compose logs -f
+
+compose-ps:
+	@cd docker && $(CONTAINER_RUNTIME)-compose ps
+
+compose-build:
+	@echo "Building images..."
+	@cd docker && $(CONTAINER_RUNTIME)-compose build
+
+compose-restart:
+	@echo "Restarting services..."
+	@cd docker && $(CONTAINER_RUNTIME)-compose restart
 
 # Clean artifacts
 clean:

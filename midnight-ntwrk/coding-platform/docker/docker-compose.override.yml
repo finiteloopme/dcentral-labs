@@ -1,0 +1,30 @@
+# Development overrides for docker-compose
+# This file is automatically loaded by docker-compose
+# Use for local development settings
+
+version: '3.8'
+
+services:
+  workstation:
+    # Development-specific settings
+    environment:
+      # Enable debug logging
+      DEBUG: "true"
+      NODE_ENV: development
+      
+    # Mount source code for live editing
+    volumes:
+      # Mount the entire project for development
+      - ..:/workspace/midnight-platform:cached
+      # Mount docker directory for testing changes
+      - .:/workspace/docker:cached
+      # Mount scripts for testing
+      - ../scripts:/workspace/scripts:cached
+      
+    # Expose additional ports for debugging
+    ports:
+      # Node.js debugger
+      - "9229:9229"
+      # Additional development ports
+      - "4000:4000"
+      - "5000:5000"

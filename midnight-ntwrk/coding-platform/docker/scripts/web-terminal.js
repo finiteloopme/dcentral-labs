@@ -13,6 +13,7 @@ const http = require('http');
 const app = express();
 const server = http.createServer(app);
 const expressWs = require('express-ws')(app, server);
+let wsReady = true; // Track WebSocket readiness
 
 const PORT = process.env.TERMINAL_PORT || 7681;
 
@@ -242,6 +243,45 @@ app.get('/debug', (req, res) => {
 </body>
 </html>
     `);
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    const health = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        services: {
+            'web-terminal': 'running',
+            'websocket': 'running',
+            'opencode': 'available'
+        }
+    };
+    res.json(health);
+});
+
+// Readiness check endpoint
+app.get('/ready', (req, res) => {
+    // Check if all required services are ready
+    const ready = {
+        ready: true,
+        checks: {
+            'express': true,
+            'websocket': wsReady,
+            'terminal': true
+        }
+    };
+    
+    if (!ready.checks.websocket) {
+        ready.ready = false;
+    }
+    
+    res.status(ready.ready ? 200 : 503).json(ready);
+});
+
+// Liveness check endpoint
+app.get('/live', (req, res) => {
+    res.status(200).json({ alive: true });
 });
 
 // Landing page with service links
@@ -544,9 +584,40 @@ app.get('/', (req, res) => {
         console.log('Connecting to WebSocket:', wsUrl);
         const ws = new WebSocket(wsUrl);
         
+        // Add connection state monitoring
+        let connectionCheckInterval = setInterval(() => {
+            const statusEl = document.getElementById('status-text');
+            if (!statusEl) return;
+            
+            switch (ws.readyState) {
+                case WebSocket.CONNECTING:
+                    statusEl.textContent = 'Connecting...';
+                    statusEl.style.color = '#ffc107';
+                    break;
+                case WebSocket.OPEN:
+                    statusEl.textContent = 'Connected';
+                    statusEl.style.color = '#28a745';
+                    clearInterval(connectionCheckInterval);
+                    break;
+                case WebSocket.CLOSING:
+                    statusEl.textContent = 'Closing...';
+                    statusEl.style.color = '#ffc107';
+                    break;
+                case WebSocket.CLOSED:
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.style.color = '#dc3545';
+                    clearInterval(connectionCheckInterval);
+                    break;
+            }
+        }, 500);
+        
         ws.onopen = () => {
             console.log('WebSocket connected');
-            document.getElementById('status-text').textContent = 'Connected';
+            const statusEl = document.getElementById('status-text');
+            if (statusEl) {
+                statusEl.textContent = 'Connected';
+                statusEl.style.color = '#28a745';
+            }
             term.writeln('\\x1b[1;32mConnecting to Midnight Development Platform...\\x1b[0m');
             term.writeln('');
             term.focus();
@@ -556,14 +627,24 @@ app.get('/', (req, res) => {
             term.write(event.data);
         };
         
-        ws.onclose = () => {
-            document.getElementById('status-text').textContent = 'Disconnected';
+        ws.onclose = (event) => {
+            console.log('WebSocket closed:', event.code, event.reason);
+            const statusEl = document.getElementById('status-text');
+            if (statusEl) {
+                statusEl.textContent = 'Disconnected';
+                statusEl.style.color = '#dc3545';
+            }
             term.write('\\r\\n\\r\\n[Connection closed]\\r\\n');
         };
         
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
-            document.getElementById('status-text').textContent = 'Error';
+            const statusEl = document.getElementById('status-text');
+            if (statusEl) {
+                statusEl.textContent = 'Connection Error';
+                statusEl.style.color = '#dc3545';
+            }
+            term.writeln('\\r\\n\\x1b[1;31mConnection error. Please refresh the page.\\x1b[0m');
         };
         
         term.onData((data) => {
@@ -773,6 +854,7 @@ app.get('/opencode', (req, res) => {
         const ws = new WebSocket(protocol + '//' + window.location.host + '/opencode-ws');
         
         ws.onopen = () => {
+            console.log('OpenCode WebSocket connected');
             term.writeln('\\x1b[1;32mStarting OpenCode AI Assistant...\\x1b[0m');
             term.writeln('');
             term.focus();
@@ -782,8 +864,17 @@ app.get('/opencode', (req, res) => {
             term.write(event.data);
         };
         
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+            console.log('OpenCode WebSocket closed:', event.code, event.reason);
             term.write('\\r\\n\\r\\n[OpenCode session ended]\\r\\n');
+            if (event.code !== 1000) {
+                term.writeln('\\x1b[1;33mTip: If OpenCode is not installed, run: npm install -g opencode-ai\\x1b[0m');
+            }
+        };
+        
+        ws.onerror = (error) => {
+            console.error('OpenCode WebSocket error:', error);
+            term.writeln('\\r\\n\\x1b[1;31mConnection error. Please check if the service is running.\\x1b[0m');
         };
         
         term.onData((data) => {
@@ -896,67 +987,101 @@ exec bash --login
 
 // WebSocket for OpenCode AI
 app.ws('/opencode-ws', (ws, req) => {
-    // Try to find opencode command (could be opencode or opencode-ai)
-    const opencodeCmd = require('fs').existsSync('/usr/bin/opencode') ? 'opencode' : 
-                       require('fs').existsSync('/usr/bin/opencode-ai') ? 'opencode-ai' : 
-                       'opencode';
+    // Try to find opencode command - check multiple locations
+    const fs = require('fs');
+    let opencodeCmd = null;
+    
+    // Check various possible locations for opencode
+    const possiblePaths = [
+        '/usr/local/bin/opencode-ai',
+        '/usr/local/bin/opencode',
+        '/usr/bin/opencode-ai',
+        '/usr/bin/opencode',
+        '/opt/node/bin/opencode-ai',
+        '/opt/node/bin/opencode'
+    ];
+    
+    for (const path of possiblePaths) {
+        if (fs.existsSync(path)) {
+            opencodeCmd = path;
+            console.log(`Found OpenCode at: ${path}`);
+            break;
+        }
+    }
+    
+    // Fallback to command name (will use PATH)
+    if (!opencodeCmd) {
+        opencodeCmd = 'opencode-ai';
+        console.log('OpenCode not found in known locations, trying PATH with opencode-ai');
+    }
     
     console.log(`Starting OpenCode command: ${opencodeCmd}`);
     
-    // Spawn opencode with environment to prevent external editor launches
-    const ptyProcess = pty.spawn(opencodeCmd, [], {
-        name: 'xterm-color',
-        cols: 80,
-        rows: 30,
-        cwd: process.env.WORKSPACE || '/workspace',
-        env: Object.assign({}, process.env, {
-            COLORTERM: 'truecolor',
-            TERM: 'xterm-256color',
-            EDITOR: 'nano',
-            BROWSER: 'none',
-            OPENCODE_NO_VSCODE: '1',
-            OPENCODE_OPENEDITOR: 'false',
-            OPENCODE_NOEDITOR: 'true',
-            HOME: '/root',
-            USER: 'root'
-        })
-    });
-    
-    console.log(`OpenCode process started with PID: ${ptyProcess.pid}`);
-    
-    // Send initial message
-    ws.send('Starting OpenCode AI Assistant...\r\n');
-    
-    // Handle data from pty to websocket
-    ptyProcess.onData((data) => {
-        try {
-            ws.send(data);
-        } catch (ex) {
-            // Client probably disconnected
-        }
-    });
+    try {
+        // Spawn opencode with environment to prevent external editor launches
+        const ptyProcess = pty.spawn(opencodeCmd, [], {
+            name: 'xterm-color',
+            cols: 80,
+            rows: 30,
+            cwd: process.env.WORKSPACE || '/workspace',
+            env: Object.assign({}, process.env, {
+                COLORTERM: 'truecolor',
+                TERM: 'xterm-256color',
+                EDITOR: 'nano',
+                BROWSER: 'none',
+                OPENCODE_NO_VSCODE: '1',
+                OPENCODE_OPENEDITOR: 'false',
+                OPENCODE_NOEDITOR: 'true',
+                HOME: '/root',
+                USER: 'root',
+                PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+            })
+        });
+        
+        console.log(`OpenCode process started with PID: ${ptyProcess.pid}`);
+        
+        // Send initial message
+        ws.send('Starting OpenCode AI Assistant...\r\n');
+        
+        // Handle data from pty to websocket
+        ptyProcess.onData((data) => {
+            try {
+                ws.send(data);
+            } catch (ex) {
+                // Client probably disconnected
+            }
+        });
 
-    // Handle data from websocket to pty
-    ws.on('message', (msg) => {
-        ptyProcess.write(msg);
-    });
+        // Handle data from websocket to pty
+        ws.on('message', (msg) => {
+            ptyProcess.write(msg);
+        });
 
-    // Handle resize
-    ws.on('resize', (msg) => {
-        const { cols, rows } = JSON.parse(msg);
-        ptyProcess.resize(cols, rows);
-    });
+        // Handle resize
+        ws.on('resize', (msg) => {
+            const { cols, rows } = JSON.parse(msg);
+            ptyProcess.resize(cols, rows);
+        });
 
-    // Cleanup on close
-    ws.on('close', () => {
-        ptyProcess.kill();
-    });
+        // Cleanup on close
+        ws.on('close', () => {
+            ptyProcess.kill();
+        });
     
-    // Handle pty exit
-    ptyProcess.onExit((exitCode, signal) => {
-        console.log(`OpenCode process exited with code ${exitCode}, signal ${signal}`);
-        ws.close();
-    });
+        // Handle pty exit
+        ptyProcess.onExit((exitCode, signal) => {
+            console.log(`OpenCode process exited with code ${exitCode}, signal ${signal}`);
+            ws.send(`\r\nOpenCode process exited (code: ${exitCode})\r\n`);
+            setTimeout(() => ws.close(), 1000);
+        });
+        
+    } catch (error) {
+        console.error('Failed to start OpenCode:', error);
+        ws.send(`\r\nError: Failed to start OpenCode AI Assistant\r\n`);
+        ws.send(`Details: ${error.message}\r\n`);
+        ws.send(`\r\nPlease ensure opencode-ai is installed: npm install -g opencode-ai\r\n`);
+        setTimeout(() => ws.close(), 3000);
+    }
 });
 
 // Error handling middleware

@@ -3,6 +3,18 @@
 
 echo "Initializing Midnight Development Environment..."
 
+# Configure Google Cloud authentication if in Cloud Workstations
+if [ -n "$GOOGLE_CLOUD_PROJECT" ] || [ -n "$GCP_PROJECT_ID" ]; then
+    export GCP_PROJECT_ID="${GCP_PROJECT_ID:-$GOOGLE_CLOUD_PROJECT}"
+    echo "Detected GCP Project: $GCP_PROJECT_ID"
+    
+    # Configure OpenCode with Vertex AI
+    if [ -x /usr/local/bin/configure-opencode ]; then
+        echo "Configuring OpenCode for Vertex AI..."
+        /usr/local/bin/configure-opencode
+    fi
+fi
+
 # Create CLI wrapper
 cat > /usr/local/bin/midnight <<'EOF'
 #!/bin/bash

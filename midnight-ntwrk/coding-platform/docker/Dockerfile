@@ -38,8 +38,22 @@ RUN npm install -g \
     http-server \
     json-server
 
-# Install OpenCode AI assistant
-RUN npm install -g opencode-ai
+# Install Google Cloud SDK for Vertex AI authentication
+# The base image may already have gcloud, so check first
+RUN if ! command -v gcloud &> /dev/null; then \
+        echo "Installing Google Cloud SDK..." && \
+        # Use the quick install method \
+        curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir=/opt && \
+        ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud && \
+        ln -s /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil; \
+    else \
+        echo "Google Cloud SDK already installed at: $(which gcloud)"; \
+    fi && \
+    # Verify installation \
+    gcloud version
+
+# Install OpenCode AI assistant with Vertex AI support
+RUN npm install -g opencode-ai @ai-sdk/google-vertex
 
 # Install code-server for VS Code in browser
 RUN curl -fsSL https://code-server.dev/install.sh | sh
@@ -198,6 +212,9 @@ COPY scripts/startup.sh /etc/workstation-startup.d/200_midnight_setup.sh
 COPY scripts/web-terminal.js /opt/opencode-terminal/web-terminal.js
 COPY scripts/package.json /opt/opencode-terminal/package.json
 COPY scripts/.terminal_profile /etc/profile.d/midnight.sh
+COPY scripts/configure-opencode.sh /usr/local/bin/configure-opencode
+COPY scripts/opencode-config-template.json /etc/skel/.config/opencode/opencode.json.template
+COPY scripts/update-midnight-extension.sh /usr/local/bin/update-midnight-extension
 
 # Install web terminal dependencies
 WORKDIR /opt/opencode-terminal
@@ -206,7 +223,9 @@ RUN npm install
 # Make scripts executable
 RUN chmod +x /etc/workstation-startup.d/200_midnight_setup.sh && \
     chmod +x /opt/opencode-terminal/web-terminal.js && \
-    chmod +x /etc/profile.d/midnight.sh
+    chmod +x /etc/profile.d/midnight.sh && \
+    chmod +x /usr/local/bin/configure-opencode && \
+    chmod +x /usr/local/bin/update-midnight-extension
 
 # Copy templates
 COPY templates/ /workspace/templates/
@@ -286,7 +305,24 @@ RUN mkdir -p /etc/skel/.config/Code/User && \
   "terminal.integrated.fontSize": 14,
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 1000,
-  "extensions.autoUpdate": true
+  "extensions.autoUpdate": true,
+  "files.associations": {
+    "*.compact": "compact",
+    "*.zk": "compact"
+  },
+  "[compact]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true
+  },
+  "midnight.compact": {
+    "formatOnSave": true,
+    "lintOnSave": true,
+    "compiler": {
+      "path": "/opt/midnight/bin/compactc",
+      "outputDir": "build"
+    }
+  }
 }
 EOF
 
@@ -295,11 +331,20 @@ RUN cp /tmp/vscode-settings.json /etc/skel/.config/Code/User/settings.json && \
     cp /tmp/vscode-settings.json /root/.config/Code/User/settings.json && \
     rm /tmp/vscode-settings.json
 
-# Install VS Code extensions (these will be suggestions)
+# Install VS Code extensions
 RUN code-server --install-extension dbaeumer.vscode-eslint && \
     code-server --install-extension esbenp.prettier-vscode && \
     code-server --install-extension eamodio.gitlens && \
     code-server --install-extension ms-vscode.makefile-tools || true
+
+# Install Midnight Compact language extension for VS Code
+RUN echo "Installing Midnight Compact VSCode extension..." && \
+    mkdir -p /tmp/midnight-extension && \
+    curl -L -o /tmp/midnight-extension/compact.vsix \
+        "https://raw.githubusercontent.com/midnight-ntwrk/releases/gh-pages/artifacts/vscode-extension/compact-0.2.13/compact-0.2.13.vsix" && \
+    code-server --install-extension /tmp/midnight-extension/compact.vsix && \
+    rm -rf /tmp/midnight-extension && \
+    echo "Midnight Compact extension installed successfully"
 
 # Final cleanup
 RUN apt-get clean && \

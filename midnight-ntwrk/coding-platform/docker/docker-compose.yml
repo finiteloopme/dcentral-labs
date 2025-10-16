@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # Main development workstation container
+  workstation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: midnight-workstation:latest
+    container_name: midnight-workstation
+    hostname: midnight-dev
+    ports:
+      # Web Terminal
+      - "${TERMINAL_PORT:-7681}:7681"
+      # VS Code Server
+      - "${VSCODE_PORT:-8443}:8443"
+      # DApp development server
+      - "${APP_PORT:-3000}:3000"
+      # Proof service (if running locally)
+      - "${PROOF_PORT:-8080}:8080"
+    environment:
+      # Core configuration
+      WORKSPACE: /workspace
+      MIDNIGHT_ENV: ${ENV:-development}
+      MIDNIGHT_NETWORK: ${MIDNIGHT_NETWORK:-testnet}
+      
+      # Service URLs
+      PROOF_SERVICE_URL: ${PROOF_SERVICE_URL:-http://localhost:8080}
+      
+      # Terminal configuration
+      TERMINAL_PORT: 7681
+      COLORTERM: truecolor
+      TERM: xterm-256color
+      
+      # OpenCode configuration
+      OPENCODE_NO_VSCODE: 1
+      OPENCODE_OPENEDITOR: false
+      OPENCODE_NOEDITOR: true
+      
+      # Google Cloud / Vertex AI configuration
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-${PROJECT_ID:-}}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      
+      # Additional configuration from env file
+      PROOF_SERVICE_CONFIG: ${PROOF_SERVICE_CONFIG:-{}}
+    volumes:
+      # Mount templates for development
+      - ./templates:/workspace/templates:ro
+      # Mount scripts
+      - ./scripts:/opt/scripts:ro
+      # Persistent workspace
+      - workspace_data:/workspace/projects
+      # Persistent home directory
+      - home_data:/root
+      # VS Code server config
+      - vscode_data:/root/.config/code-server
+      # Google Cloud credentials (optional, for local development)
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+      - ${HOME}/.config/opencode:/root/.config/opencode:rw
+    networks:
+      - midnight-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7681/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    # Required for container-in-container if using Docker
+    privileged: ${DOCKER_PRIVILEGED:-false}
+    # Security options for Podman
+    security_opt:
+      - label:disable
+    stdin_open: true
+    tty: true
+
+  # Optional: Standalone proof service
+  # Uncomment if you want to run proof service separately
+  # proof-service:
+  #   build:
+  #     context: ../proof-service
+  #     dockerfile: Dockerfile
+  #   image: midnight-proof-service:latest
+  #   container_name: midnight-proof-service
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     PORT: 8080
+  #     NODE_ENV: ${NODE_ENV:-development}
+  #   networks:
+  #     - midnight-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   restart: unless-stopped
+
+networks:
+  midnight-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  workspace_data:
+    driver: local
+  home_data:
+    driver: local
+  vscode_data:
+    driver: local

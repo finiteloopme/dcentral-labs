@@ -23,7 +23,31 @@ app.get('/health', (req, res) => {
         status: 'healthy',
         service: 'midnight-proof-service',
         version: '0.1.0-mvp',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Readiness check endpoint
+app.get('/ready', (req, res) => {
+    // Check if service is ready to handle requests
+    const ready = {
+        ready: true,
+        checks: {
+            'express': true,
+            'crypto': crypto.constants ? true : false
+        }
+    };
+    
+    res.status(ready.ready ? 200 : 503).json(ready);
+});
+
+// Liveness check endpoint  
+app.get('/live', (req, res) => {
+    res.status(200).json({ 
+        alive: true,
+        pid: process.pid,
+        memory: process.memoryUsage()
     });
 });
 

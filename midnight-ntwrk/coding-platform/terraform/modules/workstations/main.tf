@@ -65,11 +65,14 @@ resource "google_workstations_workstation_config" "config" {
     # Will be replaced with custom image once built
     image = "us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest"
     
-    env = {
-      MIDNIGHT_ENV        = var.environment
-      PROOF_SERVICE_URL   = "http://localhost:8080"
-      MIDNIGHT_NETWORK    = "testnet"
-    }
+    env = merge(
+      {
+        MIDNIGHT_ENV        = var.environment
+        PROOF_SERVICE_URL   = var.proof_service_url
+        MIDNIGHT_NETWORK    = "testnet"
+      },
+      var.proof_service_config
+    )
   }
   
   encryption_key {
