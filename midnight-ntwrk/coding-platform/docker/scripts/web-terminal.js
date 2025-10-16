@@ -720,7 +720,18 @@ app.get('/opencode', (req, res) => {
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
     <script>
-        const term = new Terminal({
+        // Wait for libraries to load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Initializing OpenCode terminal...');
+            
+            // Check if Terminal is loaded
+            if (!window.Terminal) {
+                console.error('Terminal library not loaded!');
+                document.getElementById('terminal').innerHTML = '<p style="color: red; padding: 20px;">Error: Terminal library failed to load. Please refresh the page.</p>';
+                return;
+            }
+            
+            const term = new window.Terminal({
             cursorBlink: true,
             fontSize: 14,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -748,14 +759,14 @@ app.get('/opencode', (req, res) => {
             }
         });
         
-        const fitAddon = new AddonFit.FitAddon();
-        const webLinksAddon = new AddonWebLinks.WebLinksAddon();
+        const fitAddon = window.FitAddon ? new window.FitAddon.FitAddon() : null;
+        const webLinksAddon = window.WebLinksAddon ? new window.WebLinksAddon.WebLinksAddon() : null;
         
-        term.loadAddon(fitAddon);
-        term.loadAddon(webLinksAddon);
+        if (fitAddon) term.loadAddon(fitAddon);
+        if (webLinksAddon) term.loadAddon(webLinksAddon);
         
         term.open(document.getElementById('terminal'));
-        fitAddon.fit();
+        if (fitAddon) fitAddon.fit();
         
         // Connect to OpenCode WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -780,7 +791,7 @@ app.get('/opencode', (req, res) => {
         });
         
         window.addEventListener('resize', () => {
-            fitAddon.fit();
+            if (fitAddon) fitAddon.fit();
         });
         
         function clearTerminal() {
@@ -804,6 +815,7 @@ app.get('/opencode', (req, res) => {
                 document.exitFullscreen();
             }
         }
+        }); // End of DOMContentLoaded
     </script>
 </body>
 </html>
@@ -889,6 +901,8 @@ app.ws('/opencode-ws', (ws, req) => {
                        require('fs').existsSync('/usr/bin/opencode-ai') ? 'opencode-ai' : 
                        'opencode';
     
+    console.log(`Starting OpenCode command: ${opencodeCmd}`);
+    
     // Spawn opencode with environment to prevent external editor launches
     const ptyProcess = pty.spawn(opencodeCmd, [], {
         name: 'xterm-color',
@@ -902,10 +916,17 @@ app.ws('/opencode-ws', (ws, req) => {
             BROWSER: 'none',
             OPENCODE_NO_VSCODE: '1',
             OPENCODE_OPENEDITOR: 'false',
-            OPENCODE_NOEDITOR: 'true'
+            OPENCODE_NOEDITOR: 'true',
+            HOME: '/root',
+            USER: 'root'
         })
     });
-
+    
+    console.log(`OpenCode process started with PID: ${ptyProcess.pid}`);
+    
+    // Send initial message
+    ws.send('Starting OpenCode AI Assistant...\r\n');
+    
     // Handle data from pty to websocket
     ptyProcess.onData((data) => {
         try {
@@ -932,7 +953,8 @@ app.ws('/opencode-ws', (ws, req) => {
     });
     
     // Handle pty exit
-    ptyProcess.onExit(() => {
+    ptyProcess.onExit((exitCode, signal) => {
+        console.log(`OpenCode process exited with code ${exitCode}, signal ${signal}`);
         ws.close();
     });
 });
