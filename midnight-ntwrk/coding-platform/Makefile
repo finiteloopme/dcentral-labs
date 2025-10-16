@@ -81,6 +81,19 @@ run-local:
 clean:
 	@./scripts/clean.sh
 
+# Show container runtime info
+runtime-info:
+	@echo "Container Runtime Detection:"
+	@./scripts/container-runtime.sh || echo "No container runtime found"
+	@echo ""
+	@if command -v podman >/dev/null 2>&1; then \
+		echo "Podman Version:"; \
+		podman --version; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo "Docker Version:"; \
+		docker --version; \
+	fi
+
 # Destroy infrastructure
 destroy:
 	@echo "⚠️  WARNING: This will destroy all infrastructure!"
