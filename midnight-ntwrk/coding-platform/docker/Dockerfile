@@ -41,6 +41,9 @@ RUN npm install -g \
 # Install OpenCode AI assistant
 RUN npm install -g opencode-ai
 
+# Install code-server for VS Code in browser
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+
 # Install packages for web terminal server
 RUN npm install -g \
     express \

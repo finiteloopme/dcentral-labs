@@ -217,6 +217,29 @@ if [ -f /opt/opencode-terminal/web-terminal.js ]; then
     fi
 fi
 
+# Start VS Code Server
+echo "Starting VS Code Server on port 8443..."
+if command -v code-server &> /dev/null; then
+    nohup code-server --bind-addr 0.0.0.0:8443 --auth none --disable-telemetry /workspace > /var/log/code-server.log 2>&1 &
+    sleep 3  # Give it time to start
+    if pgrep -f "code-server" > /dev/null; then
+        echo "✓ VS Code Server available at http://localhost:8443"
+    else
+        echo "⚠ VS Code Server failed to start. Check /var/log/code-server.log"
+    fi
+elif command -v code &> /dev/null; then
+    # Try the code CLI with serve-web if available
+    nohup code serve-web --bind-addr 0.0.0.0:8443 --without-connection-token /workspace > /var/log/code-server.log 2>&1 &
+    sleep 3
+    if pgrep -f "code.*serve-web" > /dev/null; then
+        echo "✓ VS Code Server available at http://localhost:8443"
+    else
+        echo "⚠ VS Code Server not available - install code-server for IDE support"
+    fi
+else
+    echo "⚠ VS Code Server not available - install code-server for IDE support"
+fi
+
 # Display welcome message on first terminal
 # Add to multiple possible bashrc locations
 for bashrc_file in /home/user/.bashrc /root/.bashrc /etc/bash.bashrc; do
