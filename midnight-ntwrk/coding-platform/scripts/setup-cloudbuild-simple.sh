@@ -70,22 +70,42 @@ gcloud artifacts repositories create midnight-platform \
     --description="Midnight Development Platform container images" \
     --project=${PROJECT_ID} 2>/dev/null || echo -e "${GREEN}✓ Repository already exists${NC}"
 
-# Grant minimal Cloud Build permissions
-echo -e "${YELLOW}Configuring Cloud Build permissions...${NC}"
-CLOUD_BUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+# Create user-managed service account for Cloud Build
+echo -e "${YELLOW}Creating user-managed service account for Cloud Build...${NC}"
+SA_NAME="midnight-cloudbuild-sa"
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# Create service account if it doesn't exist
+if gcloud iam service-accounts describe ${SA_EMAIL} --project=${PROJECT_ID} &>/dev/null; then
+    echo -e "${GREEN}✓ Service account already exists${NC}"
+else
+    gcloud iam service-accounts create ${SA_NAME} \
+        --display-name="Midnight Cloud Build Service Account" \
+        --description="User-managed service account for Cloud Build operations" \
+        --project=${PROJECT_ID}
+    echo -e "${GREEN}✓ Service account created${NC}"
+fi
+
+# Grant permissions to the user-managed service account
+echo -e "${YELLOW}Configuring service account permissions...${NC}"
 
 # Grant permissions (ignore errors if already exists)
 for role in \
     "roles/storage.admin" \
     "roles/compute.admin" \
+    "roles/compute.networkAdmin" \
+    "roles/compute.securityAdmin" \
     "roles/workstations.admin" \
     "roles/artifactregistry.admin" \
-    "roles/iam.serviceAccountUser"
+    "roles/iam.serviceAccountUser" \
+    "roles/logging.logWriter" \
+    "roles/cloudbuild.builds.builder"
 do
     echo -e "  Adding ${role}..."
     gcloud projects add-iam-policy-binding ${PROJECT_ID} \
-        --member="serviceAccount:${CLOUD_BUILD_SA}" \
+        --member="serviceAccount:${SA_EMAIL}" \
         --role="${role}" \
+        --condition=None \
         --quiet &>/dev/null || true
 done
 

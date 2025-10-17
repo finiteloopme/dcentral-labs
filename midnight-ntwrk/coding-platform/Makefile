@@ -106,6 +106,14 @@ cloud-status: check-project
 cloud-diagnose: check-project
 	@./scripts/cloud-diagnostics.sh $(PROJECT_ID)
 
+# Import existing resources into Terraform state
+cloud-import: check-project
+	@echo "$(YELLOW)Importing existing resources into Terraform state...$(NC)"
+	@gcloud builds submit \
+		--config=cicd/cloudbuild/cloudbuild-import.yaml \
+		--substitutions="_ENVIRONMENT=$(ENV),_REGION=$(REGION),_ZONE=$(ZONE)" \
+		--project=$(PROJECT_ID) .
+
 # ============================================================================
 # LOCAL DEVELOPMENT
 # ============================================================================

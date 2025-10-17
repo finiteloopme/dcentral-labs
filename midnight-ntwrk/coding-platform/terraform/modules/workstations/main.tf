@@ -11,10 +11,9 @@ resource "google_workstations_workstation_cluster" "cluster" {
     environment = var.environment
     project     = "midnight"
   }
-
-  private_cluster_config {
-    enable_private_endpoint = false
-  }
+  
+  # Note: private_cluster_config removed to match existing cluster
+  # If you need private endpoint in the future, you'll need to recreate the cluster
 }
 
 # Workstation configuration

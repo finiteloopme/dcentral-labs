@@ -55,7 +55,26 @@ if ! gcloud iam service-accounts describe ${CLOUD_BUILD_SA} --project=${PROJECT_
     echo -e "${YELLOW}Cloud Build service account not found. It will be created when Cloud Build API is enabled.${NC}"
 fi
 
-# Grant necessary IAM roles to Cloud Build service account
+# Create user-managed service account for Cloud Build
+echo -e "${YELLOW}Creating user-managed service account for Cloud Build...${NC}"
+SA_NAME="midnight-cloudbuild-sa"
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# Create service account if it doesn't exist
+if gcloud iam service-accounts describe ${SA_EMAIL} --project=${PROJECT_ID} &>/dev/null; then
+    echo -e "${GREEN}✓ Service account already exists${NC}"
+else
+    gcloud iam service-accounts create ${SA_NAME} \
+        --display-name="Midnight Cloud Build Service Account" \
+        --description="User-managed service account for Cloud Build operations" \
+        --project=${PROJECT_ID}
+    echo -e "${GREEN}✓ Service account created${NC}"
+fi
+
+# Use the user-managed service account
+CLOUD_BUILD_SA="${SA_EMAIL}"
+
+# Grant necessary IAM roles to the service account
 echo -e "${YELLOW}Granting IAM permissions...${NC}"
 
 # Function to safely add IAM binding
@@ -67,6 +86,7 @@ add_iam_binding() {
     gcloud projects add-iam-policy-binding ${PROJECT_ID} \
         --member="serviceAccount:${CLOUD_BUILD_SA}" \
         --role="${role}" \
+        --condition=None \
         --quiet 2>/dev/null || {
             echo -e "${YELLOW}  Warning: Could not add ${role} (may already exist)${NC}"
         }
@@ -75,9 +95,13 @@ add_iam_binding() {
 # Grant permissions one by one
 add_iam_binding "roles/storage.admin" "Terraform state bucket access"
 add_iam_binding "roles/compute.admin" "Compute resources management"
+add_iam_binding "roles/compute.networkAdmin" "Network resources management"
+add_iam_binding "roles/compute.securityAdmin" "Security and firewall management"
 add_iam_binding "roles/workstations.admin" "Cloud Workstations management"
 add_iam_binding "roles/artifactregistry.admin" "Artifact Registry access"
 add_iam_binding "roles/iam.serviceAccountUser" "Service account impersonation"
+add_iam_binding "roles/logging.logWriter" "Cloud Build logging"
+add_iam_binding "roles/cloudbuild.builds.builder" "Cloud Build operations"
 add_iam_binding "roles/secretmanager.secretAccessor" "Secret Manager access"
 
 echo -e "${GREEN}✓ IAM permissions configured${NC}"

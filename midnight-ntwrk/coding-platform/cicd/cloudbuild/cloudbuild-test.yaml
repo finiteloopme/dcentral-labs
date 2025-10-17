@@ -1,6 +1,9 @@
 # Minimal Cloud Build configuration for testing
 # Use this to verify Cloud Build is working correctly
 
+# Use user-managed service account for Cloud Build
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'
+
 steps:
   # Simple test step
   - name: 'gcr.io/cloud-builders/gcloud'

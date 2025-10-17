@@ -11,7 +11,8 @@ triggers:
       pullRequest:
         branch: '^main$'
         commentControl: 'COMMENTS_ENABLED'
-    filename: 'cloudbuild-plan.yaml'
+    filename: 'cicd/cloudbuild/cloudbuild-plan.yaml'
+    serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'
     substitutions:
       _ENVIRONMENT: 'dev'
       _REGION: 'us-central1'

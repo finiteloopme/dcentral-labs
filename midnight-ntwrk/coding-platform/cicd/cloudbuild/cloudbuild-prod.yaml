@@ -16,6 +16,9 @@ options:
     - 'TF_IN_AUTOMATION=true'
     - 'TF_INPUT=false'
 
+# Use user-managed service account for Cloud Build
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'
+
 steps:
   # Step 1: Verify build approval
   - id: 'verify-approval'
