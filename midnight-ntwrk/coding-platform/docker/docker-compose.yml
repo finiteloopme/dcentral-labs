@@ -17,15 +17,21 @@ services:
       # DApp development server
       - "${APP_PORT:-3000}:3000"
       # Proof service (if running locally)
-      - "${PROOF_PORT:-8080}:8080"
+      - "${PROOF_SERVICE_PORT:-8080}:8080"
     environment:
       # Core configuration
       WORKSPACE: /workspace
       MIDNIGHT_ENV: ${ENV:-development}
       MIDNIGHT_NETWORK: ${MIDNIGHT_NETWORK:-testnet}
       
-      # Service URLs
-      PROOF_SERVICE_URL: ${PROOF_SERVICE_URL:-http://localhost:8080}
+      # Proof Service Configuration
+      PROOF_SERVICE_MODE: ${PROOF_SERVICE_MODE:-local}
+      PROOF_SERVICE_URL: ${PROOF_SERVICE_URL:-}
+      PROOF_SERVICE_PORT: ${PROOF_SERVICE_PORT:-8080}
+      PROOF_SERVICE_HOST: ${PROOF_SERVICE_HOST:-0.0.0.0}
+      PROOF_SERVICE_LOG_LEVEL: ${PROOF_SERVICE_LOG_LEVEL:-info}
+      PROOF_SERVICE_THREADS: ${PROOF_SERVICE_THREADS:-4}
+      PROOF_SERVICE_CACHE_SIZE: ${PROOF_SERVICE_CACHE_SIZE:-1000}
       
       # Terminal configuration
       TERMINAL_PORT: 7681
@@ -55,8 +61,10 @@ services:
       # VS Code server config
       - vscode_data:/root/.config/code-server
       # Google Cloud credentials (optional, for local development)
+      # Comment out these lines if you don't want to mount credentials
       - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
-      - ${HOME}/.config/opencode:/root/.config/opencode:rw
+      # OpenCode config can be modified by the container
+      - opencode_config:/root/.config/opencode
     networks:
       - midnight-network
     healthcheck:
@@ -109,4 +117,6 @@ volumes:
   home_data:
     driver: local
   vscode_data:
+    driver: local
+  opencode_config:
     driver: local

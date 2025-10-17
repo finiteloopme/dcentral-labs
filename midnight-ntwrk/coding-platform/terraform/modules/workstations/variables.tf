@@ -37,31 +37,23 @@ variable "workstation_config" {
   description = "Workstation configuration"
   type = object({
     machine_type            = string
-    boot_disk_size_gb      = number
+    boot_disk_size_gb       = number
     persistent_disk_size_gb = number
-    idle_timeout           = string
-    running_timeout        = string
+    idle_timeout            = string
+    running_timeout         = string
   })
-}
-
-variable "proof_service_url" {
-  description = "External proof service URL (optional)"
-  type        = string
-  default     = ""
 }
 
 variable "proof_service_config" {
   description = "Proof service configuration"
   type = object({
-    enabled      = bool
-    url          = string
+    mode         = string
+    external_url = string
     port         = number
+    host         = string
+    log_level    = string
+    threads      = number
+    cache_size   = number
     api_key      = string
   })
-  default = {
-    enabled      = false
-    url          = ""
-    port         = 8080
-    api_key      = ""
-  }
 }

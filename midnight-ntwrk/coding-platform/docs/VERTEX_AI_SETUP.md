@@ -82,16 +82,48 @@ configure-opencode
 GCP_PROJECT_ID=your-project-id configure-opencode
 ```
 
-### 4. Using with Docker Compose
+### 4. Using with Local Development
+
+#### Option A: Using run-local script (Recommended)
+
+The `run-local` script automatically mounts your local gcloud credentials:
+
+```bash
+# Authenticate locally first
+gcloud auth login
+gcloud auth application-default login
+
+# Run with your project ID
+GCP_PROJECT_ID=your-project-id make run-local
+```
+
+This automatically:
+- Mounts `~/.config/gcloud` into the container
+- Passes your GCP project ID
+- Enables Vertex AI access using your local credentials
+
+#### Option B: Using Docker Compose
 
 Add your project ID to the `.env` file:
 ```env
 GCP_PROJECT_ID=your-project-id
+MOUNT_GCLOUD_CREDS=true
 ```
 
 Then start the services:
 ```bash
 make compose-up
+```
+
+#### Option C: Using Service Account Key
+
+If you prefer using a service account key:
+```bash
+# Set the path to your key
+export GOOGLE_APPLICATION_CREDENTIALS=~/keys/my-service-account.json
+
+# Run the container
+make run-local
 ```
 
 ## Configuration File
@@ -208,6 +240,26 @@ For current pricing information, please refer to:
 3. **Monitor usage** with Cloud Monitoring
 4. **Use local models** for development when possible
 5. **Review pricing regularly** - Model pricing can change over time
+
+## Security Considerations for Local Development
+
+### Credential Mounting
+
+By default, `run-local` mounts your gcloud credentials as **read-only** to enable Vertex AI access. You can disable this:
+
+```bash
+# Don't mount any credentials
+MOUNT_GCLOUD_CREDS=false make run-local
+```
+
+### What Gets Mounted
+
+When `MOUNT_GCLOUD_CREDS=true` (default):
+- `~/.config/gcloud` - Mounted as read-only
+- Application default credentials - Mounted as read-only
+- Service account keys (if specified) - Mounted as read-only
+
+The container cannot modify your local credentials.
 
 ## Troubleshooting
 

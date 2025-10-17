@@ -1,5 +1,6 @@
 #!/bin/bash
 # Main deployment script
+# Supports both local and Cloud Build deployment
 
 set -e
 
@@ -12,6 +13,7 @@ PROJECT_ID="${1:-$PROJECT_ID}"
 REGION="${2:-us-central1}"
 ZONE="${3:-us-central1-a}"
 ENV="${4:-mvp}"
+USE_CLOUD_BUILD="${USE_CLOUD_BUILD:-false}"
 
 # Check dependencies
 check_all_dependencies() {
@@ -87,6 +89,35 @@ show_completion() {
     echo "To view logs: make logs"
 }
 
+# Deploy using Cloud Build
+deploy_with_cloud_build() {
+    log_info "Deploying using Cloud Build..."
+    
+    # Check if Cloud Build is set up
+    if ! gcloud services list --enabled --filter="name:cloudbuild.googleapis.com" --format="value(name)" | grep -q cloudbuild; then
+        log_warn "Cloud Build API not enabled. Enabling now..."
+        gcloud services enable cloudbuild.googleapis.com
+    fi
+    
+    # Submit build
+    log_info "Submitting build to Cloud Build..."
+    gcloud builds submit \
+        --config=cicd/cloudbuild/cloudbuild.yaml \
+        --substitutions="_ENVIRONMENT=${ENV},_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true,_REGION=${REGION},_ZONE=${ZONE}" \
+        --project=${PROJECT_ID} \
+        .
+    
+    if [ $? -eq 0 ]; then
+        log_success "Cloud Build deployment completed successfully!"
+        echo ""
+        echo "View build logs:"
+        echo "  https://console.cloud.google.com/cloud-build/builds?project=${PROJECT_ID}"
+    else
+        log_error "Cloud Build deployment failed"
+        exit 1
+    fi
+}
+
 # Main execution
 main() {
     echo "=========================================="
@@ -99,13 +130,22 @@ main() {
         log_error "PROJECT_ID not set"
         echo "Usage: $0 <project-id> [region] [zone] [environment]"
         echo "Example: $0 my-gcp-project us-central1 us-central1-a mvp"
+        echo ""
+        echo "For Cloud Build deployment:"
+        echo "  USE_CLOUD_BUILD=true $0 my-gcp-project"
         exit 1
     fi
     
-    check_all_dependencies
-    init_project
-    run_deployment
-    show_completion
+    if [ "$USE_CLOUD_BUILD" = "true" ]; then
+        log_info "Using Cloud Build for deployment"
+        deploy_with_cloud_build
+    else
+        log_info "Using local deployment"
+        check_all_dependencies
+        init_project
+        run_deployment
+        show_completion
+    fi
 }
 
 # Run main function

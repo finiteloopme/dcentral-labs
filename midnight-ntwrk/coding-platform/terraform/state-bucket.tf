@@ -11,13 +11,13 @@
 #   name     = var.state_bucket_name != "" ? var.state_bucket_name : "${var.project_id}-terraform-state"
 #   location = var.state_bucket_location
 #   project  = var.project_id
-#   
+#
 #   uniform_bucket_level_access = true
-#   
+#
 #   versioning {
 #     enabled = true
 #   }
-#   
+#
 #   lifecycle_rule {
 #     condition {
 #       num_newer_versions = 5

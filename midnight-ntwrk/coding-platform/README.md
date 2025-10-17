@@ -1,135 +1,179 @@
-# Midnight Development Platform - MVP
+# 🌙 Midnight Development Platform
 
-A cloud-native development platform for building privacy-preserving DApps on Midnight Network using Google Cloud Workstations.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Terraform](https://img.shields.io/badge/terraform-1.5.0-purple.svg)](https://www.terraform.io/)
+[![GCP](https://img.shields.io/badge/GCP-Cloud%20Workstations-blue.svg)](https://cloud.google.com/workstations)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
 
-## 🚀 Features
+A cloud-native development platform for building privacy-preserving DApps on the Midnight Network. Features integrated proof generation, AI-powered coding assistance, and comprehensive tooling for zero-knowledge application development.
 
-- **Zero Local Setup**: Browser-based development environment
-- **Pre-configured Tools**: Midnight compiler, proof generator, Compact language support
-- **Multi-Model AI Assistant**: OpenCode with Claude Opus 4.1 & Gemini 2.5 via Vertex AI
-- **Quick Start Template**: Basic token DApp template ready to deploy
-- **Integrated Proof Service**: Generate and verify zero-knowledge proofs
-- **Cloud-Native**: Fully managed infrastructure on Google Cloud Platform
-- **Container Agnostic**: Works with both Podman and Docker
-- **State Management**: Terraform state stored securely in GCS
+## ✨ Key Features
+
+- **🔐 Integrated Proof Server**: Built-in Midnight proof server with local/external modes
+- **🤖 AI-Powered Development**: OpenCode with Vertex AI (Claude, Gemini models)
+- **⚡ Circuit-Enabled Contracts**: Templates with ZK proof circuits
+- **☁️ Cloud-Native**: Google Cloud Workstations with Terraform automation
+- **🚀 Simplified CI/CD**: Streamlined Cloud Build in `cicd/` directory
+- **🧪 Comprehensive Testing**: Integration tests for all components
+- **🛠️ Complete Toolchain**: Compiler, proof tools, and deployment automation
 
 ## 📋 Prerequisites
 
-- Google Cloud Platform account
-- `gcloud` CLI installed
-- Terraform 1.5+
-- Podman or Docker (container runtime)
-- Basic knowledge of smart contracts
+- Google Cloud Project with billing enabled
+- `gcloud` CLI installed and authenticated
+- Terraform 1.5.0+ (optional, can use Cloud Build)
+- Docker or Podman (for local testing)
 
-## 🏃 Quick Start
+## 🚀 Quick Start
 
-### One-Command Deployment
+### One-Command Cloud Deployment
 
 ```bash
 # Clone the repository
-git clone https://github.com/midnight-network/cloud-platform
-cd cloud-platform
+git clone https://github.com/midnight-network/coding-platform
+cd coding-platform
 
-# Deploy everything with one command
-make setup PROJECT_ID=YOUR_PROJECT_ID
+# Setup and deploy (choose one method)
 
-# Or use the deployment script directly
-./scripts/deploy.sh YOUR_PROJECT_ID
+# Option 1: Traditional setup with local Terraform
+make setup PROJECT_ID=your-project-id
+
+# Option 2: Cloud Build setup (recommended)
+make cloud-setup PROJECT_ID=your-project-id
+make cloud-deploy
 ```
 
-### What Gets Deployed
+### Local Development
 
-1. **APIs**: Automatically enabled via Terraform
-2. **State Management**: GCS bucket for Terraform state
-3. **Infrastructure**: VPC, Cloud Workstations, Artifact Registry
-4. **Container**: Built and pushed to registry
-5. **Access**: Workstation URL provided at completion
-
-## 📁 Project Structure
-
-```
-midnight-development-platform/
-├── terraform/              # Infrastructure as Code
-│   ├── modules/           # Terraform modules
-│   │   ├── networking/    # VPC and networking
-│   │   ├── workstations/  # Cloud Workstations
-│   │   └── registry/      # Artifact Registry
-│   ├── main.tf           # Main configuration
-│   ├── backend.tf        # GCS backend configuration
-│   └── variables.tf      # Variable definitions
-├── docker/                # Container configuration
-│   ├── Dockerfile        # Workstation image
-│   ├── scripts/          # Startup scripts
-│   └── templates/        # DApp templates
-├── proof-service/         # Proof generation service
-│   └── src/              # Service implementation
-├── scripts/              # Shell scripts
-│   ├── common.sh         # Shared functions
-│   ├── deploy.sh         # Main deployment script
-│   ├── terraform-init.sh # Terraform initialization
-│   ├── terraform-deploy.sh # Infrastructure deployment
-│   ├── build.sh          # Container building
-│   ├── push.sh           # Registry push
-│   ├── status.sh         # Status checking
-│   ├── clean.sh          # Cleanup script
-│   └── workstation.sh    # Workstation management
-├── docs/                  # Documentation
-│   ├── QUICK_START.md    # Getting started guide
-│   ├── ARCHITECTURE.md   # System architecture
-│   ├── API.md            # API documentation
-│   ├── WORKSTATION_MANAGEMENT.md # Workstation guide
-│   └── PODMAN.md         # Podman usage guide
-└── Makefile              # Build automation
-```
-
-## 🛠️ Available Commands
-
-### Core Operations
 ```bash
-make help          # Show help and current settings
-make setup         # Complete setup (init + deploy + build + push)
-make init          # Initialize Terraform with GCS backend
-make deploy        # Deploy infrastructure
-make build         # Build container image
-make push          # Push to registry
-make run-local     # Run container locally for testing
-make status        # Check deployment status
-make clean         # Clean local artifacts
-make destroy       # Destroy infrastructure
+# Build and run locally
+make build
+make run-local
+
+# Access services
+# Web Terminal: http://localhost:7681
+# Proof Service: http://localhost:8080
+# VS Code: http://localhost:8443
+```
+
+## 🏗️ Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   Google Cloud Platform                │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │   Cloud      │  │   Cloud      │  │  Artifact    │  │
+│  │   Build      │──│ Workstations │  │  Registry    │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│         │                  │                  │        │
+│         ▼                  ▼                  ▼        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │         Midnight Workstation Container           │  │
+│  ├──────────────────────────────────────────────────┤  │
+│  │  • Proof Server (Local/External)                 │  │
+│  │  • OpenCode AI (Vertex AI Integration)           │  │
+│  │  • Midnight Compiler & Tools                     │  │
+│  │  • Circuit Development Environment               │  │
+│  │  • Web Terminal & VS Code                        │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │          CI/CD Pipelines (cicd/cloudbuild/)      │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+```
+
+## 📦 What Gets Deployed
+
+1. **Infrastructure** (via Terraform)
+   - VPC Network and Subnets
+   - Cloud Workstations Cluster
+   - Artifact Registry Repository
+   - IAM Roles and Service Accounts
+   - GCS Bucket for Terraform State
+
+2. **Container Image** (Midnight Workstation)
+   - Midnight proof server (v4.0.0 API)
+   - OpenCode AI with Vertex AI
+   - Compact compiler and tools
+   - Circuit templates and examples
+   - Web-based development environment
+
+3. **Automation** (Cloud Build)
+   - CI/CD pipelines in `cicd/cloudbuild/`
+   - Automated deployments
+   - Infrastructure as Code
+   - GitOps-ready workflows
+
+## 🎯 Core Commands
+
+### Essential Commands
+
+```bash
+# Complete setup (first time)
+make setup PROJECT_ID=your-project
+
+# Deploy infrastructure
+make deploy PROJECT_ID=your-project
+
+# Build and push container
+make build
+make push PROJECT_ID=your-project
+
+# Run tests
+make test
+```
+
+### Cloud Build Automation (Recommended)
+
+```bash
+# Initial setup (one time)
+make cloud-setup PROJECT_ID=your-project
+
+# Deploy via Cloud Build
+make cloud-deploy ENV=dev
+
+# Check status
+make cloud-status
+
+# Diagnose issues
+make cloud-diagnose
+```
+
+### Local Development
+
+```bash
+# Run locally for testing
+make run-local
+
+# Docker Compose services
+make compose-up
+make compose-down
+make compose-logs
+
+# Run tests
+make test
 ```
 
 ### Workstation Management
-```bash
-make workstation   # Show workstation management help
-make list          # List all workstations
-make start         # Start default workstation
-make stop          # Stop default workstation
-make ssh           # SSH into workstation
-make logs          # View workstation logs
-make port-forward  # Set up port forwarding (3000, 8080)
-```
-
-### Advanced Workstation Management
-Use the `workstation.sh` script directly for more control:
 
 ```bash
-# Create new workstation
-./scripts/workstation.sh create my-workstation
+# List workstations
+make ws-list
 
-# Start specific workstation
-./scripts/workstation.sh start my-workstation
+# Start workstation
+make ws-start
 
-# SSH with custom command
-./scripts/workstation.sh ssh --workstation my-workstation "ls -la"
+# Stop workstation  
+make ws-stop
 
-# Port forwarding for specific project
-./scripts/workstation.sh --project-id my-project port-forward
+# SSH access
+make ws-ssh
 
-# Get workstation URL
-./scripts/workstation.sh url
-
-# View detailed info
-./scripts/workstation.sh info
+# Get access URL
+make ws-url
 ```
 
 ## 🔧 Configuration
@@ -137,486 +181,295 @@ Use the `workstation.sh` script directly for more control:
 ### Environment Variables
 
 ```bash
-PROJECT_ID=your-project-id  # GCP Project ID (required)
-REGION=us-central1          # Deployment region
-ZONE=us-central1-a          # Deployment zone
-ENV=mvp                     # Environment name
+# Core settings
+PROJECT_ID=your-gcp-project
+REGION=us-central1
+ZONE=us-central1-a
+ENV=dev                    # dev/staging/prod
+
+# Proof Service
+PROOF_SERVICE_MODE=local   # local/external
+PROOF_SERVICE_URL=         # URL for external service
+PROOF_SERVICE_PORT=8080
+
+# OpenCode AI (auto-configured)
+GCP_PROJECT_ID=your-project  # For Vertex AI
 ```
 
-### Workstation Specs (Default)
+### Proof Service Modes
 
-- **Machine Type**: e2-standard-4 (4 vCPU, 16 GB RAM)
-- **Boot Disk**: 50 GB SSD
-- **Persistent Disk**: 200 GB
-- **Idle Timeout**: 20 minutes
-- **Running Timeout**: 4 hours
+#### Local Mode (Default)
+- Runs proof server inside container
+- Zero network latency
+- No external dependencies
 
-## 🏗️ Building the Container Locally
+#### External Mode
+```bash
+PROOF_SERVICE_MODE=external
+PROOF_SERVICE_URL=https://proof-api.midnight.network
+```
 
-The platform builds the container image locally on your machine before pushing it to Google Artifact Registry. This allows for customization and ensures you have full control over the development environment.
-
-### Prerequisites for Container Building
-
-Ensure you have either Podman or Docker installed:
+### Multi-Environment Support
 
 ```bash
-# Check for Podman (recommended)
-podman --version
+# Deploy to different environments
+make deploy ENV=dev
+make deploy ENV=staging
+make deploy ENV=prod
 
-# Or Docker
-docker --version
+# Or with Cloud Build
+make cloud-deploy ENV=staging
 ```
 
-### Building the Container
+## 🛠️ Development Workflow
 
-The container is automatically built during `make setup`, but you can also build it manually:
+### 1. Create a New DApp
 
 ```bash
-# Build using the script (auto-detects podman/docker)
-./scripts/build.sh
-
-# Or using Make
-make build
-
-# Or directly with your container runtime
-podman build -t midnight-workstation:latest docker/
-# or
-docker build -t midnight-workstation:latest docker/
-```
-
-### Customizing the Container
-
-To customize the development environment, edit `docker/Dockerfile`:
-
-```dockerfile
-# Example: Add custom tools
-RUN apt-get update && apt-get install -y \
-    your-custom-tool \
-    another-tool
-
-# Example: Add custom npm packages
-RUN npm install -g \
-    your-npm-package \
-    another-package
-```
-
-After customizing, rebuild and push:
-
-```bash
-make build push
-./scripts/workstation.sh update-config
-./scripts/workstation.sh restart
-```
-
-### Testing the Container Locally
-
-Before pushing to the registry, you can test the container locally:
-
-```bash
-# Easy way - using Make target
-make run-local
-
-# This will:
-# - Start the container with port forwarding
-# - Mount templates directory for live editing
-# - Provide access URLs for all services
-# - Clean up on exit (Ctrl+C)
-```
-
-Access points when running locally:
-- **Service Dashboard**: http://localhost:7681/services (All services)
-- **Web Terminal**: http://localhost:7681 (Full bash terminal)
-- **OpenCode AI**: http://localhost:7681/opencode (Dedicated AI assistant)
-- **Proof Service API**: http://localhost:8080 (ZK proof generation)
-- **DApp Server**: http://localhost:3000 (When running)
-
-You can also use custom ports or external services:
-```bash
-# Run with custom ports
-APP_PORT=3001 PROOF_PORT=8081 make run-local
-
-# Use external proof service instead of local mock
-PROOF_SERVICE_URL=https://proof-api.midnight.network make run-local
-
-# Or use the script directly
-./scripts/run-local.sh
-
-# Run specific image version
-./scripts/run-local.sh midnight-workstation v1.0
-```
-
-#### Using External Proof Service
-
-By default, the platform runs a mock proof service for development. To use an external proof service:
-
-```bash
-# Set the environment variable when running locally
-PROOF_SERVICE_URL=https://your-proof-service.com make run-local
-
-# Or in production workstations, set it in the container configuration
-gcloud workstations configs update midnight-config \
-    --env=PROOF_SERVICE_URL=https://your-proof-service.com
-```
-
-Manual container run (if needed):
-```bash
-# With Podman
-podman run -it --rm \
-    -p 3000:3000 \
-    -p 8080:8080 \
-    -p 8443:8443 \
-    midnight-workstation:latest
-
-# With Docker  
-docker run -it --rm \
-    -p 3000:3000 \
-    -p 8080:8080 \
-    -p 8443:8443 \
-    midnight-workstation:latest
-```
-
-### Container Build Process
-
-1. **Base Image**: Starts from Google's Cloud Workstations image with VS Code
-2. **Development Tools**: Installs Node.js, npm, git, build tools
-3. **AI Assistant**: Installs OpenCode AI with web terminal interface
-4. **Web Terminal**: Sets up xterm.js-based terminal accessible via browser
-5. **Midnight Tools**: Adds mock Midnight compiler and proof generator
-6. **Templates**: Copies DApp templates into `/workspace/templates`
-7. **Configuration**: Sets up environment variables and startup scripts
-
-### Troubleshooting Container Builds
-
-If the build fails:
-
-```bash
-# Clean up and retry
-make clean
-make build
-
-# Build with no cache
-podman build --no-cache -t midnight-workstation:latest docker/
-# or
-docker build --no-cache -t midnight-workstation:latest docker/
-
-# Check build logs
-podman build -t midnight-workstation:latest docker/ 2>&1 | tee build.log
-```
-
-## 🚀 Using the Platform
-
-### 1. Access Your Workstation
-
-After deployment, get your workstation URL:
-
-```bash
-make status
-# or
-./scripts/workstation.sh url
-```
-
-Open the URL in your browser to access the VS Code IDE.
-
-### 2. Create a New DApp
-
-In the workstation terminal:
-
-```bash
-# Option 1: Use the Midnight CLI
+# In the workstation
 midnight new my-dapp
-cd /workspace/projects/my-dapp
-
-# Option 2: Use OpenCode for AI assistance
-opencode
-# Then ask: "Create a new Midnight token contract"
+cd projects/my-dapp
 ```
 
-### 3. Compile Contracts
+### 2. Develop Smart Contracts
+
+```compact
+// contracts/Token.compact
+contract Token {
+    @shielded
+    mapping(address => uint256) balances;
+    
+    export circuit proveBalance(
+        address account,
+        uint256 balance
+    ) {
+        assert balances[account] == balance;
+    }
+}
+```
+
+### 3. Compile and Test
 
 ```bash
+# Compile contracts
 midnight compile
-# or
-make compile
-```
 
-### 4. Generate Proofs
+# Run tests
+midnight test
 
-```bash
+# Generate proofs
 midnight prove
-# or
-make prove
+
+# Verify proofs
+midnight verify build/Token.proof
 ```
 
-### 5. Deploy to Testnet
+### 4. Deploy to Network
 
 ```bash
+# Deploy to testnet
 midnight deploy
-# or
-make deploy
 ```
 
-### 6. Start Development Server
+## 🤖 AI-Powered Development
+
+OpenCode AI is pre-configured with Vertex AI models:
 
 ```bash
-make dev
+# In the workstation terminal
+opencode
+
+# Or use web interface
+http://localhost:7681/opencode
 ```
 
-Access your DApp at `http://localhost:3000` in the workstation browser.
+### Available Models
+- Claude Opus 4.1 (default)
+- Claude 3.5 Sonnet v2
+- Claude 3.5 Haiku
+- Gemini 2.5 Flash
+- Gemini 2.5 Pro
 
-### 7. Local Development with Port Forwarding
-
-For local development, set up port forwarding:
-
-```bash
-# In a separate terminal on your local machine
-make port-forward
-# or
-./scripts/workstation.sh port-forward
-```
-
-Then access:
-- DApp: http://localhost:3000
-- Proof Service: http://localhost:8080
-
-## 📚 Documentation
-
-- [Quick Start Guide](docs/QUICK_START.md) - Get up and running in 10 minutes
-- [Configuration Guide](docs/CONFIGURATION.md) - Complete configuration reference
-- [Compact Development](docs/COMPACT_DEVELOPMENT.md) - Developing with Midnight's Compact language
-- [Vertex AI Setup](docs/VERTEX_AI_SETUP.md) - Configure OpenCode with multiple LLMs
-- [Architecture Overview](docs/ARCHITECTURE.md) - System design and components
-- [API Documentation](docs/API.md) - Proof service API reference
-- [Workstation Management](docs/WORKSTATION_MANAGEMENT.md) - Complete workstation control guide
-- [Podman Guide](docs/PODMAN.md) - Using Podman as container runtime
+### Expert Assistance
+OpenCode is configured as an expert in:
+- Web3 and blockchain security
+- Zero-knowledge proofs
+- Midnight's Compact language
+- Circuit development
+- DApp architecture
 
 ## 🧪 Testing
 
-Run all tests:
+### Integration Tests
 
 ```bash
+# Run all tests
 make test
+
+# Test specific components
+./scripts/test-integration.sh
 ```
 
-Test individual components:
+### Circuit Testing
 
 ```bash
-# Test Terraform configuration
-cd terraform && terraform validate
+# Test individual circuits
+./test-circuit.sh proveBalance
 
-# Test container build
-./scripts/build.sh
-
-# Test proof service
-cd proof-service && npm test
-
-# Test token template
-cd docker/templates/basic-token && npm test
+# Test all circuits
+make prove
+make verify
 ```
 
-## 🔍 Troubleshooting
+## 📊 Monitoring & Debugging
 
-### Workstation Not Starting
-
-```bash
-# Check workstation status
-./scripts/workstation.sh status
-
-# View detailed information
-./scripts/workstation.sh info
-
-# Check logs for errors
-./scripts/workstation.sh logs
-
-# Restart workstation
-./scripts/workstation.sh restart
-```
-
-### Build Failures
+### Check Status
 
 ```bash
-# Clean and rebuild
-make clean
-make build
-```
-
-### Connection Issues
-
-```bash
-# Check service health
-curl http://localhost:8080/health
-
-# Ensure workstation is running
+# Overall deployment status
 make status
 
-# Try port forwarding
-make port-forward
+# Cloud Build status
+make cloud-status
+
+# Diagnose Cloud Build issues
+make cloud-diagnose
 ```
 
-## 📈 Monitoring
+### Access Services
 
-View workstation logs:
+| Service | URL | Description |
+|---------|-----|-------------|
+| Service Dashboard | http://localhost:7681/services | All services overview |
+| Web Terminal | http://localhost:7681 | Browser-based terminal |
+| OpenCode AI | http://localhost:7681/opencode | AI coding assistant |
+| VS Code | http://localhost:8443 | Web-based IDE |
+| Proof Service | http://localhost:8080 | Proof generation API |
+
+## 🚢 Production Deployment
+
+### Using Cloud Build (Recommended)
 
 ```bash
-make logs
-# or
-./scripts/workstation.sh logs
+# Setup Cloud Build for production
+make cloud-setup PROJECT_ID=prod-project
+
+# Deploy to production
+make cloud-deploy ENV=prod
+
+# Check deployment status
+make cloud-status
 ```
 
-Check resource usage:
+### Multi-Environment Support
 
 ```bash
-./scripts/workstation.sh info
+# Deploy to different environments
+make cloud-deploy ENV=dev      # Development
+make cloud-deploy ENV=staging  # Staging
+make cloud-deploy ENV=prod     # Production
 ```
 
 ## 🔒 Security
 
-- All traffic encrypted with TLS
-- IAP-based authentication
-- Private VPC with NAT gateway
-- No public IPs on workstations
-- Automated security updates
-- Terraform state encrypted in GCS
+- **Least Privilege IAM**: Minimal required permissions
+- **State Encryption**: Terraform state encrypted at rest
+- **Secret Management**: Integration with Secret Manager
+- **Network Isolation**: Private VPC for workstations
+- **Audit Logging**: All actions logged to Cloud Logging
 
-## 💰 Cost Estimation
+## 💰 Cost Optimization
 
-Estimated monthly costs (MVP configuration):
+### Workstation Auto-Stop
 
-- Cloud Workstations: ~$150/month (assuming 8 hours/day usage)
-- Networking: ~$20/month
-- Storage: ~$10/month
-- **Total**: ~$180/month
+Workstations automatically stop after idle timeout:
+- Dev: 20 minutes
+- Staging: 1 hour  
+- Prod: 4 hours
 
-**Cost Optimization Tips:**
-- Stop workstations when not in use: `make stop`
-- Use appropriate idle timeout settings
-- Monitor usage with GCP billing reports
+### Resource Sizing
+
+```hcl
+# terraform.tfvars
+workstation_config = {
+  machine_type = "e2-standard-4"  # Adjust as needed
+  boot_disk_size_gb = 50
+  persistent_disk_size_gb = 200
+}
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Cloud Build Permission Errors**
+```bash
+# Diagnose and fix permissions
+make cloud-diagnose
+make cloud-setup  # Re-run setup to fix
+```
+
+**Workstation Won't Start**
+```bash
+# Check workstation status
+make ws-list
+```
+
+**Local Development Issues**
+```bash
+# Restart Docker Compose services
+make compose-down
+make compose-up
+```
+
+## 📚 Documentation
+
+- [Quick Start Guide](docs/QUICK_START.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Cloud Build Guide](docs/CLOUD_BUILD.md)
+- [Configuration Guide](docs/CONFIGURATION.md)
+- [Vertex AI Setup](docs/VERTEX_AI_SETUP.md)
+- [Proof Service](docs/PROOF_SERVICE.md)
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: [docs.midnight.network](https://docs.midnight.network)
-- **GitHub Issues**: [Create an issue](https://github.com/midnight-network/cloud-platform/issues)
-- **Discord**: [Join our community](https://discord.gg/midnight)
-- **Email**: support@midnight.network
-
-## 🎯 Roadmap
-
-### MVP (Current) ✅
-- ✅ Basic Cloud Workstations setup
-- ✅ Single region deployment
-- ✅ Mock proof service
-- ✅ Basic token template
-- ✅ Container runtime agnostic (Podman/Docker)
-- ✅ GCS backend for Terraform state
-- ✅ Comprehensive workstation management
-
-### Phase 2 (Production)
-- [ ] Multi-region support
-- [ ] Real Midnight compiler integration
-- [ ] Production proof service
-- [ ] Multiple DApp templates
-- [ ] CI/CD integration
-- [ ] Monitoring dashboard
-
-### Phase 3 (Enterprise)
-- [ ] Private clusters
-- [ ] VPN connectivity
-- [ ] SSO integration
-- [ ] Compliance controls
-- [ ] Team collaboration features
-- [ ] Advanced RBAC
-
-## 🏁 Demo Scenarios
-
-### Quick Local Testing (No GCP Required)
-
-Test the development environment locally before deploying to GCP:
+### Development Setup
 
 ```bash
-# 1. Build container
-make build
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/coding-platform
+cd coding-platform
 
-# 2. Run locally
-make run-local
+# Create feature branch
+git checkout -b feature/amazing-feature
 
-# 3. Access services:
-#    - VS Code: http://localhost:8443
-#    - DApp: http://localhost:3000
-#    - Proof Service: http://localhost:8080
-
-# 4. Stop with Ctrl+C
-```
-
-### Full Cloud Deployment
-
-Try the complete flow with Cloud Workstations:
-
-```bash
-# 1. Deploy everything
-make setup PROJECT_ID=your-project-id
-
-# 2. Start workstation and get URL
-./scripts/workstation.sh start
-
-# 3. Set up port forwarding (in another terminal)
-./scripts/workstation.sh port-forward
-
-# 4. Access the workstation URL in browser
-
-# 5. In the workstation terminal:
-midnight new demo-token
-cd /workspace/projects/demo-token
-make compile
+# Make changes and test
 make test
-make prove
-make deploy
-make dev
 
-# 6. Access locally at http://localhost:3000
-
-# 7. When done, stop the workstation
-make stop
+# Submit PR
 ```
 
-## 🔄 Updates and Maintenance
+## 📄 License
 
-### Update Container Image
-```bash
-make build push
-./scripts/workstation.sh update-config
-./scripts/workstation.sh restart
-```
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
-### Update Infrastructure
-```bash
-# Modify terraform files as needed
-make deploy
-```
+## 🙏 Acknowledgments
 
-### Clean Up Resources
-```bash
-# Stop all workstations
-./scripts/workstation.sh list
-make stop
+- Midnight Network team for the proof server
+- Google Cloud for Cloud Workstations
+- Anthropic for Claude models via Vertex AI
+- The Web3 community
 
-# Destroy infrastructure (keeps state bucket)
-make destroy
+## 📞 Support
 
-# Complete cleanup including state
-make clean
-```
+- **Issues**: [GitHub Issues](https://github.com/midnight-network/coding-platform/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/midnight-network/coding-platform/discussions)
+- **Documentation**: [Online Docs](https://midnight-network.github.io/coding-platform)
 
 ---
 
-Built with ❤️ for the Midnight Network community
+**Built with ❤️ for the Midnight Network community**
+
+*Empowering developers to build privacy-preserving applications*

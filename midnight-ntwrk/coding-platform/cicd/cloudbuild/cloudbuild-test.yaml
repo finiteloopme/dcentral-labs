@@ -1,0 +1,28 @@
+# Minimal Cloud Build configuration for testing
+# Use this to verify Cloud Build is working correctly
+
+steps:
+  # Simple test step
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "========================================="
+        echo "Cloud Build Test - Verification"
+        echo "========================================="
+        echo "Project ID: ${PROJECT_ID}"
+        echo "Build ID: ${BUILD_ID}"
+        echo "Location: ${LOCATION}"
+        echo ""
+        echo "✅ Cloud Build is working correctly!"
+        echo ""
+        echo "Checking available tools..."
+        gcloud version
+        echo ""
+        echo "Checking project configuration..."
+        gcloud config list
+        echo ""
+        echo "Test complete!"
+
+timeout: '300s'

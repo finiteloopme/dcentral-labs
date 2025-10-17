@@ -13,15 +13,24 @@ This guide covers all configuration options for the Midnight Development Platfor
 | `ZONE` | GCP deployment zone | `us-central1-a` | No |
 | `ENV` | Environment name (used in resource naming) | `mvp` | No |
 
-### Service Configuration
+### Proof Service Configuration
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `PROOF_SERVICE_URL` | External proof service URL | `http://localhost:8080` | No |
-| `PROOF_SERVICE_CONFIG` | Additional proof service config (JSON) | `{}` | No |
+| `PROOF_SERVICE_MODE` | Service mode: `local` or `external` | `local` | No |
+| `PROOF_SERVICE_URL` | External proof service URL (when mode=external) | - | Conditional |
+| `PROOF_SERVICE_PORT` | Port for local proof server | `8080` | No |
+| `PROOF_SERVICE_HOST` | Host binding for local server | `0.0.0.0` | No |
+| `PROOF_SERVICE_LOG_LEVEL` | Logging level (debug/info/warn/error) | `info` | No |
+| `PROOF_SERVICE_THREADS` | Number of worker threads | `4` | No |
+| `PROOF_SERVICE_CACHE_SIZE` | Proof cache size | `1000` | No |
+
+### Service Ports
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
 | `TERMINAL_PORT` | Web terminal port | `7681` | No |
 | `APP_PORT` | DApp development server port | `3000` | No |
-| `PROOF_PORT` | Proof service port (local) | `8080` | No |
 | `VSCODE_PORT` | VS Code server port | `8443` | No |
 
 ### Workstation Configuration

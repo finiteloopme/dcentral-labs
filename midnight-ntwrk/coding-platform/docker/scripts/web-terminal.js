@@ -284,6 +284,52 @@ app.get('/live', (req, res) => {
     res.status(200).json({ alive: true });
 });
 
+// Environment info endpoint
+app.get('/env', (req, res) => {
+    res.json({
+        proofServiceUrl: process.env.PROOF_SERVICE_URL || 'http://localhost:8080',
+        terminalPort: process.env.TERMINAL_PORT || 7681,
+        appPort: process.env.APP_PORT || 3000,
+        codePort: process.env.CODE_PORT || 8443,
+        environment: process.env.MIDNIGHT_ENV || 'local',
+        network: process.env.MIDNIGHT_NETWORK || 'testnet',
+        gcpProject: process.env.GCP_PROJECT_ID || process.env.PROJECT_ID || null
+    });
+});
+
+// Service status endpoint
+app.get('/api/status', async (req, res) => {
+    const proofServiceUrl = process.env.PROOF_SERVICE_URL || 'http://localhost:8080';
+    
+    // Check proof service health
+    let proofServiceStatus = 'unknown';
+    try {
+        const fetch = require('node-fetch');
+        const response = await fetch(`${proofServiceUrl}/health`, { timeout: 2000 });
+        proofServiceStatus = response.ok ? 'healthy' : 'unhealthy';
+    } catch (error) {
+        proofServiceStatus = 'unreachable';
+    }
+    
+    res.json({
+        services: {
+            terminal: 'running',
+            opencode: 'available',
+            vscode: process.env.CODE_SERVER_ENABLED !== 'false' ? 'available' : 'disabled',
+            proofService: {
+                url: proofServiceUrl,
+                status: proofServiceStatus
+            }
+        },
+        environment: {
+            midnight: process.env.MIDNIGHT_ENV || 'local',
+            network: process.env.MIDNIGHT_NETWORK || 'testnet',
+            gcpProject: process.env.GCP_PROJECT_ID || process.env.PROJECT_ID || null
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Landing page with service links
 app.get('/services', (req, res) => {
     res.send(`
@@ -363,23 +409,45 @@ app.get('/services', (req, res) => {
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🌙 Midnight Development Platform</h1>
-        <p class="subtitle">Choose a service to get started</p>
-        
-        <div class="services">
+        <div class="container">
+            <h1>🌙 Midnight Development Platform</h1>
+            <p class="subtitle">Service Dashboard</p>
+            
+            <div style="background: #2d3748; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 10px 0; color: #63b3ed;">Configuration</h3>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Environment:</strong> ${process.env.MIDNIGHT_ENV || 'local'}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Proof Service:</strong> ${process.env.PROOF_SERVICE_URL || 'http://localhost:8080 (local)'}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Network:</strong> ${process.env.MIDNIGHT_NETWORK || 'testnet'}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>GCP Project:</strong> ${process.env.GCP_PROJECT_ID || process.env.PROJECT_ID || 'Not configured'}
+                </p>
+            </div>
+            
             <a href="/" class="service-card">
                 <div class="service-icon">💻</div>
                 <div class="service-title">Web Terminal</div>
-                <div class="service-desc">Full bash terminal with Midnight tools and development environment</div>
-                <div class="service-url">http://localhost:7681/</div>
+                <div class="service-desc">Full bash terminal with all Midnight tools</div>
+                <div class="service-url">http://localhost:${process.env.TERMINAL_PORT || 7681}</div>
             </a>
             
             <a href="/opencode" class="service-card">
                 <div class="service-icon">🤖</div>
                 <div class="service-title">OpenCode AI</div>
-                <div class="service-desc">AI-powered coding assistant for smart contract development</div>
-                <div class="service-url">http://localhost:7681/opencode</div>
+                <div class="service-desc">AI-powered coding assistant with Vertex AI integration</div>
+                <div class="service-url">http://localhost:${process.env.TERMINAL_PORT || 7681}/opencode</div>
+            </a>
+            
+            <a href="/vscode" class="service-card">
+                <div class="service-icon">📝</div>
+                <div class="service-title">VS Code IDE</div>
+                <div class="service-desc">Full-featured code editor with extensions and debugging</div>
+                <div class="service-url">http://localhost:${process.env.CODE_PORT || 8443}</div>
             </a>
             
             <a href="/vscode" class="service-card">
@@ -396,14 +464,45 @@ app.get('/services', (req, res) => {
                 <div class="service-url">${process.env.PROOF_SERVICE_URL || 'http://localhost:8080'}</div>
             </a>
             
-            <a href="http://localhost:3000" target="_blank" class="service-card">
+            <a href="http://localhost:${process.env.APP_PORT || 3000}" target="_blank" class="service-card">
                 <div class="service-icon">🚀</div>
                 <div class="service-title">DApp Server</div>
                 <div class="service-desc">Development server for your Midnight DApps</div>
-                <div class="service-url">http://localhost:3000</div>
+                <div class="service-url">http://localhost:${process.env.APP_PORT || 3000}</div>
             </a>
         </div>
     </div>
+    
+    <script>
+        // Check service status dynamically
+        async function checkServiceStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                // Update proof service card based on status
+                const proofCard = document.querySelector('a[href*="health"]');
+                if (proofCard && status.services.proofService) {
+                    const statusBadge = status.services.proofService.status === 'healthy' 
+                        ? '🟢' 
+                        : status.services.proofService.status === 'unreachable' 
+                        ? '🔴' 
+                        : '🟡';
+                    
+                    const titleElement = proofCard.querySelector('.service-title');
+                    if (titleElement) {
+                        titleElement.innerHTML = 'Proof Service ' + statusBadge;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check service status:', error);
+            }
+        }
+        
+        // Check status on load and every 10 seconds
+        checkServiceStatus();
+        setInterval(checkServiceStatus, 10000);
+    </script>
 </body>
 </html>
     `);

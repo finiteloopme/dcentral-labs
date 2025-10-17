@@ -112,13 +112,13 @@ The following settings are pre-configured for Compact development:
 }
 ```
 
-## Example Contract
+## Example Contract with Circuits
 
-Here's a simple token contract in Compact:
+The template includes a privacy-preserving token contract with exported circuits:
 
 ```compact
-// Token.compact
-contract Token {
+// Token.compact - Privacy-preserving token with ZK circuits
+export contract Token {
     // State variables
     mapping(address => uint256) private balances;
     mapping(address => mapping(address => uint256)) private allowances;

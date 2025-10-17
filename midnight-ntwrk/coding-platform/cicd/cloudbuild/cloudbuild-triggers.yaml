@@ -1,0 +1,87 @@
+# Cloud Build Triggers Configuration
+# Deploy these triggers using: gcloud builds triggers import --source=cloudbuild-triggers.yaml
+
+triggers:
+  # Trigger 1: Plan on Pull Request
+  - name: 'terraform-plan-pr'
+    description: 'Run Terraform plan on pull requests'
+    github:
+      owner: 'midnight-network'
+      name: 'coding-platform'
+      pullRequest:
+        branch: '^main$'
+        commentControl: 'COMMENTS_ENABLED'
+    filename: 'cloudbuild-plan.yaml'
+    substitutions:
+      _ENVIRONMENT: 'dev'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+    includedFiles:
+      - 'terraform/**'
+      - 'docker/**'
+
+  # Trigger 2: Deploy to Dev on merge to main
+  - name: 'terraform-apply-dev'
+    description: 'Deploy to dev environment on merge to main'
+    github:
+      owner: 'midnight-network'
+      name: 'coding-platform'
+      push:
+        branch: '^main$'
+    filename: 'cloudbuild.yaml'
+    substitutions:
+      _ENVIRONMENT: 'dev'
+      _TERRAFORM_ACTION: 'apply'
+      _AUTO_APPROVE: 'true'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+    includedFiles:
+      - 'terraform/**'
+      - 'docker/**'
+
+  # Trigger 3: Deploy to Staging (manual)
+  - name: 'terraform-apply-staging'
+    description: 'Deploy to staging environment (manual trigger)'
+    github:
+      owner: 'midnight-network'
+      name: 'coding-platform'
+      push:
+        tag: '^staging-.*'
+    filename: 'cloudbuild.yaml'
+    substitutions:
+      _ENVIRONMENT: 'staging'
+      _TERRAFORM_ACTION: 'apply'
+      _AUTO_APPROVE: 'true'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+
+  # Trigger 4: Deploy to Production (manual with approval)
+  - name: 'terraform-apply-prod'
+    description: 'Deploy to production environment (requires approval)'
+    github:
+      owner: 'midnight-network'
+      name: 'coding-platform'
+      push:
+        tag: '^prod-v.*'
+    filename: 'cloudbuild-prod.yaml'
+    substitutions:
+      _ENVIRONMENT: 'prod'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+      _TRIGGERED_BY: '${TRIGGER_NAME}'
+    approvalConfig:
+      approvalRequired: true
+
+  # Trigger 5: Destroy Dev Environment (manual)
+  - name: 'terraform-destroy-dev'
+    description: 'Destroy dev environment (manual trigger)'
+    sourceToBuild:
+      uri: 'https://github.com/midnight-network/coding-platform'
+      ref: 'refs/heads/main'
+      repoType: 'GITHUB'
+    disabled: true  # Safety: disabled by default
+    filename: 'cloudbuild-destroy.yaml'
+    substitutions:
+      _ENVIRONMENT: 'dev'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'

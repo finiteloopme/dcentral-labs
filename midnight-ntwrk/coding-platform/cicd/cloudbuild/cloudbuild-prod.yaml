@@ -1,0 +1,215 @@
+# Cloud Build configuration for PRODUCTION Terraform deployment
+# Requires manual approval and includes additional safety checks
+
+substitutions:
+  _TERRAFORM_VERSION: '1.9.8'
+  _ENVIRONMENT: 'prod'
+  _REQUIRE_APPROVAL: 'true'
+  _REGION: 'us-central1'
+  _ZONE: 'us-central1-a'
+  _TRIGGERED_BY: ''  # Set by trigger
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+  env:
+    - 'TF_IN_AUTOMATION=true'
+    - 'TF_INPUT=false'
+
+steps:
+  # Step 1: Verify build approval
+  - id: 'verify-approval'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "========================================="
+        echo "PRODUCTION DEPLOYMENT"
+        echo "========================================="
+        echo "Environment: ${_ENVIRONMENT}"
+        echo "Project: ${PROJECT_ID}"
+        echo "Build ID: ${BUILD_ID}"
+        echo "Triggered by: ${_TRIGGERED_BY}"
+        echo "========================================="
+        
+        if [ "${_REQUIRE_APPROVAL}" != "false" ]; then
+          echo "This build requires manual approval."
+          echo "Ensure approval was granted before proceeding."
+        fi
+
+  # Step 2: Backup current state
+  - id: 'backup-state'
+    name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - 'cp'
+      - '-r'
+      - 'gs://${PROJECT_ID}-terraform-state/midnight-platform/prod/*'
+      - 'gs://${PROJECT_ID}-terraform-state/backups/${BUILD_ID}/'
+
+  # Step 3: Initialize Terraform
+  - id: 'terraform-init'
+    name: 'hashicorp/terraform:${_TERRAFORM_VERSION}'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=midnight-platform/${_ENVIRONMENT}" \
+          -input=false \
+          -upgrade
+
+  # Step 4: Validate
+  - id: 'terraform-validate'
+    name: 'hashicorp/terraform:${_TERRAFORM_VERSION}'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform validate
+        terraform fmt -check=true
+
+  # Step 5: Select production workspace
+  - id: 'terraform-workspace'
+    name: 'hashicorp/terraform:${_TERRAFORM_VERSION}'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform workspace select ${_ENVIRONMENT} || terraform workspace new ${_ENVIRONMENT}
+
+  # Step 6: Plan with production variables
+  - id: 'terraform-plan'
+    name: 'hashicorp/terraform:${_TERRAFORM_VERSION}'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        
+        # Load production variables
+        if [ -f "environments/prod.tfvars" ]; then
+          TFVARS_FILE="-var-file=environments/prod.tfvars"
+        else
+          TFVARS_FILE=""
+        fi
+        
+        terraform plan \
+          -var="project_id=${PROJECT_ID}" \
+          -var="environment=${_ENVIRONMENT}" \
+          -var="region=${_REGION}" \
+          -var="zone=${_ZONE}" \
+          $TFVARS_FILE \
+          -out=tfplan.binary \
+          -input=false
+        
+        # Generate reports
+        terraform show -json tfplan.binary > tfplan.json
+        terraform show tfplan.binary > tfplan.txt
+        
+        # Check for destructive changes
+        if grep -E "(destroy|delete|remove)" tfplan.txt; then
+          echo "WARNING: Plan contains destructive changes!"
+          echo "Review carefully before applying."
+        fi
+
+  # Step 7: Apply changes (with safety check)
+  - id: 'terraform-apply'
+    name: 'hashicorp/terraform:${_TERRAFORM_VERSION}'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        
+        # Final safety check
+        if [ ! -f "tfplan.binary" ]; then
+          echo "ERROR: No plan file found!"
+          exit 1
+        fi
+        
+        echo "Applying production changes..."
+        terraform apply tfplan.binary
+        
+        # Save outputs
+        terraform output -json > outputs.json
+        
+        echo "========================================="
+        echo "Production deployment complete!"
+        echo "========================================="
+
+  # Step 8: Build production container
+  - id: 'build-container'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:${BUILD_ID}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:prod'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:prod-${BUILD_ID}'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:latest'
+      - 'docker'
+
+  # Step 9: Push to registry
+  - id: 'push-container'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:${BUILD_ID}
+        docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:prod
+        docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:prod-${BUILD_ID}
+
+  # Step 10: Verify deployment
+  - id: 'verify-deployment'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Verifying production deployment..."
+        
+        # Check workstation cluster
+        gcloud workstations clusters list --region=${_REGION} --format="table(name,state)"
+        
+        # Check workstation configs
+        gcloud workstations configs list --region=${_REGION} --format="table(name,state)"
+        
+        echo "Deployment verification complete."
+
+  # Step 11: Send notifications
+  - id: 'notify'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Sending deployment notifications..."
+        
+        # This would send to Slack, email, etc.
+        echo "Production deployment ${BUILD_ID} completed successfully"
+        echo "Environment: ${_ENVIRONMENT}"
+        echo "Project: ${PROJECT_ID}"
+
+artifacts:
+  objects:
+    location: 'gs://${PROJECT_ID}-terraform-state/production-builds/${BUILD_ID}'
+    paths:
+      - 'terraform/tfplan.txt'
+      - 'terraform/tfplan.json'
+      - 'terraform/outputs.json'
+
+timeout: '2700s'
+
+tags:
+  - 'terraform'
+  - 'production'
+  - 'midnight-platform'

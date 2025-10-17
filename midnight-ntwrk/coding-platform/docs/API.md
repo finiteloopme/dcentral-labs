@@ -1,8 +1,20 @@
 # Proof Service API Documentation
 
+## Overview
+
+The Midnight Development Platform integrates with a proof generation service that can be either:
+- **Local Mock Service** - Runs automatically for development
+- **External Production Service** - Configured via `PROOF_SERVICE_URL`
+
+The platform's CLI tools (`prove` and `verify`) automatically use the configured service.
+
 ## Base URL
 ```
+# Local (default)
 http://localhost:8080
+
+# External (configured)
+${PROOF_SERVICE_URL}
 ```
 
 ## Authentication
@@ -333,6 +345,51 @@ curl http://localhost:8080/health
    - Ensure all proof components are present
    - Check protocol compatibility
 
+## CLI Integration
+
+The Midnight CLI tools automatically use the configured proof service:
+
+### Using the prove command
+```bash
+# Generate proof for a single file
+prove build/Token.json
+
+# Generate with options
+prove -t plonk -o custom.proof build/Token.json
+
+# Generate and verify
+prove --verify build/Token.json
+
+# Using external service
+PROOF_SERVICE_URL=https://api.example.com prove build/Token.json
+```
+
+### Using the verify command
+```bash
+# Verify a proof file
+verify build/Token.proof
+
+# Using midnight CLI
+midnight verify build/Token.proof
+
+# With external service
+PROOF_SERVICE_URL=https://api.example.com verify build/Token.proof
+```
+
+### Batch processing with midnight CLI
+```bash
+# Compile all contracts
+midnight compile
+
+# Generate proofs for all compiled contracts
+midnight prove
+
+# The CLI automatically:
+# - Finds all .json files in build/
+# - Calls the proof service for each
+# - Saves .proof files alongside
+```
+
 ## Migration to Production
 
 When moving to production:
@@ -341,3 +398,4 @@ When moving to production:
 3. Set up monitoring
 4. Implement caching
 5. Scale horizontally
+6. Set `PROOF_SERVICE_URL` to production endpoint

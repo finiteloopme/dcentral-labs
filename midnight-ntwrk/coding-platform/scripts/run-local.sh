@@ -29,6 +29,10 @@ TERMINAL_PORT="${TERMINAL_PORT:-7681}"
 # External services
 PROOF_SERVICE_URL="${PROOF_SERVICE_URL:-}"
 
+# Google Cloud configuration
+GCP_PROJECT_ID="${GCP_PROJECT_ID:-${PROJECT_ID:-}}"
+MOUNT_GCLOUD_CREDS="${MOUNT_GCLOUD_CREDS:-true}"
+
 # Check if container is already running
 check_running() {
     local runtime=$(detect_container_runtime)
@@ -48,6 +52,54 @@ stop_container() {
         $runtime stop "$CONTAINER_NAME" 2>/dev/null || true
         $runtime rm "$CONTAINER_NAME" 2>/dev/null || true
     fi
+}
+
+# Prepare Google Cloud credential mounts
+prepare_gcloud_mounts() {
+    local mounts=""
+    local vol_flags="$1"
+    
+    # Combine mount options properly (ro and Z need to be comma-separated)
+    local mount_opts="ro"
+    if [ -n "$vol_flags" ]; then
+        # Remove leading colon from vol_flags if present
+        vol_flags="${vol_flags#:}"
+        if [ -n "$vol_flags" ]; then
+            mount_opts="${mount_opts},${vol_flags}"
+        fi
+    fi
+    
+    if [ "$MOUNT_GCLOUD_CREDS" = "true" ]; then
+        # Check for gcloud config directory
+        if [ -d "$HOME/.config/gcloud" ]; then
+            # Log to stderr so it doesn't get captured in the return value
+            >&2 log_info "Found gcloud configuration, mounting credentials"
+            mounts="${mounts} -v ${HOME}/.config/gcloud:/root/.config/gcloud:${mount_opts}"
+            
+            # Check for active account
+            if command -v gcloud &>/dev/null; then
+                local active_account=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null || true)
+                if [ -n "$active_account" ]; then
+                    >&2 log_info "Active GCP account: $active_account"
+                fi
+            fi
+        else
+            >&2 log_warn "No gcloud configuration found at ~/.config/gcloud"
+            >&2 log_info "To use Vertex AI, run: gcloud auth login"
+        fi
+        
+        # Also mount application default credentials if they exist
+        if [ -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
+            >&2 log_info "Found application default credentials"
+        elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            >&2 log_info "Using GOOGLE_APPLICATION_CREDENTIALS from: $GOOGLE_APPLICATION_CREDENTIALS"
+            mounts="${mounts} -v ${GOOGLE_APPLICATION_CREDENTIALS}:/tmp/gcp-key.json:${mount_opts}"
+            mounts="${mounts} -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json"
+        fi
+    fi
+    
+    # Return only the mount arguments, no colored output
+    echo "$mounts"
 }
 
 # Run container
@@ -87,40 +139,52 @@ run_container() {
     # Prepare volume mount flags based on runtime
     local vol_flags=""
     if [ "$runtime" = "podman" ]; then
-        # Add :Z for SELinux if on Linux with podman
+        # Add Z for SELinux if on Linux with podman (without colon, we'll add it later)
         if [ "$(uname)" = "Linux" ]; then
-            vol_flags=":Z"
+            vol_flags="Z"
         fi
     fi
     
-    # Run container with host network mode for better accessibility
-    if [ "$runtime" = "podman" ]; then
-        # Podman-specific flags with host network (simplified for compatibility)
-        $runtime run -it --rm \
-            --name "$CONTAINER_NAME" \
-            --network=host \
-            -v "${SCRIPT_DIR}/../docker/templates:/workspace/templates${vol_flags}" \
-            -e "MIDNIGHT_ENV=local" \
-            -e "PROOF_SERVICE_URL=${PROOF_SERVICE_URL:-}" \
-            -e "TERMINAL_PORT=${TERMINAL_PORT}" \
-            -e "APP_PORT=${APP_PORT}" \
-            -e "PROOF_PORT=${PROOF_PORT}" \
-            -e "CODE_PORT=${CODE_PORT}" \
-            "${IMAGE_NAME}:${IMAGE_TAG}"
-    else
-        # Docker flags with host network
-        $runtime run -it --rm \
-            --name "$CONTAINER_NAME" \
-            --network=host \
-            -v "${SCRIPT_DIR}/../docker/templates:/workspace/templates${vol_flags}" \
-            -e "MIDNIGHT_ENV=local" \
-            -e "PROOF_SERVICE_URL=${PROOF_SERVICE_URL:-}" \
-            -e "TERMINAL_PORT=${TERMINAL_PORT}" \
-            -e "APP_PORT=${APP_PORT}" \
-            -e "PROOF_PORT=${PROOF_PORT}" \
-            -e "CODE_PORT=${CODE_PORT}" \
-            "${IMAGE_NAME}:${IMAGE_TAG}"
+    # Get gcloud credential mounts
+    local gcloud_mounts=$(prepare_gcloud_mounts "$vol_flags")
+    
+    # Build the run command as an array to avoid eval issues
+    local -a run_cmd=()
+    run_cmd+=("$runtime" "run" "-it" "--rm")
+    run_cmd+=("--name" "$CONTAINER_NAME")
+    run_cmd+=("--network=host")
+    
+    # Add templates mount with proper flags
+    local template_mount_opts=""
+    if [ -n "$vol_flags" ]; then
+        template_mount_opts=":${vol_flags}"
     fi
+    run_cmd+=("-v" "${SCRIPT_DIR}/../docker/templates:/workspace/templates${template_mount_opts}")
+    
+    # Add gcloud mounts if available (parse the mount string)
+    if [ -n "$gcloud_mounts" ]; then
+        # Split the gcloud_mounts string into array elements
+        while read -r mount_arg; do
+            if [ -n "$mount_arg" ]; then
+                run_cmd+=($mount_arg)
+            fi
+        done < <(echo "$gcloud_mounts" | xargs -n1)
+    fi
+    
+    # Add environment variables
+    run_cmd+=("-e" "MIDNIGHT_ENV=local")
+    run_cmd+=("-e" "PROOF_SERVICE_URL=${PROOF_SERVICE_URL:-}")
+    run_cmd+=("-e" "TERMINAL_PORT=${TERMINAL_PORT}")
+    run_cmd+=("-e" "APP_PORT=${APP_PORT}")
+    run_cmd+=("-e" "PROOF_PORT=${PROOF_PORT}")
+    run_cmd+=("-e" "CODE_PORT=${CODE_PORT}")
+    run_cmd+=("-e" "GCP_PROJECT_ID=${GCP_PROJECT_ID:-}")
+    
+    # Add the image
+    run_cmd+=("${IMAGE_NAME}:${IMAGE_TAG}")
+    
+    # Execute the command (using array expansion for safety)
+    "${run_cmd[@]}"
 }
 
 # Handle cleanup on exit
@@ -155,13 +219,17 @@ Run container locally for testing
 Usage: $0 [IMAGE_NAME] [IMAGE_TAG]
 
 Environment Variables:
-  APP_PORT          - Local port for DApp (default: 3000)
-  PROOF_PORT        - Local port for proof service (default: 8080)
-  CODE_PORT         - Local port for VS Code (default: 8443)
-  PROOF_SERVICE_URL - External proof service URL (optional, uses local mock if not set)
+  APP_PORT           - Local port for DApp (default: 3000)
+  PROOF_PORT         - Local port for proof service (default: 8080)
+  CODE_PORT          - Local port for VS Code (default: 8443)
+  TERMINAL_PORT      - Local port for web terminal (default: 7681)
+  PROOF_SERVICE_URL  - External proof service URL (optional, uses local mock if not set)
+  GCP_PROJECT_ID     - Google Cloud project ID for Vertex AI
+  MOUNT_GCLOUD_CREDS - Mount local gcloud credentials (default: true)
+  GOOGLE_APPLICATION_CREDENTIALS - Path to service account key (optional)
 
 Examples:
-  # Run with defaults
+  # Run with defaults (auto-mounts gcloud credentials)
   $0
 
   # Run specific image
@@ -172,6 +240,15 @@ Examples:
   
   # Use external proof service
   PROOF_SERVICE_URL=https://proof-api.midnight.network $0
+  
+  # Run with GCP project for Vertex AI
+  GCP_PROJECT_ID=my-project $0
+  
+  # Run without mounting gcloud credentials
+  MOUNT_GCLOUD_CREDS=false $0
+  
+  # Use service account key
+  GOOGLE_APPLICATION_CREDENTIALS=~/keys/gcp-key.json $0
 EOF
     exit 0
 fi

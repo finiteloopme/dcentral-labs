@@ -5,25 +5,25 @@ resource "google_artifact_registry_repository" "workstation_images" {
   description   = "Docker repository for Midnight workstation images"
   format        = "DOCKER"
   project       = var.project_id
-  
+
   docker_config {
     immutable_tags = false
   }
-  
+
   cleanup_policies {
     id     = "keep-recent-versions"
     action = "KEEP"
-    
+
     condition {
-      tag_state    = "TAGGED"
-      older_than   = "2419200s" # 28 days
+      tag_state  = "TAGGED"
+      older_than = "2419200s" # 28 days
     }
   }
-  
+
   cleanup_policies {
     id     = "delete-untagged"
     action = "DELETE"
-    
+
     condition {
       tag_state  = "UNTAGGED"
       older_than = "604800s" # 7 days

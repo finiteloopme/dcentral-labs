@@ -24,18 +24,18 @@ variable "environment" {
 variable "workstation_config" {
   description = "Workstation configuration"
   type = object({
-    machine_type        = string
-    boot_disk_size_gb   = number
+    machine_type            = string
+    boot_disk_size_gb       = number
     persistent_disk_size_gb = number
-    idle_timeout        = string
-    running_timeout     = string
+    idle_timeout            = string
+    running_timeout         = string
   })
   default = {
-    machine_type        = "e2-standard-4"
-    boot_disk_size_gb   = 50
+    machine_type            = "n2-standard-8"
+    boot_disk_size_gb       = 50
     persistent_disk_size_gb = 200
-    idle_timeout        = "1200s"
-    running_timeout     = "14400s"
+    idle_timeout            = "1200s"
+    running_timeout         = "14400s"
   }
 }
 
@@ -51,24 +51,32 @@ variable "state_bucket_location" {
   default     = "US"
 }
 
-variable "proof_service_url" {
-  description = "External proof service URL (optional, uses local mock if not set)"
-  type        = string
-  default     = ""
-}
-
 variable "proof_service_config" {
   description = "Proof service configuration"
   type = object({
-    enabled      = bool
-    url          = string
-    port         = number
-    api_key      = string
+    mode         = string # "local" or "external"
+    external_url = string # URL for external service
+    port         = number # Port for local service
+    host         = string # Host for local service
+    log_level    = string # Logging level
+    threads      = number # Number of threads for local service
+    cache_size   = number # Cache size for local service
+    api_key      = string # API key for external service (if required)
   })
   default = {
-    enabled      = false
-    url          = ""
+    mode         = "local"
+    external_url = ""
     port         = 8080
+    host         = "0.0.0.0"
+    log_level    = "info"
+    threads      = 4
+    cache_size   = 1000
     api_key      = ""
   }
+}
+
+variable "enable_real_proof_server" {
+  description = "Use real Midnight proof server instead of mock"
+  type        = bool
+  default     = true
 }
