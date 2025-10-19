@@ -146,9 +146,9 @@ WORKDIR /workspace
 # Keep as root for compatibility (Cloud Workstations will handle user switching)
 # Local development will also work fine as root in container
 
-# Copy our wrapper script that handles port configuration
-COPY scripts/start-code-oss.sh /opt/midnight/bin/start-code-oss
-RUN chmod +x /opt/midnight/bin/start-code-oss
+# DO NOT override the base image's ENTRYPOINT or CMD
+# The Code OSS base image already handles port 80 correctly for Cloud Workstations
+# Our additions are available via PATH and bashrc
 
-# Override entrypoint to use our wrapper for environment detection
-ENTRYPOINT ["/opt/midnight/bin/start-code-oss"]
+# For local testing, use: docker run -p 8080:80 ...
+# Or use the provided make targets that handle port mapping
