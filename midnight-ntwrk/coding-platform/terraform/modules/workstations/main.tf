@@ -60,9 +60,8 @@ resource "google_workstations_workstation_config" "config" {
   }
 
   container {
-    # Use the predefined Code OSS image for MVP
-    # Will be replaced with custom image once built
-    image = "us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest"
+    # Use our custom Midnight workstation image
+    image = "${var.registry_url}/workstation:latest"
 
     env = {
       MIDNIGHT_ENV             = var.environment

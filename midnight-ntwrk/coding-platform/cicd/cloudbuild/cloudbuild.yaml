@@ -123,8 +123,8 @@ steps:
         if [ "${_TERRAFORM_ACTION}" = "apply" ] && [ "${_AUTO_APPROVE}" = "true" ]; then
           echo "Building container image..."
           cd docker
-          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:${BUILD_ID} .
-          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:latest .
+          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:${BUILD_ID} .
+          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:latest .
         else
           echo "Skipping container build."
         fi
@@ -139,8 +139,8 @@ steps:
         # Only push if we built the container
         if [ "${_TERRAFORM_ACTION}" = "apply" ] && [ "${_AUTO_APPROVE}" = "true" ]; then
           echo "Pushing container to Artifact Registry..."
-          docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:${BUILD_ID}
-          docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-platform/workstation:latest
+          docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:${BUILD_ID}
+          docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:latest
         else
           echo "Skipping container push."
         fi

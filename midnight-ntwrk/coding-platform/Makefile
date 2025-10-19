@@ -89,13 +89,7 @@ clean:
 cloud-setup: check-project
 	@./scripts/setup-cloudbuild-simple.sh $(PROJECT_ID) $(REGION)
 
-# Deploy via Cloud Build
-cloud-deploy: check-project
-	@echo "$(YELLOW)Deploying via Cloud Build (ENV=$(ENV))...$(NC)"
-	@gcloud builds submit \
-		--config=cicd/cloudbuild/cloudbuild.yaml \
-		--substitutions="_ENVIRONMENT=$(ENV),_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true,_REGION=$(REGION),_ZONE=$(ZONE)" \
-		--project=$(PROJECT_ID) .
+# Deploy via Cloud Build (moved to Cloud Build section below)
 
 # Cloud Build status
 cloud-status: check-project
