@@ -73,6 +73,7 @@ resource "google_workstations_workstation_config" "config" {
       PROOF_SERVICE_LOG_LEVEL  = var.proof_service_config.log_level
       PROOF_SERVICE_THREADS    = tostring(var.proof_service_config.threads)
       PROOF_SERVICE_CACHE_SIZE = tostring(var.proof_service_config.cache_size)
+      CLOUD_WORKSTATIONS_CONFIG = "true"
     }
   }
 }

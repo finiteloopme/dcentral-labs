@@ -30,13 +30,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install code-server (VS Code in browser)
-RUN curl -fsSL https://code-server.dev/install.sh | sh || true
+# VS Code is already included in the base Code OSS image - no need to install code-server
 
-# Install OpenCode AI - the actual package!
-RUN npm install -g opencode-ai && \
-    # Verify installation and create symlink if needed
-    (which opencode || ln -s /usr/local/bin/opencode /usr/bin/opencode 2>/dev/null || true)
+# Install OpenCode AI
+RUN npm install -g opencode-ai
 
 # Also install other useful AI tools
 RUN npm install -g --force \
@@ -115,57 +112,33 @@ RUN chmod +x /etc/bash.bashrc.d/midnight.sh
 COPY scripts/start-services.sh /opt/midnight/bin/start-services
 RUN chmod +x /opt/midnight/bin/start-services
 
-# Create a proper entrypoint that starts services
-RUN echo '#!/bin/bash' > /docker-entrypoint.sh && \
-    echo 'set -e' >> /docker-entrypoint.sh && \
-    echo '' >> /docker-entrypoint.sh && \
-    echo '# Source the midnight environment' >> /docker-entrypoint.sh && \
-    echo 'if [ -f /etc/bash.bashrc.d/midnight.sh ]; then' >> /docker-entrypoint.sh && \
-    echo '    source /etc/bash.bashrc.d/midnight.sh' >> /docker-entrypoint.sh && \
-    echo 'fi' >> /docker-entrypoint.sh && \
-    echo '' >> /docker-entrypoint.sh && \
-    echo '# Configure AI credentials if available' >> /docker-entrypoint.sh && \
-    echo 'if [ -f /opt/midnight/bin/configure-ai ]; then' >> /docker-entrypoint.sh && \
-    echo '    source /opt/midnight/bin/configure-ai' >> /docker-entrypoint.sh && \
-    echo 'fi' >> /docker-entrypoint.sh && \
-    echo '' >> /docker-entrypoint.sh && \
-    echo '# Detect environment (Cloud Workstations sets WORKSTATION_NAME)' >> /docker-entrypoint.sh && \
-    echo 'if [ -n "$WORKSTATION_NAME" ]; then' >> /docker-entrypoint.sh && \
-    echo '    # Running in Cloud Workstations - use port 80 for VS Code' >> /docker-entrypoint.sh && \
-    echo '    export VSCODE_PORT=80' >> /docker-entrypoint.sh && \
-    echo 'else' >> /docker-entrypoint.sh && \
-    echo '    # Running locally - use port 8443 for VS Code' >> /docker-entrypoint.sh && \
-    echo '    export VSCODE_PORT=8443' >> /docker-entrypoint.sh && \
-    echo 'fi' >> /docker-entrypoint.sh && \
-    echo '' >> /docker-entrypoint.sh && \
-    echo '# Start services unless in lightweight mode' >> /docker-entrypoint.sh && \
-    echo 'if [ "$MIDNIGHT_LIGHTWEIGHT" != "true" ]; then' >> /docker-entrypoint.sh && \
-    echo '    # Start code-server (VS Code)' >> /docker-entrypoint.sh && \
-    echo '    if command -v code-server >/dev/null 2>&1; then' >> /docker-entrypoint.sh && \
-    echo '        echo "Starting VS Code server on port $VSCODE_PORT..."' >> /docker-entrypoint.sh && \
-    echo '        code-server --bind-addr 0.0.0.0:$VSCODE_PORT --auth none --disable-telemetry &' >> /docker-entrypoint.sh && \
-    echo '    fi' >> /docker-entrypoint.sh && \
-    echo '    # Start ttyd web terminal' >> /docker-entrypoint.sh && \
-    echo '    if command -v ttyd >/dev/null 2>&1; then' >> /docker-entrypoint.sh && \
-    echo '        echo "Starting web terminal on port 7681..."' >> /docker-entrypoint.sh && \
-    echo '        ttyd -p 7681 -W /bin/bash &' >> /docker-entrypoint.sh && \
-    echo '    fi' >> /docker-entrypoint.sh && \
-    echo 'fi' >> /docker-entrypoint.sh && \
-    echo '' >> /docker-entrypoint.sh && \
-    echo '# If no arguments, run bash' >> /docker-entrypoint.sh && \
-    echo 'if [ $# -eq 0 ]; then' >> /docker-entrypoint.sh && \
-    echo '    exec /bin/bash' >> /docker-entrypoint.sh && \
-    echo 'else' >> /docker-entrypoint.sh && \
-    echo '    exec "$@"' >> /docker-entrypoint.sh && \
-    echo 'fi' >> /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Don't override the base image's entrypoint for Cloud Workstations
+# Just add our initialization script
+RUN echo '#!/bin/bash' > /opt/midnight/bin/init-midnight && \
+    echo 'set -e' >> /opt/midnight/bin/init-midnight && \
+    echo '' >> /opt/midnight/bin/init-midnight && \
+    echo '# Source the midnight environment' >> /opt/midnight/bin/init-midnight && \
+    echo 'if [ -f /etc/bash.bashrc.d/midnight.sh ]; then' >> /opt/midnight/bin/init-midnight && \
+    echo '    source /etc/bash.bashrc.d/midnight.sh' >> /opt/midnight/bin/init-midnight && \
+    echo 'fi' >> /opt/midnight/bin/init-midnight && \
+    echo '' >> /opt/midnight/bin/init-midnight && \
+    echo '# Configure AI credentials if available' >> /opt/midnight/bin/init-midnight && \
+    echo 'if [ -f /opt/midnight/bin/configure-ai ]; then' >> /opt/midnight/bin/init-midnight && \
+    echo '    source /opt/midnight/bin/configure-ai' >> /opt/midnight/bin/init-midnight && \
+    echo 'fi' >> /opt/midnight/bin/init-midnight && \
+    echo '' >> /opt/midnight/bin/init-midnight && \
+    echo 'echo "Midnight tools initialized"' >> /opt/midnight/bin/init-midnight
+RUN chmod +x /opt/midnight/bin/init-midnight
+
+# Add initialization to bashrc so it runs when terminal opens
+RUN echo "source /opt/midnight/bin/init-midnight" >> /etc/bash.bashrc
 
 # Add Midnight tools to system PATH
 ENV PATH="/opt/midnight/bin:${PATH}"
 ENV MIDNIGHT_HOME="/opt/midnight"
 
-# Expose ports (80 for Cloud Workstations, 8443 for local)
-EXPOSE 80 7681 8080 8443 3000
+# Expose ports (80 for Cloud Workstations, 8080 for local Code OSS)
+EXPOSE 80 8080 3000 22
 
 # Set working directory
 WORKDIR /workspace
@@ -173,6 +146,9 @@ WORKDIR /workspace
 # Keep as root for compatibility (Cloud Workstations will handle user switching)
 # Local development will also work fine as root in container
 
-# Set entrypoint
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["/bin/bash"]
+# Copy our wrapper script that handles port configuration
+COPY scripts/start-code-oss.sh /opt/midnight/bin/start-code-oss
+RUN chmod +x /opt/midnight/bin/start-code-oss
+
+# Override entrypoint to use our wrapper for environment detection
+ENTRYPOINT ["/opt/midnight/bin/start-code-oss"]
