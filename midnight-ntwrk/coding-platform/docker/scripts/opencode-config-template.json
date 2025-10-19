@@ -25,6 +25,16 @@
         "project": "{env:GCP_PROJECT_ID}",
         "location": "global"
       }
+    },
+    "anthropic": {
+      "models": {
+        "claude-3-opus-20240229": {},
+        "claude-3-5-sonnet-20241022": {},
+        "claude-3-5-haiku-20241022": {}
+      },
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      }
     }
   },
   "instructions": [

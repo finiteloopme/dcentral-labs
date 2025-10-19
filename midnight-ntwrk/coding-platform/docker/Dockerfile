@@ -1,10 +1,13 @@
 # Start with base Cloud Workstations image
 FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
 
+# Switch to root for installation
+USER root
+
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install additional packages
+# Install additional packages including ttyd for web terminal
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -14,7 +17,32 @@ RUN apt-get update && apt-get install -y \
     unzip \
     vim \
     htop \
+    sudo \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
+
+# Install ttyd (web terminal)
+RUN wget -O /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64 && \
+    chmod +x /usr/local/bin/ttyd
+
+# Install Node.js for OpenCode and other tools
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install code-server (VS Code in browser)
+RUN curl -fsSL https://code-server.dev/install.sh | sh || true
+
+# Install OpenCode AI - the actual package!
+RUN npm install -g opencode-ai && \
+    # Verify installation and create symlink if needed
+    (which opencode || ln -s /usr/local/bin/opencode /usr/bin/opencode 2>/dev/null || true)
+
+# Also install other useful AI tools
+RUN npm install -g --force \
+    @anthropic/claude-cli \
+    aider-chat \
+    2>/dev/null || true
 
 # Create Midnight directories
 RUN mkdir -p /opt/midnight/bin \
@@ -23,66 +51,118 @@ RUN mkdir -p /opt/midnight/bin \
     /workspace/templates \
     /workspace/projects
 
-# Copy script files if they exist (using conditional approach)
-RUN mkdir -p /etc/workstation-startup.d
+# Copy script files (excluding opencode to avoid conflicts)
 COPY scripts/*.sh /opt/midnight/bin/
+COPY scripts/opencode-config-template.json /opt/midnight/config/
 RUN chmod +x /opt/midnight/bin/*.sh && \
     for script in /opt/midnight/bin/*.sh; do \
         if [ -f "$script" ]; then \
             basename_script=$(basename "$script" .sh); \
-            mv "$script" "/opt/midnight/bin/$basename_script"; \
+            # Skip opencode.sh to avoid conflict with real opencode-ai
+            if [ "$basename_script" != "opencode" ]; then \
+                mv "$script" "/opt/midnight/bin/$basename_script"; \
+            else \
+                rm "$script"; \
+            fi \
         fi \
     done
 
-# Setup basic configuration
-WORKDIR /workspace
+# Set permissions for all users to access midnight tools
+RUN chmod -R 755 /opt/midnight && \
+    chmod -R 777 /workspace
 
-# Create welcome script using echo commands
-RUN echo '#!/bin/bash' > /workspace/welcome.sh && \
-    echo 'echo "==========================================="' >> /workspace/welcome.sh && \
-    echo 'echo "  Welcome to Midnight Development"' >> /workspace/welcome.sh && \
-    echo 'echo "  Workstation"' >> /workspace/welcome.sh && \
-    echo 'echo "==========================================="' >> /workspace/welcome.sh && \
-    echo 'echo ""' >> /workspace/welcome.sh && \
-    echo 'echo "Available tools:"' >> /workspace/welcome.sh && \
-    echo 'echo "  - compactc: Compile Midnight contracts"' >> /workspace/welcome.sh && \
-    echo 'echo "  - prove: Generate proofs"' >> /workspace/welcome.sh && \
-    echo 'echo "  - verify: Verify proofs"' >> /workspace/welcome.sh && \
-    echo 'echo ""' >> /workspace/welcome.sh && \
-    echo 'echo "Get started:"' >> /workspace/welcome.sh && \
-    echo 'echo "  cd /workspace/templates"' >> /workspace/welcome.sh && \
-    echo 'echo "  ls -la"' >> /workspace/welcome.sh && \
-    echo 'echo ""' >> /workspace/welcome.sh && \
-    chmod +x /workspace/welcome.sh
+# Set up environment variables globally
+RUN echo 'PATH="/opt/midnight/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' >> /etc/environment && \
+    echo 'MIDNIGHT_HOME="/opt/midnight"' >> /etc/environment
 
-# Create entrypoint script using echo commands
-RUN echo '#!/bin/bash' > /entrypoint.sh && \
-    echo 'set -e' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Run startup scripts' >> /entrypoint.sh && \
-    echo 'for script in /etc/workstation-startup.d/*.sh; do' >> /entrypoint.sh && \
-    echo '    if [ -r "$script" ]; then' >> /entrypoint.sh && \
-    echo '        echo "Running $(basename $script)..."' >> /entrypoint.sh && \
-    echo '        . "$script" || true' >> /entrypoint.sh && \
-    echo '    fi' >> /entrypoint.sh && \
-    echo 'done' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Show welcome message' >> /entrypoint.sh && \
-    echo '/workspace/welcome.sh || true' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '# Keep container running' >> /entrypoint.sh && \
-    echo 'exec "$@"' >> /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+# Create a global bashrc addition for all users
+RUN mkdir -p /etc/bash.bashrc.d && \
+    cat > /etc/bash.bashrc.d/midnight.sh <<'EOF'
+# Midnight Development Environment
+export PATH="/opt/midnight/bin:$PATH"
+export MIDNIGHT_HOME="/opt/midnight"
+export PS1='\[\033[01;32m\]\u@midnight\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 
-# Add Midnight tools to PATH
+# Aliases
+alias ll="ls -la"
+alias midnight="cd /workspace"
+alias compactc="/opt/midnight/bin/compactc"
+alias prove="/opt/midnight/bin/prove"
+alias verify="/opt/midnight/bin/verify"
+alias code="code-server"
+# opencode is installed globally via npm, no alias needed
+
+# Show welcome on first login
+if [ ! -f ~/.midnight_welcomed ]; then
+    echo "==========================================="
+    echo "  Welcome to Midnight Development"
+    echo "  Workstation"
+    echo "==========================================="
+    echo ""
+    echo "Available tools:"
+    echo "  - compactc: Compile Midnight contracts"
+    echo "  - prove: Generate proofs"
+    echo "  - verify: Verify proofs"
+    echo ""
+    echo "Get started:"
+    echo "  cd /workspace"
+    echo "  ls -la"
+    echo ""
+    touch ~/.midnight_welcomed
+fi
+EOF
+RUN chmod +x /etc/bash.bashrc.d/midnight.sh
+
+# Copy start-services script
+COPY scripts/start-services.sh /opt/midnight/bin/start-services
+RUN chmod +x /opt/midnight/bin/start-services
+
+# Create a proper entrypoint that starts services
+RUN cat > /docker-entrypoint.sh <<'EOF'
+#!/bin/bash
+set -e
+
+# Source the midnight environment
+if [ -f /etc/bash.bashrc.d/midnight.sh ]; then
+    source /etc/bash.bashrc.d/midnight.sh
+fi
+
+# Configure AI credentials if available
+if [ -f /opt/midnight/bin/configure-ai ]; then
+    source /opt/midnight/bin/configure-ai
+fi
+
+# Only start heavy services if not in test mode
+if [ "$MIDNIGHT_LIGHTWEIGHT" != "true" ]; then
+    # Start ttyd only
+    if command -v ttyd >/dev/null 2>&1; then
+        echo "Starting web terminal on port 7681..."
+        ttyd -p 7681 -W /bin/bash &
+    fi
+fi
+
+# If no arguments, run bash
+if [ $# -eq 0 ]; then
+    exec /bin/bash
+else
+    exec "$@"
+fi
+EOF
+RUN chmod +x /docker-entrypoint.sh
+
+# Add Midnight tools to system PATH
 ENV PATH="/opt/midnight/bin:${PATH}"
+ENV MIDNIGHT_HOME="/opt/midnight"
 
 # Expose ports
-EXPOSE 7681 8080 8443
+EXPOSE 7681 8080 8443 3000
 
 # Set working directory
 WORKDIR /workspace
 
+# Keep as root for compatibility (Cloud Workstations will handle user switching)
+# Local development will also work fine as root in container
+
 # Set entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/bin/bash"]
