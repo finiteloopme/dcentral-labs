@@ -77,40 +77,38 @@ RUN echo 'PATH="/opt/midnight/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/
 
 # Create a global bashrc addition for all users
 RUN mkdir -p /etc/bash.bashrc.d && \
-    cat > /etc/bash.bashrc.d/midnight.sh <<'EOF'
-# Midnight Development Environment
-export PATH="/opt/midnight/bin:$PATH"
-export MIDNIGHT_HOME="/opt/midnight"
-export PS1='\[\033[01;32m\]\u@midnight\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-
-# Aliases
-alias ll="ls -la"
-alias midnight="cd /workspace"
-alias compactc="/opt/midnight/bin/compactc"
-alias prove="/opt/midnight/bin/prove"
-alias verify="/opt/midnight/bin/verify"
-alias code="code-server"
-# opencode is installed globally via npm, no alias needed
-
-# Show welcome on first login
-if [ ! -f ~/.midnight_welcomed ]; then
-    echo "==========================================="
-    echo "  Welcome to Midnight Development"
-    echo "  Workstation"
-    echo "==========================================="
-    echo ""
-    echo "Available tools:"
-    echo "  - compactc: Compile Midnight contracts"
-    echo "  - prove: Generate proofs"
-    echo "  - verify: Verify proofs"
-    echo ""
-    echo "Get started:"
-    echo "  cd /workspace"
-    echo "  ls -la"
-    echo ""
-    touch ~/.midnight_welcomed
-fi
-EOF
+    echo '#!/bin/bash' > /etc/bash.bashrc.d/midnight.sh && \
+    echo '# Midnight Development Environment' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'export PATH="/opt/midnight/bin:$PATH"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'export MIDNIGHT_HOME="/opt/midnight"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'export PS1="\[\033[01;32m\]\u@midnight\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '# Aliases' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias ll="ls -la"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias midnight="cd /workspace"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias compactc="/opt/midnight/bin/compactc"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias prove="/opt/midnight/bin/prove"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias verify="/opt/midnight/bin/verify"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'alias code="code-server"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '# Show welcome on first login' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'if [ ! -f ~/.midnight_welcomed ]; then' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "==========================================="' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  Welcome to Midnight Development"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  Workstation"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "==========================================="' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo ""' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "Available tools:"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  - compactc: Compile Midnight contracts"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  - prove: Generate proofs"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  - verify: Verify proofs"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo ""' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "Get started:"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  cd /workspace"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo "  ls -la"' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    echo ""' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo '    touch ~/.midnight_welcomed' >> /etc/bash.bashrc.d/midnight.sh && \
+    echo 'fi' >> /etc/bash.bashrc.d/midnight.sh
 RUN chmod +x /etc/bash.bashrc.d/midnight.sh
 
 # Copy start-services script
@@ -118,36 +116,34 @@ COPY scripts/start-services.sh /opt/midnight/bin/start-services
 RUN chmod +x /opt/midnight/bin/start-services
 
 # Create a proper entrypoint that starts services
-RUN cat > /docker-entrypoint.sh <<'EOF'
-#!/bin/bash
-set -e
-
-# Source the midnight environment
-if [ -f /etc/bash.bashrc.d/midnight.sh ]; then
-    source /etc/bash.bashrc.d/midnight.sh
-fi
-
-# Configure AI credentials if available
-if [ -f /opt/midnight/bin/configure-ai ]; then
-    source /opt/midnight/bin/configure-ai
-fi
-
-# Only start heavy services if not in test mode
-if [ "$MIDNIGHT_LIGHTWEIGHT" != "true" ]; then
-    # Start ttyd only
-    if command -v ttyd >/dev/null 2>&1; then
-        echo "Starting web terminal on port 7681..."
-        ttyd -p 7681 -W /bin/bash &
-    fi
-fi
-
-# If no arguments, run bash
-if [ $# -eq 0 ]; then
-    exec /bin/bash
-else
-    exec "$@"
-fi
-EOF
+RUN echo '#!/bin/bash' > /docker-entrypoint.sh && \
+    echo 'set -e' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# Source the midnight environment' >> /docker-entrypoint.sh && \
+    echo 'if [ -f /etc/bash.bashrc.d/midnight.sh ]; then' >> /docker-entrypoint.sh && \
+    echo '    source /etc/bash.bashrc.d/midnight.sh' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# Configure AI credentials if available' >> /docker-entrypoint.sh && \
+    echo 'if [ -f /opt/midnight/bin/configure-ai ]; then' >> /docker-entrypoint.sh && \
+    echo '    source /opt/midnight/bin/configure-ai' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# Only start heavy services if not in test mode' >> /docker-entrypoint.sh && \
+    echo 'if [ "$MIDNIGHT_LIGHTWEIGHT" != "true" ]; then' >> /docker-entrypoint.sh && \
+    echo '    # Start ttyd only' >> /docker-entrypoint.sh && \
+    echo '    if command -v ttyd >/dev/null 2>&1; then' >> /docker-entrypoint.sh && \
+    echo '        echo "Starting web terminal on port 7681..."' >> /docker-entrypoint.sh && \
+    echo '        ttyd -p 7681 -W /bin/bash &' >> /docker-entrypoint.sh && \
+    echo '    fi' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
+    echo '# If no arguments, run bash' >> /docker-entrypoint.sh && \
+    echo 'if [ $# -eq 0 ]; then' >> /docker-entrypoint.sh && \
+    echo '    exec /bin/bash' >> /docker-entrypoint.sh && \
+    echo 'else' >> /docker-entrypoint.sh && \
+    echo '    exec "$@"' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Add Midnight tools to system PATH
