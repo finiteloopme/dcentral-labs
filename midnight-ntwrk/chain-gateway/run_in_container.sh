@@ -62,7 +62,7 @@ helm_generate_key() {
     -e GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json \
     -e TF_VAR_project_id=$PROJECT_ID \
     -e TF_LOG=$TF_LOG \
-    midnight-gke-tools yq e ".midnightNode.nodeKey = \"$NODE_KEY\"" -i ./midnight-duo/values.yaml
+    midnight-gke-tools yq e ".midnightNode.nodeKey = \"$NODE_KEY\"" -i ./midnight-svcs/values.yaml
 }
 
 # Function to apply helm chart
@@ -76,7 +76,7 @@ helm_apply() {
     -e GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json \
     -e TF_VAR_project_id=$PROJECT_ID \
     -e TF_LOG=$TF_LOG \
-    midnight-gke-tools helm upgrade --install midnight-duo ./midnight-duo
+    midnight-gke-tools helm upgrade --install midnight-svcs ./midnight-svcs
 }
 
 # Main script

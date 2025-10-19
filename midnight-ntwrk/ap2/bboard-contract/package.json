@@ -1,0 +1,12 @@
+{
+  "name": "bboard-contract",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "/home/kunall/.local/bin/compact compile contracts/bboard.compact build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

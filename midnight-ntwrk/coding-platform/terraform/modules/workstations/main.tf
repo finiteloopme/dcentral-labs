@@ -41,6 +41,16 @@ resource "google_workstations_workstation_config" "config" {
       disable_public_ip_addresses  = false
       enable_nested_virtualization = false
 
+      # Add OAuth scopes for Vertex AI and other Google Cloud services
+      service_account_scopes = [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/cloud-platform.read-only",
+        "https://www.googleapis.com/auth/compute",
+        "https://www.googleapis.com/auth/logging.write",
+        "https://www.googleapis.com/auth/monitoring.write",
+        "https://www.googleapis.com/auth/devstorage.read_write",
+      ]
+
       shielded_instance_config {
         enable_secure_boot          = true
         enable_vtpm                 = true

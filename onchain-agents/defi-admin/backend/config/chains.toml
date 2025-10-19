@@ -1,0 +1,240 @@
+# Chain Configuration File
+# This file contains all supported blockchain configurations
+
+[chains.ethereum]
+name = "Ethereum"
+chain_id = 1
+symbol = "ETH"
+rpc_urls = [
+    "https://eth-mainnet.g.alchemy.com/v2/demo",
+    "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+    "https://eth.llamarpc.com",
+    "https://rpc.ankr.com/eth"
+]
+explorer = "https://etherscan.io"
+native_token = "ETH"
+is_testnet = false
+block_time = 12
+gas_limit = 30000000
+
+[chains.bsc]
+name = "BNB Smart Chain"
+chain_id = 56
+symbol = "BSC"
+rpc_urls = [
+    "https://bsc-dataseed.binance.org/",
+    "https://bsc-dataseed1.defibit.io/",
+    "https://bsc-dataseed1.ninicoin.io/",
+    "https://rpc.ankr.com/bsc"
+]
+explorer = "https://bscscan.com"
+native_token = "BNB"
+is_testnet = false
+block_time = 3
+gas_limit = 140000000
+
+[chains.polygon]
+name = "Polygon"
+chain_id = 137
+symbol = "MATIC"
+rpc_urls = [
+    "https://polygon-rpc.com/",
+    "https://rpc-mainnet.matic.network",
+    "https://matic-mainnet.chainstacklabs.com",
+    "https://rpc.ankr.com/polygon"
+]
+explorer = "https://polygonscan.com"
+native_token = "MATIC"
+is_testnet = false
+block_time = 2
+gas_limit = 30000000
+
+[chains.arbitrum]
+name = "Arbitrum One"
+chain_id = 42161
+symbol = "ARB"
+rpc_urls = [
+    "https://arb1.arbitrum.io/rpc",
+    "https://arbitrum-mainnet.infura.io/v3/YOUR_INFURA_KEY",
+    "https://rpc.ankr.com/arbitrum"
+]
+explorer = "https://arbiscan.io"
+native_token = "ETH"
+is_testnet = false
+block_time = 0.25
+gas_limit = 1125899906842624
+
+[chains.optimism]
+name = "Optimism"
+chain_id = 10
+symbol = "OP"
+rpc_urls = [
+    "https://mainnet.optimism.io",
+    "https://opt-mainnet.g.alchemy.com/v2/demo",
+    "https://rpc.ankr.com/optimism"
+]
+explorer = "https://optimistic.etherscan.io"
+native_token = "ETH"
+is_testnet = false
+block_time = 2
+gas_limit = 30000000
+
+[chains.avalanche]
+name = "Avalanche C-Chain"
+chain_id = 43114
+symbol = "AVAX"
+rpc_urls = [
+    "https://api.avax.network/ext/bc/C/rpc",
+    "https://avalanche-c-chain.publicnode.com",
+    "https://rpc.ankr.com/avalanche"
+]
+explorer = "https://snowtrace.io"
+native_token = "AVAX"
+is_testnet = false
+block_time = 2
+gas_limit = 15000000
+
+[chains.base]
+name = "Base"
+chain_id = 8453
+symbol = "BASE"
+rpc_urls = [
+    "https://mainnet.base.org",
+    "https://base.llamarpc.com",
+    "https://base-mainnet.g.alchemy.com/v2/demo",
+    "https://rpc.ankr.com/base",
+    "https://base.blockpi.network/v1/rpc/public"
+]
+explorer = "https://basescan.org"
+native_token = "ETH"
+is_testnet = false
+block_time = 2
+gas_limit = 30000000
+layer = 2
+parent_chain = "ethereum"
+
+[chains.sonic]
+name = "Sonic"
+chain_id = 146
+symbol = "SONIC"
+rpc_urls = [
+    "https://rpc.sonic.fantom.network",
+    "https://rpc.soniclabs.com",
+    "https://sonic.fantom.network"
+]
+explorer = "https://sonicscan.io"
+native_token = "S"
+is_testnet = false
+block_time = 1
+gas_limit = 30000000
+layer = 1
+consensus = "lachesis"
+
+[chains.fantom]
+name = "Fantom Opera"
+chain_id = 250
+symbol = "FTM"
+rpc_urls = [
+    "https://rpc.ftm.tools/",
+    "https://fantom-mainnet.gateway.pokt.network/v1/lb/YOUR_POKT_KEY",
+    "https://rpc.ankr.com/fantom"
+]
+explorer = "https://ftmscan.com"
+native_token = "FTM"
+is_testnet = false
+block_time = 1
+gas_limit = 30000000
+
+[chains.gnosis]
+name = "Gnosis Chain"
+chain_id = 100
+symbol = "GNO"
+rpc_urls = [
+    "https://rpc.gnosischain.com",
+    "https://gnosis-mainnet.public.blastapi.io",
+    "https://rpc.ankr.com/gnosis"
+]
+explorer = "https://gnosisscan.io"
+native_token = "xDAI"
+is_testnet = false
+block_time = 5
+gas_limit = 30000000
+
+[chains.moonbeam]
+name = "Moonbeam"
+chain_id = 1284
+symbol = "GLMR"
+rpc_urls = [
+    "https://rpc.api.moonbeam.network",
+    "https://moonbeam.public.blastapi.io",
+    "https://rpc.ankr.com/moonbeam"
+]
+explorer = "https://moonscan.io"
+native_token = "GLMR"
+is_testnet = false
+block_time = 12
+gas_limit = 15000000
+
+[chains.celo]
+name = "Celo"
+chain_id = 42220
+symbol = "CELO"
+rpc_urls = [
+    "https://forno.celo.org",
+    "https://rpc.ankr.com/celo"
+]
+explorer = "https://celoscan.io"
+native_token = "CELO"
+is_testnet = false
+block_time = 5
+gas_limit = 20000000
+
+# Testnet configurations
+[chains.sepolia]
+name = "Sepolia Testnet"
+chain_id = 11155111
+symbol = "SEP"
+rpc_urls = [
+    "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+    "https://rpc.sepolia.org",
+    "https://ethereum-sepolia.blockpi.network/v1/rpc/public"
+]
+explorer = "https://sepolia.etherscan.io"
+native_token = "ETH"
+is_testnet = true
+block_time = 12
+gas_limit = 30000000
+faucets = ["https://sepoliafaucet.com"]
+
+[chains.base_sepolia]
+name = "Base Sepolia"
+chain_id = 84532
+symbol = "BASE"
+rpc_urls = [
+    "https://sepolia.base.org",
+    "https://base-sepolia.g.alchemy.com/v2/demo"
+]
+explorer = "https://sepolia.basescan.org"
+native_token = "ETH"
+is_testnet = true
+block_time = 2
+gas_limit = 30000000
+layer = 2
+parent_chain = "sepolia"
+faucets = ["https://www.coinbase.com/faucets/base-ethereum-goerli-faucet"]
+
+# Chain categories for grouping
+[categories]
+layer1 = ["ethereum", "bsc", "avalanche", "fantom", "sonic", "gnosis", "celo"]
+layer2 = ["arbitrum", "optimism", "base", "polygon"]
+evm_compatible = ["ethereum", "bsc", "polygon", "arbitrum", "optimism", "avalanche", "base", "sonic", "fantom", "gnosis", "moonbeam", "celo"]
+high_throughput = ["bsc", "polygon", "avalanche", "sonic", "fantom"]
+ethereum_aligned = ["ethereum", "arbitrum", "optimism", "base"]
+
+# Default settings
+[defaults]
+primary_chain = "ethereum"
+fallback_chains = ["polygon", "bsc"]
+max_retries = 3
+timeout = 30000
+batch_size = 100

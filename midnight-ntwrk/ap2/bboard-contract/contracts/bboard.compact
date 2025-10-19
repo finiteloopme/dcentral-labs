@@ -1,0 +1,20 @@
+pragma language_version >= 0.1.0;
+
+import CompactStandardLibrary;
+
+contract BBoard {
+    ledger messages: Map<PubKey, List<String>>;
+
+    constructor() {
+        this.messages = Map.empty();
+    }
+
+    circuit post(user: PubKey, message: String) : [] {
+        let user_messages = this.messages.get(user, []);
+        this.messages.insert(user, user_messages.push(message));
+    }
+
+    circuit get_messages(user: PubKey): List<String> {
+        return this.messages.get(user, []);
+    }
+}

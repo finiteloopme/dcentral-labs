@@ -133,6 +133,15 @@ RUN chmod +x /opt/midnight/bin/init-midnight
 # Add initialization to bashrc so it runs when terminal opens
 RUN echo "source /opt/midnight/bin/init-midnight" >> /etc/bash.bashrc
 
+# Configure gcloud credentials location for Cloud Workstations
+# Cloud Workstations mounts credentials at /home/user/.config/gcloud
+ENV GOOGLE_APPLICATION_CREDENTIALS=/home/user/.config/gcloud/application_default_credentials.json
+ENV CLOUDSDK_CONFIG=/home/user/.config/gcloud
+
+# Create symlinks for gcloud credentials to work in different contexts
+RUN mkdir -p /root/.config && \
+    ln -sf /home/user/.config/gcloud /root/.config/gcloud || true
+
 # Add Midnight tools to system PATH
 ENV PATH="/opt/midnight/bin:${PATH}"
 ENV MIDNIGHT_HOME="/opt/midnight"

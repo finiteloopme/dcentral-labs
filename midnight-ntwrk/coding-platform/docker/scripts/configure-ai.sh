@@ -1,32 +1,49 @@
 #!/bin/bash
-# Configure AI credentials and services
+# Configure AI services based on available credentials
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+echo -e "\033[0;34m🔧 Configuring AI Services...\033[0m"
 
-echo -e "${BLUE}🔧 Configuring AI Services...${NC}"
+# Detect available AI services
+VERTEX_AI_PROJECT=""
+VERTEX_AI_LOCATION="us-central1"
 
-# Check for Google Cloud credentials (for Vertex AI)
-if [ -f "/root/.config/gcloud/application_default_credentials.json" ]; then
-    echo -e "${GREEN}✓ Google Cloud credentials found${NC}"
-    export GOOGLE_APPLICATION_CREDENTIALS="/root/.config/gcloud/application_default_credentials.json"
-    
-    # Get project ID from credentials or metadata
-    if [ -n "$GCP_PROJECT_ID" ]; then
-        echo -e "${GREEN}✓ GCP Project: $GCP_PROJECT_ID${NC}"
-    elif [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
-        export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
-        echo -e "${GREEN}✓ GCP Project: $GCP_PROJECT_ID${NC}"
-    else
-        # Try to get from gcloud
-        PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
-        if [ -n "$PROJECT_ID" ]; then
-            export GCP_PROJECT_ID="$PROJECT_ID"
-            echo -e "${GREEN}✓ GCP Project: $GCP_PROJECT_ID${NC}"
+# Check for gcloud credentials in multiple locations
+# Cloud Workstations uses /home/user/.config/gcloud
+# Local development uses $HOME/.config/gcloud
+GCLOUD_PATHS=(
+    "/home/user/.config/gcloud/application_default_credentials.json"
+    "$HOME/.config/gcloud/application_default_credentials.json"
+    "/root/.config/gcloud/application_default_credentials.json"
+)
+
+for path in "${GCLOUD_PATHS[@]}"; do
+    if [ -f "$path" ]; then
+        export GOOGLE_APPLICATION_CREDENTIALS="$path"
+        echo -e "\033[0;32m✓ Found Google Cloud credentials at $path\033[0m"
+        
+        # Try to get project from environment or gcloud config
+        if [ -n "$GCP_PROJECT_ID" ]; then
+            VERTEX_AI_PROJECT="$GCP_PROJECT_ID"
+        elif [ -n "$GOOGLE_CLOUD_PROJECT" ]; then
+            VERTEX_AI_PROJECT="$GOOGLE_CLOUD_PROJECT"
+        else
+            VERTEX_AI_PROJECT=$(gcloud config get-value project 2>/dev/null || echo "")
         fi
+        
+        if [ -n "$VERTEX_AI_PROJECT" ]; then
+            echo -e "\033[0;32m✓ Vertex AI configured\033[0m with project: $VERTEX_AI_PROJECT"
+            export VERTEX_AI_PROJECT
+            export VERTEX_AI_LOCATION
+            export GCP_PROJECT_ID="$VERTEX_AI_PROJECT"
+        fi
+        break
+    fi
+done
+
+if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ] || [ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    echo -e "\033[1;33m⚠ Google Cloud credentials not found\033[0m"
+    echo "  To use Vertex AI, run: gcloud auth application-default login"
+fi
     fi
     
     # Set Vertex AI environment variables

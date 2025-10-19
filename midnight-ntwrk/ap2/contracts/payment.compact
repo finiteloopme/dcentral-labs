@@ -1,0 +1,8 @@
+pragma language_version >= 0.1.0;
+
+import CompactStandardLibrary;
+
+contract Payment {
+    circuit pay(invoiceId: String) : [] {
+    }
+}

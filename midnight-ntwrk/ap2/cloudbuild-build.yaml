@@ -1,0 +1,8 @@
+steps:
+# Build the images
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['builds', 'submit', '--config', 'api-gateway/cloudbuild.yaml', '.']
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['builds', 'submit', '--config', 'analyst-api/cloudbuild.yaml', '.']
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['builds', 'submit', '--config', 'midnight-verifier/cloudbuild.yaml', '.']

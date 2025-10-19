@@ -1,0 +1,12 @@
+{
+  "name": "contracts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "/home/kunall/.local/bin/compact compile -p . -o ./build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

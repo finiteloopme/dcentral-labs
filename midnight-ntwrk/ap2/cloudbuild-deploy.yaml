@@ -1,0 +1,8 @@
+steps:
+# Deploy to Cloud Run
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['run', 'deploy', 'api-gateway', '--image', 'gcr.io/$PROJECT_ID/api-gateway', '--platform', 'managed', '--region', 'us-central1', '--allow-unauthenticated']
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['run', 'deploy', 'analyst-api', '--image', 'gcr.io/$PROJECT_ID/analyst-api', '--platform', 'managed', '--region', 'us-central1', '--allow-unauthenticated']
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: ['run', 'deploy', 'midnight-verifier', '--image', 'gcr.io/$PROJECT_ID/midnight-verifier', '--platform', 'managed', '--region', 'us-central1', '--allow-unauthenticated']
