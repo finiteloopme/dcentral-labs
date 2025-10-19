@@ -133,6 +133,24 @@ compose-logs:
 	@cd docker && docker-compose logs -f
 
 # ============================================================================
+# CLOUD BUILD
+# ============================================================================
+
+cloud-deploy:
+	@echo "$(GREEN)[INFO]$(NC) Deploying to Cloud with detailed logging..."
+	@gcloud beta builds submit \
+		--config cicd/cloudbuild/cloudbuild.yaml \
+		--substitutions=_SERVICE_ACCOUNT=midnight-cloudbuild-sa@$(PROJECT_ID).iam.gserviceaccount.com,_AUTO_APPROVE=true,_TERRAFORM_ACTION=apply \
+		.
+
+cloud-deploy-plan:
+	@echo "$(GREEN)[INFO]$(NC) Planning Cloud deployment..."
+	@gcloud beta builds submit \
+		--config cicd/cloudbuild/cloudbuild.yaml \
+		--substitutions=_SERVICE_ACCOUNT=midnight-cloudbuild-sa@$(PROJECT_ID).iam.gserviceaccount.com,_AUTO_APPROVE=false,_TERRAFORM_ACTION=plan \
+		.
+
+# ============================================================================
 # WORKSTATION MANAGEMENT
 # ============================================================================
 
@@ -147,6 +165,28 @@ ws-stop:
 
 ws-ssh:
 	@./scripts/workstation.sh ssh
+
+ws-restart:
+	@echo "$(GREEN)[INFO]$(NC) Restarting workstation to pick up new image..."
+	@gcloud workstations stop midnight-developer-1 \
+		--cluster=midnight-dev-cluster \
+		--config=midnight-dev-config \
+		--region=us-central1 \
+		--quiet || true
+	@echo "$(YELLOW)[INFO]$(NC) Waiting for workstation to stop..."
+	@sleep 30
+	@gcloud workstations start midnight-developer-1 \
+		--cluster=midnight-dev-cluster \
+		--config=midnight-dev-config \
+		--region=us-central1
+	@echo "$(GREEN)✅ Workstation restarted$(NC)"
+
+ws-status:
+	@gcloud workstations describe midnight-developer-1 \
+		--cluster=midnight-dev-cluster \
+		--config=midnight-dev-config \
+		--region=us-central1 \
+		--format="table(name.segment(-1):label=NAME,state,host)"
 
 ws-url:
 	@./scripts/workstation.sh url
