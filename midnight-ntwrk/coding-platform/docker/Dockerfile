@@ -129,12 +129,21 @@ RUN echo '#!/bin/bash' > /docker-entrypoint.sh && \
     echo '    source /opt/midnight/bin/configure-ai' >> /docker-entrypoint.sh && \
     echo 'fi' >> /docker-entrypoint.sh && \
     echo '' >> /docker-entrypoint.sh && \
+    echo '# Detect environment (Cloud Workstations sets WORKSTATION_NAME)' >> /docker-entrypoint.sh && \
+    echo 'if [ -n "$WORKSTATION_NAME" ]; then' >> /docker-entrypoint.sh && \
+    echo '    # Running in Cloud Workstations - use port 80 for VS Code' >> /docker-entrypoint.sh && \
+    echo '    export VSCODE_PORT=80' >> /docker-entrypoint.sh && \
+    echo 'else' >> /docker-entrypoint.sh && \
+    echo '    # Running locally - use port 8443 for VS Code' >> /docker-entrypoint.sh && \
+    echo '    export VSCODE_PORT=8443' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo '' >> /docker-entrypoint.sh && \
     echo '# Start services unless in lightweight mode' >> /docker-entrypoint.sh && \
     echo 'if [ "$MIDNIGHT_LIGHTWEIGHT" != "true" ]; then' >> /docker-entrypoint.sh && \
     echo '    # Start code-server (VS Code)' >> /docker-entrypoint.sh && \
     echo '    if command -v code-server >/dev/null 2>&1; then' >> /docker-entrypoint.sh && \
-    echo '        echo "Starting VS Code server on port 8443..."' >> /docker-entrypoint.sh && \
-    echo '        code-server --bind-addr 0.0.0.0:8443 --auth none --disable-telemetry &' >> /docker-entrypoint.sh && \
+    echo '        echo "Starting VS Code server on port $VSCODE_PORT..."' >> /docker-entrypoint.sh && \
+    echo '        code-server --bind-addr 0.0.0.0:$VSCODE_PORT --auth none --disable-telemetry &' >> /docker-entrypoint.sh && \
     echo '    fi' >> /docker-entrypoint.sh && \
     echo '    # Start ttyd web terminal' >> /docker-entrypoint.sh && \
     echo '    if command -v ttyd >/dev/null 2>&1; then' >> /docker-entrypoint.sh && \
@@ -155,8 +164,8 @@ RUN chmod +x /docker-entrypoint.sh
 ENV PATH="/opt/midnight/bin:${PATH}"
 ENV MIDNIGHT_HOME="/opt/midnight"
 
-# Expose ports
-EXPOSE 7681 8080 8443 3000
+# Expose ports (80 for Cloud Workstations, 8443 for local)
+EXPOSE 80 7681 8080 8443 3000
 
 # Set working directory
 WORKDIR /workspace

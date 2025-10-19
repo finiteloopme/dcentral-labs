@@ -11,10 +11,19 @@ else
     echo "Note: Web terminal not available"
 fi
 
-# Start VS Code server on port 8443
+# Detect environment and set VS Code port
+if [ -n "$WORKSTATION_NAME" ]; then
+    # Running in Cloud Workstations - use port 80
+    VSCODE_PORT=80
+else
+    # Running locally - use port 8443
+    VSCODE_PORT=8443
+fi
+
+# Start VS Code server
 if command -v code-server >/dev/null 2>&1; then
-    echo "Starting VS Code server on port 8443..."
-    code-server --bind-addr 0.0.0.0:8443 --auth none --disable-telemetry &
+    echo "Starting VS Code server on port $VSCODE_PORT..."
+    code-server --bind-addr 0.0.0.0:$VSCODE_PORT --auth none --disable-telemetry &
 fi
 
 # Start proof service on port 8080 (mock service)
@@ -62,7 +71,11 @@ fi
 echo ""
 echo "Services started:"
 echo "  • Web Terminal: http://localhost:7681"
-echo "  • VS Code IDE: http://localhost:8443"
+if [ -n "$WORKSTATION_NAME" ]; then
+    echo "  • VS Code IDE: http://localhost (port 80)"
+else
+    echo "  • VS Code IDE: http://localhost:8443"
+fi
 [ "$START_PROOF_SERVICE" = "true" ] && echo "  • Proof Service: http://localhost:8080"
 [ "$START_WEB_SERVER" = "true" ] && echo "  • Web Server: http://localhost:3000"
 echo ""
