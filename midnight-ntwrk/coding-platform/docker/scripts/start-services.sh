@@ -11,8 +11,8 @@ else
     echo "Note: Web terminal not available"
 fi
 
-# Start VS Code server on port 8443 (only if explicitly requested)
-if [ "$START_CODE_SERVER" = "true" ] && command -v code-server >/dev/null 2>&1; then
+# Start VS Code server on port 8443
+if command -v code-server >/dev/null 2>&1; then
     echo "Starting VS Code server on port 8443..."
     code-server --bind-addr 0.0.0.0:8443 --auth none --disable-telemetry &
 fi
@@ -62,7 +62,7 @@ fi
 echo ""
 echo "Services started:"
 echo "  • Web Terminal: http://localhost:7681"
-[ "$START_CODE_SERVER" = "true" ] && echo "  • VS Code IDE: http://localhost:8443"
+echo "  • VS Code IDE: http://localhost:8443"
 [ "$START_PROOF_SERVICE" = "true" ] && echo "  • Proof Service: http://localhost:8080"
 [ "$START_WEB_SERVER" = "true" ] && echo "  • Web Server: http://localhost:3000"
 echo ""
