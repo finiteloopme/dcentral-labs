@@ -53,13 +53,13 @@ Deploy using Cloud Build from command line:
 
 ```bash
 # Plan only (safe, no changes)
-gcloud builds submit \
+gcloud beta builds submit \
   --config=cicd/cloudbuild/cloudbuild-plan.yaml \
   --substitutions="_ENVIRONMENT=dev,_REGION=us-central1,_ZONE=us-central1-a" \
   --project=YOUR_PROJECT_ID
 
 # Apply changes (requires _AUTO_APPROVE=true)
-gcloud builds submit \
+gcloud beta builds submit \
   --config=cicd/cloudbuild/cloudbuild.yaml \
   --substitutions="_ENVIRONMENT=dev,_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true" \
   --project=YOUR_PROJECT_ID
@@ -96,7 +96,7 @@ The primary configuration that handles both planning and applying Terraform chan
 Safe configuration for pull requests that only creates a plan without applying changes.
 
 ```bash
-gcloud builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml
+gcloud beta builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml
 ```
 
 ### Production Configuration (`cicd/cloudbuild/cloudbuild-prod.yaml`)
@@ -425,7 +425,7 @@ Deploy to multiple environments:
 
 ```bash
 for env in dev staging prod; do
-  gcloud builds submit \
+  gcloud beta builds submit \
     --config=cicd/cloudbuild/cloudbuild.yaml \
     --substitutions="_ENVIRONMENT=$env" \
     --async
@@ -460,7 +460,7 @@ gsutil cp gs://PROJECT_ID-terraform-state/midnight-platform/prod/default.tfstate
           gs://PROJECT_ID-terraform-state/midnight-platform/prod/default.tfstate
 
 # Re-run Terraform
-gcloud builds submit --config=cicd/cloudbuild/cloudbuild.yaml
+gcloud beta builds submit --config=cicd/cloudbuild/cloudbuild.yaml
 ```
 
 ## Migration from Local Deployment
@@ -481,7 +481,7 @@ gsutil cp current-state.json \
 ### Step 3: Verify Cloud Build
 
 ```bash
-gcloud builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml
+gcloud beta builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml
 ```
 
 ### Step 4: Switch to Cloud Build

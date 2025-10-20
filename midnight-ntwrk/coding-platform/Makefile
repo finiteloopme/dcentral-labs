@@ -35,8 +35,9 @@ help:
 	@echo "  $(GREEN)status$(NC)        - Show deployment status"
 	@echo ""
 	@echo "$(YELLOW)Cloud Build:$(NC)"
-	@echo "  $(GREEN)cloud-deploy$(NC)  - Deploy via Cloud Build"
-	@echo "  $(GREEN)cloud-status$(NC)  - Check build status"
+	@echo "  $(GREEN)cloud-deploy-plan$(NC) - Plan deployment via Cloud Build"
+	@echo "  $(GREEN)cloud-deploy$(NC)      - Apply deployment via Cloud Build"
+	@echo "  $(GREEN)cloud-status$(NC)      - Check build status"
 	@echo ""
 	@echo "$(YELLOW)Workstations:$(NC)"
 	@echo "  $(GREEN)ws-list$(NC)       - List workstations"
@@ -101,12 +102,20 @@ clean:
 # CLOUD BUILD
 # ============================================================================
 
-# Deploy via Cloud Build
-cloud-deploy: check-project
-	@echo "$(GREEN)Deploying via Cloud Build...$(NC)"
-	@gcloud builds submit \
+# Deploy via Cloud Build (plan only)
+cloud-deploy-plan: check-project
+	@echo "$(GREEN)Planning Cloud Build deployment (with Cloud Logging)...$(NC)"
+	@gcloud beta builds submit \
 		--config=cicd/cloudbuild/cloudbuild.yaml \
-		--substitutions="_ENVIRONMENT=$(ENV),_REGION=$(REGION),_ZONE=$(ZONE)" \
+		--substitutions="_ENVIRONMENT=$(ENV),_REGION=$(REGION),_ZONE=$(ZONE),_TERRAFORM_ACTION=plan,_AUTO_APPROVE=false" \
+		--project=$(PROJECT_ID) .
+
+# Deploy via Cloud Build (apply)
+cloud-deploy: check-project
+	@echo "$(GREEN)Deploying via Cloud Build (with Cloud Logging)...$(NC)"
+	@gcloud beta builds submit \
+		--config=cicd/cloudbuild/cloudbuild.yaml \
+		--substitutions="_ENVIRONMENT=$(ENV),_REGION=$(REGION),_ZONE=$(ZONE),_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true" \
 		--project=$(PROJECT_ID) .
 
 # Cloud Build status

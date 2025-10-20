@@ -40,7 +40,8 @@ make setup PROJECT_ID=your-project-id
 
 # Option 2: Cloud Build setup (recommended)
 make cloud-setup PROJECT_ID=your-project-id
-make cloud-deploy
+make cloud-deploy-plan  # Review changes first
+make cloud-deploy       # Apply changes
 ```
 
 ### Local Development

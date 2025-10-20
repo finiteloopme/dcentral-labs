@@ -100,8 +100,8 @@ deploy_with_cloud_build() {
     fi
     
     # Submit build
-    log_info "Submitting build to Cloud Build..."
-    gcloud builds submit \
+    log_info "Submitting build to Cloud Build (with Cloud Logging)..."
+    gcloud beta builds submit \
         --config=cicd/cloudbuild/cloudbuild.yaml \
         --substitutions="_ENVIRONMENT=${ENV},_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true,_REGION=${REGION},_ZONE=${ZONE}" \
         --project=${PROJECT_ID} \

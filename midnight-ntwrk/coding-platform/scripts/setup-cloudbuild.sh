@@ -200,7 +200,7 @@ read -r TEST_BUILD
 if [[ "$TEST_BUILD" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Testing Cloud Build setup...${NC}"
     if [ -f "cicd/cloudbuild/cloudbuild-plan.yaml" ]; then
-        gcloud builds submit \
+        gcloud beta builds submit \
             --config=cicd/cloudbuild/cloudbuild-plan.yaml \
             --substitutions="_ENVIRONMENT=dev,_REGION=${REGION},_ZONE=${ZONE}" \
             --project=${PROJECT_ID} \
@@ -221,10 +221,10 @@ echo "1. Connect your GitHub repository:"
 echo "   gcloud builds repositories create github --remote-uri=https://github.com/midnight-network/coding-platform"
 echo ""
 echo "2. Run a manual plan:"
-echo "   gcloud builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml --substitutions=_ENVIRONMENT=dev"
+echo "   gcloud beta builds submit --config=cicd/cloudbuild/cloudbuild-plan.yaml --substitutions=_ENVIRONMENT=dev"
 echo ""
 echo "3. Deploy to dev:"
-echo "   gcloud builds submit --config=cicd/cloudbuild/cloudbuild.yaml --substitutions=_ENVIRONMENT=dev,_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true"
+echo "   gcloud beta builds submit --config=cicd/cloudbuild/cloudbuild.yaml --substitutions=_ENVIRONMENT=dev,_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true"
 echo ""
 echo "4. View builds:"
 echo "   https://console.cloud.google.com/cloud-build/builds?project=${PROJECT_ID}"
