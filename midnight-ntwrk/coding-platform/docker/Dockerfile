@@ -70,12 +70,7 @@ RUN chmod +x /opt/midnight/bin/*.sh && \
     for script in /opt/midnight/bin/*.sh; do \
         if [ -f "$script" ]; then \
             basename_script=$(basename "$script" .sh); \
-            # Rename opencode.sh to opencode-demo to avoid conflict with npm opencode
-            if [ "$script" = "/opt/midnight/bin/opencode.sh" ]; then \
-                mv "$script" "/opt/midnight/bin/opencode-demo"; \
-            else \
-                mv "$script" "/opt/midnight/bin/$basename_script"; \
-            fi \
+            mv "$script" "/opt/midnight/bin/$basename_script"; \
         fi \
     done
 
