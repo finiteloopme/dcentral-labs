@@ -30,12 +30,14 @@ else
 fi
 
 # Run with simple overrides
+# Note: Adding CAP_NET_BIND_SERVICE to allow binding to port 80
 echo "Starting container..."
 echo ""
 $RUNTIME run -it --rm \
     --name midnight-local \
+    --cap-add=NET_BIND_SERVICE \
     --entrypoint /usr/local/bin/start-local \
-    -p 8080:8080 \
+    -p 8080:80 \
     -p 8081:8081 \
     $API_KEY_ARG \
     midnight-workstation:latest

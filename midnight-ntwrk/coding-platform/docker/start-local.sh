@@ -29,9 +29,9 @@ echo "Starting web IDE service..."
 # Check if Code OSS binary exists and is executable
 CODE_OSS_BIN="/opt/code-oss/bin/codeoss-cloudworkstations"
 if [ -x "$CODE_OSS_BIN" ]; then
-    echo "Starting Code OSS on port 8080..."
+    echo "Starting Code OSS on port 80..."
     $CODE_OSS_BIN \
-        --port 8080 \
+        --port 80 \
         --host 0.0.0.0 \
         --without-connection-token \
         --disable-telemetry \
