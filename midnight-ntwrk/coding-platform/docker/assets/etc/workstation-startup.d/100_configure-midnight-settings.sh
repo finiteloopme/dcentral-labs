@@ -37,4 +37,15 @@ if [[ ! $(grep "workbench.colorTheme" "${settings_file}") ]]; then
   mv ${settings_file}.tmp ${settings_file}
 fi
 
+# Configure terminal to use bash with login shell (shows welcome message)
+if [[ ! $(grep "terminal.integrated.shell.linux" "${settings_file}") ]]; then
+  jq '{"terminal.integrated.shell.linux": "/bin/bash"} + .' ${settings_file} > ${settings_file}.tmp
+  mv ${settings_file}.tmp ${settings_file}
+fi
+
+if [[ ! $(grep "terminal.integrated.shellArgs.linux" "${settings_file}") ]]; then
+  jq '{"terminal.integrated.shellArgs.linux": ["-l"]} + .' ${settings_file} > ${settings_file}.tmp
+  mv ${settings_file}.tmp ${settings_file}
+fi
+
 echo "✓ Code OSS configuration complete"

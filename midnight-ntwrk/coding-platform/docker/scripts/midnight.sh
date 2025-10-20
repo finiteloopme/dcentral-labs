@@ -11,7 +11,18 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Set working directory
-WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
+# In Cloud Workstations, use home directory. In local, can use /workspace
+if [ -n "$CLOUD_WORKSTATIONS_CONFIG_DIRECTORY" ]; then
+    # Cloud Workstation environment - use user's home
+    WORKSPACE_DIR="${WORKSPACE_DIR:-$HOME/workspace}"
+elif [ -w "/workspace" ]; then
+    # Local environment with writable /workspace
+    WORKSPACE_DIR="${WORKSPACE_DIR:-/workspace}"
+else
+    # Fallback to home directory
+    WORKSPACE_DIR="${WORKSPACE_DIR:-$HOME/workspace}"
+fi
+
 PROJECTS_DIR="${WORKSPACE_DIR}/projects"
 TEMPLATES_DIR="${WORKSPACE_DIR}/templates"
 
@@ -44,13 +55,13 @@ show_help() {
     echo "  code                  Open VS Code editor"
     echo ""
     echo "NAVIGATION:"
-    echo "  workspace             Go to /workspace"
-    echo "  projects              Go to /workspace/projects"
+    echo "  workspace             Go to workspace directory"
+    echo "  projects              Go to projects directory"
     echo ""
     echo "EXAMPLES:"
     echo "  # Create and build a new project"
     echo "  midnight new my-token"
-    echo "  cd /workspace/projects/my-token"
+    echo "  cd ~/workspace/projects/my-token"
     echo "  midnight compile"
     echo "  midnight test"
     echo ""
@@ -62,8 +73,8 @@ show_help() {
     echo "  midnight serve"
     echo ""
     echo "TEMPLATES:"
-    echo "  Basic token contract available at:"
-    echo "  /workspace/templates/basic-token"
+    echo "  Basic token contract available in templates directory"
+    echo "  Location: ~/workspace/templates/basic-token"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
@@ -453,6 +464,17 @@ verify_proofs() {
         echo "This feature will be available in a future release"
     fi
 }
+
+# Handle navigation shortcuts (print the cd command for user to eval)
+if [ "$1" = "workspace" ]; then
+    cd "$WORKSPACE_DIR"
+    pwd
+    exit 0
+elif [ "$1" = "projects" ]; then
+    cd "$PROJECTS_DIR"
+    pwd
+    exit 0
+fi
 
 # Main command handler
 case "$1" in

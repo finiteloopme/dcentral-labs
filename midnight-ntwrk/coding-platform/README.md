@@ -4,6 +4,7 @@
 [![Terraform](https://img.shields.io/badge/terraform-1.5.0-purple.svg)](https://www.terraform.io/)
 [![GCP](https://img.shields.io/badge/GCP-Cloud%20Workstations-blue.svg)](https://cloud.google.com/workstations)
 [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
+[![Status](https://img.shields.io/badge/Code%20OSS-✅%20Working-success.svg)](CLOUD_WORKSTATION_STATUS.md)
 
 A cloud-native development platform for building privacy-preserving DApps on the Midnight Network. Features integrated proof generation, AI-powered coding assistance, and comprehensive tooling for zero-knowledge application development.
 
@@ -24,40 +25,43 @@ A cloud-native development platform for building privacy-preserving DApps on the
 - Terraform 1.5.0+ (optional, can use Cloud Build)
 - Docker or Podman (for local testing)
 
+## 🎉 Current Status
+
+**✅ Code OSS IDE is fully working on Cloud Workstations!**  
+Access methods verified: Browser access and local tunneling both functional.  
+See [CLOUD_WORKSTATION_STATUS.md](CLOUD_WORKSTATION_STATUS.md) for details.
+
 ## 🚀 Quick Start
 
-### One-Command Cloud Deployment
+### Deploy to Google Cloud
 
 ```bash
-# Clone the repository
-git clone https://github.com/midnight-network/coding-platform
-cd coding-platform
+# Set your project (one-time)
+gcloud config set project YOUR_PROJECT_ID
 
-# Setup and deploy (choose one method)
-
-# Option 1: Traditional setup with local Terraform
-make setup PROJECT_ID=your-project-id
-
-# Option 2: Cloud Build setup (recommended)
-make cloud-setup PROJECT_ID=your-project-id
-make cloud-deploy-plan  # Review changes first
-make cloud-deploy       # Apply changes
+# Deploy everything
+make deploy
 ```
 
 ### Local Development
 
 ```bash
-# Build and run locally (works with both Docker and Podman)
-make build
+# Run locally (following Cloud Workstations testing guidelines)
 make run-local
 
-# Or use the convenience script
-cd docker
-./run-local-simple.sh
+# Access services:
+# Code OSS: http://localhost:8080
+# Proof Server: http://localhost:8081
+```
 
-# Access services
-# Code OSS IDE: http://127.0.0.1:8080  (Note: use 127.0.0.1, not localhost)
-# Proof Service: http://localhost:8081
+### Access Cloud Workstation
+
+```bash
+# Start workstation
+make ws-start
+
+# Open in browser
+make ws-open
 ```
 
 ## 🏗️ Architecture

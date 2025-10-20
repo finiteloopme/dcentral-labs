@@ -85,9 +85,29 @@ RUN npm install --production
 # Copy startup scripts to assets directory then merge into container
 COPY ./assets/. /
 
-# Copy local development startup script
-COPY start-local.sh /usr/local/bin/start-local
-RUN chmod +x /usr/local/bin/start-local
+# Ensure startup scripts are executable
+RUN chmod +x /etc/workstation-startup.d/*.sh 2>/dev/null || true && \
+    chmod +x /etc/profile.d/*.sh 2>/dev/null || true
+
+# Ensure /dev/null exists in the container (workaround for Cloud Workstations)
+# This needs to happen at build time AND runtime
+RUN if [ ! -c /dev/null ]; then \
+        mknod -m 666 /dev/null c 1 3 || touch /dev/null; \
+        chmod 666 /dev/null; \
+    fi
+
+# Also create /dev/null in a startup script that runs as root
+RUN echo '#!/bin/bash\n\
+if [ ! -c /dev/null ]; then\n\
+    mknod -m 666 /dev/null c 1 3 2>/dev/null || touch /dev/null\n\
+    chmod 666 /dev/null\n\
+fi' > /etc/workstation-startup.d/001_ensure-dev-null.sh && \
+    chmod +x /etc/workstation-startup.d/001_ensure-dev-null.sh
+
+# Note: We do NOT set USER directive or create users here
+# Cloud Workstations base image handles all user management
+# For local testing, use --privileged flag as per Google documentation:
+# https://cloud.google.com/workstations/docs/customize-container-images#test_your_custom_container_image
 
 # Create symlinks for Midnight tools (but not opencode - that's installed via npm)
 RUN ln -sf /opt/midnight/bin/midnight /usr/local/bin/midnight && \
@@ -108,11 +128,11 @@ ENV OPENCODE_MODEL="claude-3.5-sonnet"
 # Set working directory
 WORKDIR /home/user
 
-# Switch to non-root user as required by Cloud Workstations
-# The base image handles user creation and port binding
-USER 1000
+# Stay as root - Cloud Workstations base image expects to start as root
+# and will handle user switching appropriately
+# USER 1000
 
-# Verify critical paths are accessible as non-root user
+# Verify critical paths are accessible
 RUN test -r /opt/midnight/bin/midnight && \
     test -d /opt/code-oss/extensions/midnight.compact && \
     test -r /opt/templates/basic-token/contracts/Token.compact && \
