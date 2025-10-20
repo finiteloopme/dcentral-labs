@@ -66,6 +66,7 @@ COPY templates/ /opt/templates/
 
 # Copy Midnight tools and scripts  
 COPY scripts/*.sh /opt/midnight/bin/
+COPY scripts/*.json /opt/midnight/bin/
 RUN chmod +x /opt/midnight/bin/*.sh && \
     for script in /opt/midnight/bin/*.sh; do \
         if [ -f "$script" ]; then \

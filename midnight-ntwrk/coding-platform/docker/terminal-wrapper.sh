@@ -1,13 +1,24 @@
 #!/bin/bash
 # Wrapper script for Code OSS terminals to ensure they run as non-root
 
+# Debug: Log that wrapper is being called
+echo "[Terminal Wrapper] Starting..." >&2
+
 # Switch to non-root user with proper environment
 if [ "$(id -u)" = "0" ]; then
+    echo "[Terminal Wrapper] Running as root, switching to ubuntu user..." >&2
     # Disable problematic scripts
     export SKIP_GCLOUD_INIT=1
     
-    # Get the user's home directory
-    USER_HOME=$(getent passwd ubuntu | cut -d: -f6)
+    # Get the user's home directory - handle if ubuntu doesn't exist yet
+    if id ubuntu &>/dev/null 2>&1; then
+        USER_HOME=$(getent passwd ubuntu | cut -d: -f6)
+    else
+        # Create ubuntu user if it doesn't exist
+        useradd -m -s /bin/bash -u 1000 -g 0 ubuntu
+        echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+        USER_HOME="/home/ubuntu"
+    fi
     
     # Ensure directories exist for OpenCode
     mkdir -p $USER_HOME/.local/share/opencode/log 2>/dev/null

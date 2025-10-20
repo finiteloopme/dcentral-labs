@@ -3,6 +3,13 @@
 # Configure OpenCode for Cloud Workstations with Vertex AI
 #
 
+# Skip this script in local development mode
+# Local mode is detected by checking if we're running as root with ubuntu user present
+if [[ "${EUID:-$(id -u)}" -eq 0 ]] && id ubuntu >/dev/null 2>&1; then
+  echo "Skipping OpenCode configuration (local development mode)"
+  exit 0
+fi
+
 # In Cloud Workstations, this runs as the workstation user
 if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   # If running as root, switch to user if available
@@ -14,21 +21,28 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   fi
 fi
 
-echo "Configuring OpenCode for Vertex AI..."
+echo "Configuring OpenCode for Cloud Workstations..."
 
 # Ensure OpenCode directories exist
 mkdir -p ~/.local/share/opencode/log
 mkdir -p ~/.config/opencode
 
-# Get GCP project ID from metadata service (Cloud Workstations environment)
-GCP_PROJECT_ID=""
-if curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id" 2>/dev/null; then
-    GCP_PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
-    echo "Detected GCP Project: $GCP_PROJECT_ID"
+# Get GCP project ID - should already be set by 051_set-gcp-project.sh
+if [ -z "$GCP_PROJECT_ID" ]; then
+    # Fallback: try to get from metadata service if not already set
+    if curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id" &>/dev/null; then
+        GCP_PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
+        echo "Detected GCP Project: $GCP_PROJECT_ID"
+    fi
+else
+    echo "Using GCP Project: $GCP_PROJECT_ID"
 fi
 
-# Create OpenCode configuration for Vertex AI
-cat > ~/.config/opencode/config.json << EOF
+# Only create OpenCode configuration if it doesn't exist
+# This prevents overwriting custom configurations in local development
+if [ ! -f ~/.config/opencode/config.json ]; then
+  echo "Creating OpenCode configuration for Vertex AI..."
+  cat > ~/.config/opencode/config.json << EOF
 {
   "model": "google-vertex-anthropic/claude-opus-4-1@20250805",
   "small_model": "google-vertex-anthropic/claude-3-5-haiku@20241022",
@@ -47,41 +61,12 @@ cat > ~/.config/opencode/config.json << EOF
   }
 }
 EOF
-
-# Create a simple environment setup script
-ENV_SCRIPT="$HOME/.midnight-env.sh"
-cat > "$ENV_SCRIPT" << 'EOF'
-#!/bin/bash
-# Environment setup for Midnight Workstation
-
-# Auto-detect and export GCP project ID for Cloud Workstations
-if [ -z "$GCP_PROJECT_ID" ]; then
-    if [ -n "$CLOUD_WORKSTATIONS_CONFIG_DIRECTORY" ]; then
-        export GCP_PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
-            "http://metadata.google.internal/computeMetadata/v1/project/project-id" 2>/dev/null)
-    fi
+else
+  echo "OpenCode configuration already exists, skipping..."
 fi
 
-# Ensure OpenCode directories exist
-mkdir -p ~/.local/share/opencode/log 2>/dev/null
-mkdir -p ~/.config/opencode 2>/dev/null
-EOF
-
-chmod +x "$ENV_SCRIPT"
-
-# Add source line to bashrc if not already there
-if [ -f ~/.bashrc ]; then
-    # Add at the beginning of bashrc to ensure it runs early
-    if ! grep -q "midnight-env.sh" ~/.bashrc 2>/dev/null; then
-        # Create temp file with new content at top
-        temp_bashrc=$(mktemp)
-        echo "# Source Midnight environment setup" > "$temp_bashrc"
-        echo "[ -f ~/.midnight-env.sh ] && source ~/.midnight-env.sh" >> "$temp_bashrc"
-        echo "" >> "$temp_bashrc"
-        cat ~/.bashrc >> "$temp_bashrc"
-        mv "$temp_bashrc" ~/.bashrc
-    fi
-fi
+# Don't create any profile.d scripts in user home to avoid issues
+# Environment setup is handled by /etc/profile.d/midnight-welcome.sh
 
 echo "✓ OpenCode configuration complete"
 echo "  Model: Claude Opus 4.1 via Vertex AI"

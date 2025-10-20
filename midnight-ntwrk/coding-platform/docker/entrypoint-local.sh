@@ -22,7 +22,13 @@ echo "Starting services..."
         if [ -f /terminal-wrapper.sh ]; then
             cp /terminal-wrapper.sh /usr/local/bin/terminal-wrapper
             chmod +x /usr/local/bin/terminal-wrapper
+            echo "✓ Terminal wrapper installed at /usr/local/bin/terminal-wrapper"
+        else
+            echo "⚠️  Warning: terminal-wrapper.sh not found, terminals will run as root"
         fi
+        
+        # Clear any cached Code OSS settings
+        rm -rf /root/.codeoss-cloudworkstations/data/Machine/settings.json 2>/dev/null
         
         # Configure Code OSS to use non-root user for terminals in local dev
         mkdir -p /root/.codeoss-cloudworkstations/data/Machine
@@ -157,6 +163,49 @@ export GCP_PROJECT_ID="${GCP_PROJECT_ID:-}"
 # Create necessary directories for OpenCode
 mkdir -p \$HOME/.local/share/opencode/log 2>/dev/null
 mkdir -p \$HOME/.config/opencode 2>/dev/null
+
+# Create OpenCode configuration if it doesn't exist (local development)
+if [ ! -f \$HOME/.config/opencode/config.json ]; then
+    echo "Creating OpenCode configuration for local development..."
+    # Copy from template if available
+    if [ -f /opt/midnight/bin/opencode-config-template.json ]; then
+        cp /opt/midnight/bin/opencode-config-template.json \$HOME/.config/opencode/config.json
+    elif [ -f /docker/scripts/opencode-config-template.json ]; then
+        cp /docker/scripts/opencode-config-template.json \$HOME/.config/opencode/config.json
+    else
+        # Create basic config with both Vertex AI and Anthropic options
+        cat > \$HOME/.config/opencode/config.json << 'OPENCODE_CONFIG'
+{
+  "model": "google-vertex-anthropic/claude-opus-4-1@20250805",
+  "small_model": "google-vertex-anthropic/claude-3-5-haiku@20241022",
+  "provider": {
+    "google-vertex-anthropic": {
+      "models": {
+        "claude-opus-4-1@20250805": {},
+        "claude-3-5-sonnet-v2@20241022": {},
+        "claude-3-5-haiku@20241022": {}
+      },
+      "options": {
+        "project": "\${GCP_PROJECT_ID}",
+        "location": "us-central1"
+      }
+    },
+    "anthropic": {
+      "models": {
+        "claude-3-opus-20240229": {},
+        "claude-3-5-sonnet-20241022": {},
+        "claude-3-5-haiku-20241022": {}
+      },
+      "options": {
+        "apiKey": "\${ANTHROPIC_API_KEY}"
+      }
+    }
+  }
+}
+OPENCODE_CONFIG
+    fi
+    chown ubuntu:ubuntu \$HOME/.config/opencode/config.json 2>/dev/null || true
+fi
 
 # Function to launch OpenCode with Vertex AI
 opencode() {
