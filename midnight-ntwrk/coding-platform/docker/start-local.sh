@@ -136,8 +136,10 @@ netstat -tuln 2>/dev/null | grep -E ":(8080|8081)" || echo "No ports listening (
 
 echo ""
 echo "Services available:"
-echo "  • Code OSS IDE: http://localhost:8080"
+echo "  • Code OSS IDE: http://127.0.0.1:8080"
 echo "  • Proof Server: http://localhost:8081"
+echo ""
+echo "Note: Use 127.0.0.1 instead of localhost for Code OSS"
 echo ""
 echo "CLI Tools available in terminal:"
 echo "  • opencode     - AI coding assistant TUI (set ANTHROPIC_API_KEY first)"

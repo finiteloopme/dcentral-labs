@@ -56,7 +56,7 @@ cd docker
 ./run-local-simple.sh
 
 # Access services
-# Code OSS IDE: http://localhost:8080
+# Code OSS IDE: http://127.0.0.1:8080  (Note: use 127.0.0.1, not localhost)
 # Proof Service: http://localhost:8081
 ```
 
