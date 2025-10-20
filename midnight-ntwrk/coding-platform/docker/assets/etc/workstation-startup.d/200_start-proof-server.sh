@@ -15,7 +15,7 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   fi
 fi
 
-echo "Starting Midnight proof server on port 8080..."
+echo "Starting Midnight proof server on port 8081..."
 cd /opt/midnight/proof-server
-nohup npm start > /tmp/proof-server.log 2>&1 &
+PORT=8081 nohup npm start > /tmp/proof-server.log 2>&1 &
 echo "Proof server started (logs: /tmp/proof-server.log)"
