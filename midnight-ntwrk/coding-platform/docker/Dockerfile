@@ -85,10 +85,9 @@ RUN npm install --production
 # Copy startup scripts to assets directory then merge into container
 COPY ./assets/. /
 
-# Copy local development startup scripts
+# Copy local development startup script
 COPY start-local.sh /usr/local/bin/start-local
-COPY start-local-minimal.sh /usr/local/bin/start-local-minimal
-RUN chmod +x /usr/local/bin/start-local /usr/local/bin/start-local-minimal
+RUN chmod +x /usr/local/bin/start-local
 
 # Create symlinks for Midnight tools (but not opencode - that's installed via npm)
 RUN ln -sf /opt/midnight/bin/midnight /usr/local/bin/midnight && \
