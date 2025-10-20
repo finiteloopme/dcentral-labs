@@ -24,7 +24,7 @@ help:
 	@echo "$(GREEN)     🌙 Midnight Development Platform$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Docker Commands:$(NC)"
+	@echo "$(YELLOW)Container Commands (Docker/Podman):$(NC)"
 	@echo "  $(GREEN)build$(NC)         - Build container image"
 	@echo "  $(GREEN)push$(NC)          - Push image to registry"
 	@echo "  $(GREEN)run-local$(NC)     - Run container locally"
@@ -48,12 +48,12 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
-# DOCKER COMMANDS
+# CONTAINER COMMANDS (Docker/Podman)
 # ============================================================================
 
-# Build container
+# Build container (supports both Docker and Podman)
 build:
-	@echo "$(GREEN)Building Docker image...$(NC)"
+	@echo "$(GREEN)Building container image...$(NC)"
 	@cd docker && ./build.sh
 
 # Push to registry

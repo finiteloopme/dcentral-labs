@@ -46,14 +46,17 @@ make cloud-deploy
 ### Local Development
 
 ```bash
-# Build and run locally
+# Build and run locally (works with both Docker and Podman)
 make build
 make run-local
 
+# Or use the convenience script
+cd docker
+./run-local-simple.sh
+
 # Access services
-# Web Terminal: http://localhost:7681
-# Proof Service: http://localhost:8080
-# VS Code: http://localhost:8443
+# Code OSS IDE: http://localhost:8080
+# Proof Service: http://localhost:8081
 ```
 
 ## 🏗️ Architecture
