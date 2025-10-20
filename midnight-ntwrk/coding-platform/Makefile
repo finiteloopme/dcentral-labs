@@ -112,9 +112,13 @@ cloud-import: check-project
 # LOCAL DEVELOPMENT
 # ============================================================================
 
-# Run locally
+# Run locally with full Cloud Workstations emulation
 run-local:
 	@./scripts/run-local.sh
+
+# Run locally with simplified startup (recommended for development)
+run-local-simple:
+	@cd docker && ./run-local-simple.sh
 
 # Docker Compose
 compose-up:

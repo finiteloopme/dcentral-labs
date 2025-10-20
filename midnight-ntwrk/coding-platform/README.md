@@ -96,10 +96,11 @@ make run-local
 
 2. **Container Image** (Midnight Workstation)
    - Midnight proof server (v4.0.0 API)
-   - OpenCode AI with Vertex AI
+   - OpenCode AI with Vertex AI integration
    - Compact compiler and tools
    - Circuit templates and examples
    - Web-based development environment
+   - Midnight Compact VSCode extension (v0.2.13)
 
 3. **Automation** (Cloud Build)
    - CI/CD pipelines in `cicd/cloudbuild/`
@@ -297,6 +298,33 @@ OpenCode is configured as an expert in:
 - Midnight's Compact language
 - Circuit development
 - DApp architecture
+
+## 📝 VSCode Extension
+
+The Midnight Compact VSCode extension (v0.2.13) is automatically installed, providing:
+
+### Features
+- **Syntax Highlighting**: Full syntax support for `.compact` files
+- **IntelliSense**: Code completion and parameter hints
+- **Error Detection**: Real-time error checking and diagnostics
+- **Integrated Compiler**: Compile contracts directly from VS Code
+- **Code Navigation**: Go to definition, find references
+
+### Usage
+```bash
+# The extension is automatically installed on startup
+# To manually install or update:
+install-midnight-extension
+
+# To update to a specific version:
+update-midnight-extension 0.2.14
+```
+
+### Working with Compact Files
+1. Open any `.compact` file in VS Code
+2. The extension activates automatically
+3. Use Ctrl+Shift+B to compile
+4. Errors appear in the Problems panel
 
 ## 🧪 Testing
 

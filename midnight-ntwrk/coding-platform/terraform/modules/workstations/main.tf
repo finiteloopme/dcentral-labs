@@ -1,3 +1,42 @@
+# Create a dedicated service account for workstations
+resource "google_service_account" "workstation" {
+  account_id   = "midnight-workstation-${var.environment}"
+  display_name = "Midnight Workstation Service Account"
+  description  = "Service account for Midnight development workstations with Vertex AI access"
+  project      = var.project_id
+}
+
+# Grant necessary IAM roles to the service account
+resource "google_project_iam_member" "workstation_vertex_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.workstation.email}"
+}
+
+resource "google_project_iam_member" "workstation_service_usage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.workstation.email}"
+}
+
+resource "google_project_iam_member" "workstation_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.workstation.email}"
+}
+
+resource "google_project_iam_member" "workstation_monitoring_writer" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.workstation.email}"
+}
+
+resource "google_project_iam_member" "workstation_storage_viewer" {
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.workstation.email}"
+}
+
 # Workstation cluster
 resource "google_workstations_workstation_cluster" "cluster" {
   provider               = google-beta
@@ -40,6 +79,9 @@ resource "google_workstations_workstation_config" "config" {
       boot_disk_size_gb            = var.workstation_config.boot_disk_size_gb
       disable_public_ip_addresses  = false
       enable_nested_virtualization = false
+
+      # Use the dedicated service account
+      service_account = google_service_account.workstation.email
 
       # Add OAuth scopes for Vertex AI and other Google Cloud services
       service_account_scopes = [
@@ -84,8 +126,22 @@ resource "google_workstations_workstation_config" "config" {
       PROOF_SERVICE_THREADS    = tostring(var.proof_service_config.threads)
       PROOF_SERVICE_CACHE_SIZE = tostring(var.proof_service_config.cache_size)
       CLOUD_WORKSTATIONS_CONFIG = "true"
+      # Pass the project ID for gcloud configuration
+      GCP_PROJECT_ID           = var.project_id
+      GOOGLE_CLOUD_PROJECT     = var.project_id
+      # Tell gcloud to use metadata service
+      GCE_METADATA_HOST        = "metadata.google.internal"
     }
   }
+
+  depends_on = [
+    google_service_account.workstation,
+    google_project_iam_member.workstation_vertex_ai_user,
+    google_project_iam_member.workstation_service_usage,
+    google_project_iam_member.workstation_log_writer,
+    google_project_iam_member.workstation_monitoring_writer,
+    google_project_iam_member.workstation_storage_viewer
+  ]
 }
 
 # Create a sample workstation (optional for MVP)

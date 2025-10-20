@@ -20,7 +20,8 @@ resource "google_project_service" "apis" {
     "serviceusage.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
-    "storage.googleapis.com"
+    "storage.googleapis.com",
+    "aiplatform.googleapis.com"
   ])
 
   project = var.project_id

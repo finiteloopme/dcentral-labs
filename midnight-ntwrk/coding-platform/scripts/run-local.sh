@@ -126,11 +126,9 @@ run_container() {
     log_info "Network mode: host (for better accessibility)"
     echo ""
     log_success "Access points:"
-    echo "  • Service Dashboard: http://localhost:${TERMINAL_PORT}/services"
-    echo "  • Web Terminal: http://localhost:${TERMINAL_PORT}"
-    echo "  • OpenCode AI: http://localhost:${TERMINAL_PORT}/opencode"
-    echo "  • Proof Service: http://localhost:${PROOF_PORT}"
-    echo "  • DApp Server: http://localhost:${APP_PORT}"
+    echo "  • Code OSS IDE: http://localhost:8080"
+    echo "  • Proof Service: http://localhost:8081"
+    echo "  • DApp Server: http://localhost:${APP_PORT} (if running)"
     echo ""
     log_warn "Note: Using host network mode. Services bind directly to localhost."
     log_info "Press Ctrl+C to stop"
@@ -153,6 +151,9 @@ run_container() {
     run_cmd+=("$runtime" "run" "-it" "--rm")
     run_cmd+=("--name" "$CONTAINER_NAME")
     run_cmd+=("--network=host")
+    
+    # No special user mapping needed since we're using our own entrypoint
+    # The start-local script will handle everything
     
     # Add templates mount with proper flags
     local template_mount_opts=""
@@ -179,6 +180,10 @@ run_container() {
     run_cmd+=("-e" "PROOF_PORT=${PROOF_PORT}")
     run_cmd+=("-e" "CODE_PORT=${CODE_PORT}")
     run_cmd+=("-e" "GCP_PROJECT_ID=${GCP_PROJECT_ID:-}")
+    
+    # Override entrypoint for local development to use our simpler startup
+    # This must come BEFORE the image name
+    run_cmd+=("--entrypoint" "/usr/local/bin/start-local")
     
     # Add the image
     run_cmd+=("${IMAGE_NAME}:${IMAGE_TAG}")

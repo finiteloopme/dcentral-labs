@@ -3,8 +3,36 @@
 
 set -e
 
-# Get project ID from environment or gcloud
-PROJECT_ID="${GCP_PROJECT_ID:-${PROJECT_ID:-}}"
+# Function to get project ID from metadata service
+get_project_from_metadata() {
+    if curl -s -f -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id" &>/dev/null; then
+        curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id"
+    else
+        echo ""
+    fi
+}
+
+# Detect if we're in Cloud Workstations
+IS_CLOUD_WORKSTATION=false
+if [ -n "$CLOUD_WORKSTATIONS_CONFIG" ] || curl -s -f -H "Metadata-Flavor: Google" "http://metadata.google.internal/" &>/dev/null; then
+    IS_CLOUD_WORKSTATION=true
+fi
+
+# Get project ID from various sources
+PROJECT_ID="${GCP_PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${PROJECT_ID:-}}}"
+
+# If no project ID yet and we're in Cloud Workstation, try metadata
+if [ -z "$PROJECT_ID" ] && [ "$IS_CLOUD_WORKSTATION" = true ]; then
+    echo "Detecting project from Cloud Workstation metadata..."
+    PROJECT_ID=$(get_project_from_metadata)
+    if [ -n "$PROJECT_ID" ]; then
+        echo "Detected project: $PROJECT_ID"
+        export GCP_PROJECT_ID="$PROJECT_ID"
+        export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
+    fi
+fi
+
+# If still no project ID, try gcloud
 if [ -z "$PROJECT_ID" ]; then
     # Try to get from gcloud if authenticated
     if command -v gcloud &> /dev/null; then
@@ -15,10 +43,14 @@ fi
 # Default to a placeholder if no project ID found
 if [ -z "$PROJECT_ID" ]; then
     echo "Warning: No GCP project ID found. Using placeholder."
+    echo "In Cloud Workstations, this should auto-detect. Please check your environment."
     PROJECT_ID="your-gcp-project"
 fi
 
-echo "Configuring OpenCode with project: $PROJECT_ID"
+# Silent configuration unless there's an issue
+if [ "$PROJECT_ID" = "your-gcp-project" ]; then
+    echo "Note: No GCP project detected. OpenCode may need manual configuration."
+fi
 
 # Create OpenCode config directory
 OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
@@ -82,32 +114,66 @@ cat > "$OPENCODE_CONFIG_DIR/opencode.json" << EOF
 }
 EOF
 
-echo "OpenCode configuration created at: $OPENCODE_CONFIG_DIR/opencode.json"
+# Configuration created silently
 
-# Check if gcloud is authenticated
-if command -v gcloud &> /dev/null; then
-    if gcloud auth list --filter=status:ACTIVE --format="value(account)" &>/dev/null; then
-        echo "Google Cloud authentication detected."
+# Configure authentication based on environment
+if [ "$IS_CLOUD_WORKSTATION" = true ]; then
+    # Silent authentication setup for Cloud Workstation
+    
+    # Ensure auto-auth has run
+    if [ -f /opt/midnight/bin/auto-auth ] && [ -z "$GOOGLE_AUTH_CONFIGURED" ]; then
+        source /opt/midnight/bin/auto-auth
+    fi
+    
+    # Set gcloud to use the detected project
+    if command -v gcloud &> /dev/null && [ "$PROJECT_ID" != "your-gcp-project" ]; then
+        gcloud config set project "$PROJECT_ID" --quiet 2>/dev/null || true
         
-        # Enable required APIs
-        echo "Ensuring Vertex AI APIs are enabled..."
-        gcloud services enable aiplatform.googleapis.com --project="$PROJECT_ID" 2>/dev/null || true
-        
-        # List available models (optional - for verification)
-        echo "Checking available models..."
-        gcloud ai models list --region=global --project="$PROJECT_ID" 2>/dev/null | head -20 || true
-        
-        # Set application default credentials if not already set
-        if [ ! -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
-            echo "Setting up Application Default Credentials..."
-            gcloud auth application-default login --no-launch-browser || true
+        # Test authentication silently
+        if gcloud ai models list --region=global --limit=1 --project="$PROJECT_ID" &>/dev/null; then
+            # Vertex AI is working - enable API silently if needed
+            gcloud services enable aiplatform.googleapis.com --project="$PROJECT_ID" --quiet 2>/dev/null || true
+        else
+            echo "⚠ Cannot access Vertex AI. The workstation service account may need IAM permissions."
+            echo "  Required roles: roles/aiplatform.user"
+            
+            # Try to get more info about the error
+            echo "Checking service account..."
+            SA=$(curl -s -H "Metadata-Flavor: Google" \
+                "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email" 2>/dev/null)
+            if [ -n "$SA" ]; then
+                echo "  Service account: $SA"
+                echo "  To grant permissions, run:"
+                echo "    gcloud projects add-iam-policy-binding $PROJECT_ID \\"
+                echo "      --member=\"serviceAccount:$SA\" \\"
+                echo "      --role=\"roles/aiplatform.user\""
+            fi
         fi
-    else
-        echo "Warning: Not authenticated with Google Cloud."
-        echo "To use Vertex AI models, run: gcloud auth login"
     fi
 else
-    echo "Warning: gcloud CLI not found. Vertex AI models will not work without authentication."
+    # Not in Cloud Workstation - use traditional authentication
+    if command -v gcloud &> /dev/null; then
+        if gcloud auth list --filter=status:ACTIVE --format="value(account)" &>/dev/null; then
+            echo "Google Cloud authentication detected."
+            
+            # Enable required APIs
+            echo "Ensuring Vertex AI APIs are enabled..."
+            gcloud services enable aiplatform.googleapis.com --project="$PROJECT_ID" 2>/dev/null || true
+            
+            # Set application default credentials if not already set
+            if [ ! -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
+                echo "Note: Application Default Credentials not set."
+                echo "To use Vertex AI, run: gcloud auth application-default login"
+            fi
+        else
+            echo "Warning: Not authenticated with Google Cloud."
+            echo "To use Vertex AI models, run:"
+            echo "  gcloud auth login"
+            echo "  gcloud auth application-default login"
+        fi
+    else
+        echo "Warning: gcloud CLI not found. Vertex AI models will not work without authentication."
+    fi
 fi
 
 # Create a helper script for switching models

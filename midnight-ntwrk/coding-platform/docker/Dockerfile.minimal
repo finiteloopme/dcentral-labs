@@ -1,0 +1,58 @@
+# Start with base Cloud Workstations image
+FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
+
+# Switch to root for installation
+USER root
+
+# Install minimal required packages
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    jq \
+    zip \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install OpenCode AI
+RUN npm install -g opencode-ai
+
+# Create Midnight directories
+RUN mkdir -p /opt/midnight/bin \
+    /opt/midnight/extensions \
+    /workspace/templates \
+    /workspace/projects
+
+# Download Midnight Compact VSCode extension
+RUN curl -L -o /opt/midnight/extensions/compact-0.2.13.vsix \
+    https://raw.githubusercontent.com/midnight-ntwrk/releases/gh-pages/artifacts/vscode-extension/compact-0.2.13/compact-0.2.13.vsix
+
+# Copy templates
+COPY templates/ /workspace/templates/
+
+# Copy scripts
+COPY scripts/*.sh /opt/midnight/bin/
+RUN chmod +x /opt/midnight/bin/*.sh
+
+# Add Midnight tools to PATH via profile
+RUN echo 'export PATH="/opt/midnight/bin:$PATH"' >> /etc/profile.d/midnight.sh && \
+    echo 'export MIDNIGHT_HOME="/opt/midnight"' >> /etc/profile.d/midnight.sh && \
+    chmod +x /etc/profile.d/midnight.sh
+
+# Set permissions
+RUN chmod -R 755 /opt/midnight && \
+    chmod -R 777 /workspace
+
+# Create a basic bashrc addition
+RUN echo '[ -f /etc/profile.d/midnight.sh ] && . /etc/profile.d/midnight.sh' >> /etc/bash.bashrc
+
+# DO NOT change USER - let base image handle it
+# DO NOT set ENTRYPOINT or CMD - let base image handle it
+# DO NOT expose ports - base image already does this
+
+# The base image will handle running Code OSS on port 80

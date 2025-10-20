@@ -1,169 +1,326 @@
-# Docker Configuration
+# Midnight Development Platform - Google Cloud Workstation
 
-This folder contains all Docker-related configuration for the Midnight Development Platform.
+This Docker image provides a complete development environment for Midnight blockchain applications, customized for Google Cloud Workstations according to the [official customization guide](https://cloud.google.com/workstations/docs/customize-container-images).
 
-## Structure
+## Features
 
-```
-docker/
-├── Dockerfile                  # Main workstation container image
-├── docker-compose.yml          # Docker Compose configuration
-├── docker-compose.override.yml # Development overrides (auto-loaded)
-├── docker-compose.prod.yml    # Production configuration
-├── scripts/                    # Container runtime scripts
-│   ├── startup.sh             # Container entrypoint script
-│   ├── web-terminal.js        # Web terminal service
-│   ├── package.json           # Node dependencies for web terminal
-│   └── opencode-terminal.service # SystemD service (unused in container)
-└── templates/                  # DApp starter templates
-    └── basic-token/           # Basic token contract template
-```
+### Base Image
+- **Code OSS for Cloud Workstations**: Leverages the official `us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest` base image
+- **Web-based IDE**: Code OSS accessible on port 80
+- **SSH Support**: Built-in SSH server on port 22
 
-## Usage
+### Midnight-Specific Tools
 
-### Quick Start
+1. **Midnight Compact Compiler**
+   - Command: `compactc`
+   - Compiles `.compact` smart contracts
+   - Generates JSON artifacts with ABI and bytecode
 
-From the project root:
-```bash
-# Using Make commands (recommended)
-make compose-up     # Start services
-make compose-down   # Stop services
-make compose-logs   # View logs
-```
+2. **Midnight Proof Server**
+   - Runs on port 8080 (Cloud Workstations) or 8081 (local development)
+   - Provides zero-knowledge proof generation APIs
+   - Automatically starts on container startup
 
-From this directory:
-```bash
-# Using docker-compose directly
-docker-compose up -d     # Start in background
-docker-compose down      # Stop and remove
-docker-compose logs -f   # Follow logs
-```
+3. **Project Templates**
+   - Basic token contract template
+   - Pre-configured project structure
+   - Command: `midnight new <project-name>`
 
-### Development Mode
+4. **Midnight Compact VSCode Extension**
+   - Version: 0.2.13
+   - Syntax highlighting for `.compact` files
+   - IntelliSense and code completion
+   - Auto-installed on startup
+   - Source: https://raw.githubusercontent.com/midnight-ntwrk/releases/gh-pages/artifacts/vscode-extension/compact-0.2.13/compact-0.2.13.vsix
 
-The `docker-compose.override.yml` file is automatically loaded and provides:
-- Source code mounting for live editing
-- Debug logging enabled
-- Additional debugging ports exposed
+5. **OpenCode AI Assistant**
+   - Terminal-based AI coding assistant
+   - Version: 0.15.8
+   - Command: `opencode`
+   - Requires ANTHROPIC_API_KEY environment variable
+   - See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for detailed setup instructions
 
-### Production Mode
+## Building the Image
 
-For production-like testing:
-```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-```
+### Prerequisites
+- Docker installed locally
+- Access to Google Artifact Registry (for pushing)
+- Google Cloud SDK (optional, for registry authentication)
 
-This provides:
-- Resource limits
-- Production logging
-- External proof service configuration
-- Security hardening
+### Build Script
 
-## Building Images
-
-### Workstation Image
+Use the provided build script for easy building:
 
 ```bash
-# Build the main workstation image
+# From docker directory
+cd docker
+./build.sh
+
+# Build with custom name and tag
+./build.sh --name my-midnight-workstation --tag v1.0.0
+
+# Build and push to Artifact Registry
+./build.sh \
+  --registry us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY \
+  --name midnight-workstation \
+  --tag latest \
+  --push
+```
+
+### Manual Build
+
+The Dockerfile is self-contained and builds from the docker directory:
+
+```bash
+# From docker directory
+cd docker
 docker build -t midnight-workstation:latest .
 
-# Or using docker-compose
-docker-compose build
+# Quick test build
+./test-build.sh
 ```
 
-### Proof Service Image
+**Note:** The build context is the `docker/` directory itself. All necessary components (proof server, templates, scripts) are either copied from this directory or created inline during the build process.
 
-The proof service can run inside the workstation or as a separate container:
+## Testing Locally
+
+### Quick Start (Recommended)
+
+Use the simplified local startup that bypasses Cloud Workstations initialization:
+
 ```bash
-# Build standalone proof service
-docker build -t midnight-proof-service:latest ../proof-service/
+# From project root
+make run-local-simple
+
+# Or directly from docker directory
+cd docker
+./run-local-simple.sh
+
+# Or using docker-compose
+docker-compose -f docker-compose.local.yml up
 ```
 
-## Configuration
+Access services:
+- Code OSS IDE: http://localhost:8080
+- Proof Server: http://localhost:8081
+
+### Manual Run
+
+```bash
+# Run with simplified startup
+docker run -it --rm \
+  --name midnight-local \
+  --entrypoint /usr/local/bin/start-local \
+  -p 8080:8080 \
+  -p 8081:8081 \
+  midnight-workstation:latest
+```
+
+### Verify Installation
+
+```bash
+# Connect to container
+docker exec -it midnight-dev bash
+
+# Check Midnight tools
+midnight help
+compactc --version
+
+# Check proof server
+curl http://localhost:8080/health
+
+# List installed VS Code extensions
+/opt/code-oss/bin/codeoss-cloudworkstations --list-extensions
+```
+
+## Deploying to Google Cloud Workstations
+
+### 1. Push to Artifact Registry
+
+```bash
+# Configure Docker for Artifact Registry
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# Tag and push image
+docker tag midnight-workstation:latest \
+  us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY/midnight-workstation:latest
+
+docker push \
+  us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY/midnight-workstation:latest
+```
+
+### 2. Create Workstation Configuration
+
+Use the custom image in your workstation configuration:
+
+```bash
+gcloud workstations configs create midnight-config \
+  --cluster=CLUSTER_NAME \
+  --region=us-central1 \
+  --machine-type=e2-standard-4 \
+  --container-custom-image=us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY/midnight-workstation:latest \
+  --service-account=workstation-sa@PROJECT_ID.iam.gserviceaccount.com
+```
+
+### 3. Create Workstation
+
+```bash
+gcloud workstations create midnight-dev \
+  --cluster=CLUSTER_NAME \
+  --config=midnight-config \
+  --region=us-central1
+```
+
+## Container Structure
+
+### Implementation Pattern
+
+This image follows Google's recommended patterns from [cloud-workstations-custom-image-examples](https://github.com/GoogleCloudPlatform/cloud-workstations-custom-image-examples):
+
+- Extends the official `code-oss` base image without modifying its core functionality
+- Installs the Midnight Compact extension as a `@builtin` extension
+- Uses the `assets/` directory structure for startup scripts
+- Scripts follow the self-executing pattern with `runuser` for user context
+
+### Startup Scripts
+
+The image includes startup scripts in `/etc/workstation-startup.d/`:
+
+- `100_configure-midnight-settings.sh` - Configures Code OSS settings for Midnight development
+- `200_start-proof-server.sh` - Starts the proof server on port 8080
+- `210_initialize-workspace.sh` - Sets up workspace and templates
+
+### Directory Layout
+
+```
+/opt/midnight/
+├── bin/              # Midnight CLI tools
+├── extensions/       # VSCode extensions
+├── proof-server/     # Proof service
+└── config/          # Configuration files
+
+/opt/templates/       # Project templates
+└── basic-token/     # Token contract template
+
+/home/user/          # User home (persistent)
+└── workspace/       # Working directory
+    ├── projects/    # User projects
+    └── templates/   # Copied templates
+```
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
-```env
-# Ports
-TERMINAL_PORT=7681
-VSCODE_PORT=8443
-APP_PORT=3000
-PROOF_PORT=8080
-
-# Services
-PROOF_SERVICE_URL=https://proof-api.midnight.network
-
-# Environment
-ENV=development
-MIDNIGHT_NETWORK=testnet
+```bash
+MIDNIGHT_HOME=/opt/midnight
+PATH=/opt/midnight/bin:$PATH
+PROOF_SERVICE_PORT=8080
 ```
 
-### Volumes
+## Customization
 
-The following volumes are created for persistence:
-- `workspace_data` - Project files
-- `home_data` - User home directory
-- `vscode_data` - VS Code server configuration
+### Adding More Tools
 
-## Services
+Create additional startup scripts:
 
-### Main Workstation Container
-
-Includes:
-- Web Terminal (port 7681)
-- VS Code Server (port 8443) with Midnight Compact extension
-- OpenCode AI Assistant with Vertex AI integration
-- Mock Midnight compiler
-- Proof service (embedded or external)
-- Compact language support (.compact files)
-
-### Optional Proof Service
-
-Uncomment in `docker-compose.yml` to run as separate service:
-```yaml
-proof-service:
-  build:
-    context: ../proof-service
-    dockerfile: Dockerfile
-  ports:
-    - "8081:8080"
+```dockerfile
+# In your Dockerfile
+RUN echo '#!/bin/bash' > /etc/workstation-startup.d/230_custom_setup.sh && \
+    echo 'echo "Running custom setup..."' >> /etc/workstation-startup.d/230_custom_setup.sh && \
+    chmod +x /etc/workstation-startup.d/230_custom_setup.sh
 ```
 
-## Health Checks
+### Modifying IDE Settings
 
-All services include health check endpoints:
-- `/health` - Overall health status
-- `/ready` - Service readiness
-- `/live` - Liveness probe
+Configure default Code OSS settings:
+
+```dockerfile
+RUN echo '#!/bin/bash' > /etc/workstation-startup.d/240_ide_settings.sh && \
+    echo 'runuser user -c "mkdir -p $HOME/.codeoss-cloudworkstations/data/Machine"' >> /etc/workstation-startup.d/240_ide_settings.sh && \
+    echo 'runuser user -c "echo {\"workbench.colorTheme\":\"Default Dark Modern\"} > $HOME/.codeoss-cloudworkstations/data/Machine/settings.json"' >> /etc/workstation-startup.d/240_ide_settings.sh && \
+    chmod +x /etc/workstation-startup.d/240_ide_settings.sh
+```
 
 ## Troubleshooting
 
-### Container won't start
-```bash
-# Check logs
-docker-compose logs workstation
+### Code OSS Not Accessible (Port 80 Error)
 
-# Rebuild without cache
-docker-compose build --no-cache
+If you see "Unable to forward your request to a backend" or "Couldn't connect to a server on port 80":
+
+1. **Check if Code OSS is running:**
+```bash
+gcloud workstations ssh WORKSTATION_NAME --command "pgrep -f codeoss-cloudworkstations"
 ```
 
-### Port conflicts
+2. **Check port 80 status:**
 ```bash
-# Use different ports
-TERMINAL_PORT=7682 docker-compose up
+gcloud workstations ssh WORKSTATION_NAME --command "netstat -tuln | grep :80"
 ```
 
-### Permission issues with Podman
+3. **View Code OSS logs:**
 ```bash
-# Run with proper security options
-podman-compose up --security-opt label=disable
+gcloud workstations ssh WORKSTATION_NAME --command "cat /home/user/.codeoss-cloudworkstations/logs/server.log"
 ```
 
-## Development Tips
+4. **Manually start Code OSS:**
+```bash
+gcloud workstations ssh WORKSTATION_NAME --command "sudo /etc/workstation-startup.d/110_start-code-oss.sh"
+```
 
-1. **Live Editing**: The override file mounts source code for live changes
-2. **Quick Rebuild**: `docker-compose build` rebuilds only changed layers
-3. **Service Logs**: `docker-compose logs -f [service]` for specific service
-4. **Shell Access**: `docker-compose exec workstation bash`
-5. **Clean Restart**: `docker-compose down -v` removes volumes for fresh start
+5. **Restart the workstation:**
+```bash
+gcloud workstations stop WORKSTATION_NAME
+gcloud workstations start WORKSTATION_NAME
+```
+
+### Extension Not Installing
+
+Check logs:
+```bash
+docker exec midnight-dev cat /var/log/customize_environment
+```
+
+Manually install:
+```bash
+docker exec -it midnight-dev bash
+/opt/midnight/bin/install-midnight-extension
+```
+
+### Proof Server Issues
+
+Check server logs:
+```bash
+docker exec midnight-dev cat /tmp/midnight-logs/proof-server.log
+```
+
+Restart server:
+```bash
+docker exec midnight-dev /opt/midnight/bin/start-proof-server
+```
+
+### Permission Issues
+
+The base image runs as user `1000`. Ensure files are accessible:
+```bash
+docker exec midnight-dev ls -la /opt/midnight
+```
+
+## Security Considerations
+
+### Non-Root Operation
+- **The container runs as `USER 1000` (non-root) by default** - this is required by Cloud Workstations
+- All Midnight tools are installed with appropriate permissions for non-root access
+- User-level operations are handled through the `customize_environment` mechanism
+- Startup scripts run as root but execute user operations via `runuser user -c`
+
+### Additional Security
+- Sudo access can be disabled by setting `CLOUD_WORKSTATIONS_CONFIG_DISABLE_SUDO=true`
+- Use service accounts with minimal permissions for Artifact Registry access
+- Regular rebuilds recommended to incorporate base image security updates
+- All user data is stored in the persistent home directory, not in the container image
+
+## Support
+
+For issues or questions:
+- Midnight Network Documentation: [docs.midnight.network](https://docs.midnight.network)
+- Cloud Workstations Documentation: [cloud.google.com/workstations](https://cloud.google.com/workstations)
+- GitHub Issues: [github.com/midnight-ntwrk](https://github.com/midnight-ntwrk)

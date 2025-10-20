@@ -122,9 +122,10 @@ steps:
         # Only build if we're applying changes
         if [ "${_TERRAFORM_ACTION}" = "apply" ] && [ "${_AUTO_APPROVE}" = "true" ]; then
           echo "Building container image..."
-          cd docker
-          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:${BUILD_ID} .
-          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:latest .
+          # Build from docker directory with its own context
+          # The Dockerfile is now self-contained and doesn't need parent directory context
+          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:${BUILD_ID} docker/
+          docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/workstation:latest docker/
         else
           echo "Skipping container build."
         fi
