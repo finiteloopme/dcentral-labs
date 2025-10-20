@@ -1,4 +1,0 @@
-# Start with base Cloud Workstations image - NO MODIFICATIONS
-FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
-
-# That's it - this should work as-is
