@@ -1,0 +1,22 @@
+# Development container with all tools
+FROM docker.io/rust:1.79-bookworm
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    sqlite3 \
+    libsqlite3-dev \
+    curl \
+    git \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust development tools
+RUN rustup component add rustfmt clippy
+
+# Create workspace
+WORKDIR /workspace
+
+# Keep container running for development
+CMD ["tail", "-f", "/dev/null"]

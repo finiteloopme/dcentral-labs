@@ -1,0 +1,1 @@
+{"rustc":16285725380928457773,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[9001202093189684693,"build_script_build",false,2246874424537628743]],"local":[{"RerunIfChanged":{"output":"debug/build/mockall_derive-cc469f30e68e978a/output","paths":["build.rs"]}}],"rustflags":[],"config":0,"compile_kind":0}

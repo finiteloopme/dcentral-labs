@@ -1,0 +1,1 @@
+A collection of web3 utilities that can be leverage by AI Agents.

@@ -79,8 +79,3 @@ variable "additional_dns_records" {
   }))
   default = []
 }
-
-
-}
-
-
