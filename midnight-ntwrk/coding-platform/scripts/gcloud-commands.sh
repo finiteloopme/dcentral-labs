@@ -27,20 +27,13 @@ check_project() {
 deploy() {
     check_project
     echo -e "${GREEN}Deploying to Google Cloud...${NC}"
+    echo "  Project: $PROJECT_ID"
+    echo "  Environment: $ENV"
+    echo "  Region: $REGION"
+    echo ""
     
     # Build substitutions string
     SUBSTITUTIONS="_ENVIRONMENT=$ENV,_REGION=$REGION,_ZONE=${REGION}-a,_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true"
-    
-    # Add proof service configuration if provided
-    if [ -n "$PROOF_SERVICE_MODE" ]; then
-        SUBSTITUTIONS="${SUBSTITUTIONS},_PROOF_SERVICE_MODE=$PROOF_SERVICE_MODE"
-    fi
-    if [ -n "$PROOF_SERVICE_URL" ]; then
-        SUBSTITUTIONS="${SUBSTITUTIONS},_PROOF_SERVICE_URL=$PROOF_SERVICE_URL"
-    fi
-    if [ -n "$PROOF_SERVICE_API_KEY" ]; then
-        SUBSTITUTIONS="${SUBSTITUTIONS},_PROOF_SERVICE_API_KEY=$PROOF_SERVICE_API_KEY"
-    fi
     
     gcloud beta builds submit \
         --config=cicd/cloudbuild/cloudbuild.yaml \

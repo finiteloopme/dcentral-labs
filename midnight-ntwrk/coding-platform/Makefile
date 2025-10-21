@@ -23,7 +23,7 @@ help:
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Quick Start:$(NC)"
-	@echo "  $(GREEN)deploy$(NC)        - Deploy to Google Cloud (checks requirements first)"
+	@echo "  $(GREEN)deploy$(NC)        - Deploy to Google Cloud"
 	@echo "  $(GREEN)undeploy$(NC)      - Destroy all cloud resources"
 	@echo "  $(GREEN)run-local$(NC)     - Run locally (secure mode)"
 	@echo ""
@@ -51,51 +51,10 @@ help:
 # ============================================================================
 
 # Deploy to Google Cloud using configured environment variables
-deploy: check-deploy-requirements
-	@echo "$(GREEN)Deploying to Google Cloud...$(NC)"
-	@echo "  Project: $(PROJECT_ID)"
-	@echo "  Environment: $(ENV)"
-	@echo "  Region: $(REGION)"
-	@echo ""
-	@gcloud beta builds submit \
-		--config=cicd/cloudbuild/cloudbuild.yaml \
-		--substitutions="_ENVIRONMENT=$(ENV),_REGION=$(REGION),_ZONE=$(REGION)-a,_TERRAFORM_ACTION=apply,_AUTO_APPROVE=true" \
-		--project=$(PROJECT_ID) .
+deploy:
+	@./scripts/gcloud-commands.sh deploy
 
-# Check deployment requirements
-check-deploy-requirements:
-	@echo "$(YELLOW)Checking deployment requirements...$(NC)"
-	@# Check if gcloud is installed
-	@if ! command -v gcloud >/dev/null 2>&1; then \
-		echo "$(RED)Error: gcloud CLI is not installed$(NC)"; \
-		echo "Install from: https://cloud.google.com/sdk/docs/install"; \
-		exit 1; \
-	fi
-	@# Check if PROJECT_ID is set
-	@if [ -z "$(PROJECT_ID)" ]; then \
-		echo "$(RED)Error: PROJECT_ID is not set$(NC)"; \
-		echo "Run: gcloud config set project YOUR_PROJECT_ID"; \
-		echo "Or: export PROJECT_ID=YOUR_PROJECT_ID"; \
-		exit 1; \
-	fi
-	@# Check if authenticated
-	@if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q .; then \
-		echo "$(RED)Error: Not authenticated with gcloud$(NC)"; \
-		echo "Run: gcloud auth login"; \
-		exit 1; \
-	fi
-	@# Check if Cloud Build API is enabled
-	@if ! gcloud services list --enabled --filter="name:cloudbuild.googleapis.com" --format="value(name)" 2>/dev/null | grep -q cloudbuild; then \
-		echo "$(YELLOW)Warning: Cloud Build API might not be enabled$(NC)"; \
-		echo "Enable with: gcloud services enable cloudbuild.googleapis.com"; \
-	fi
-	@# Check if cloudbuild.yaml exists
-	@if [ ! -f "cicd/cloudbuild/cloudbuild.yaml" ]; then \
-		echo "$(RED)Error: Cloud Build configuration not found$(NC)"; \
-		echo "Expected: cicd/cloudbuild/cloudbuild.yaml"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)✓ All requirements met$(NC)"
+
 
 # Undeploy - Clean up all cloud resources
 undeploy:

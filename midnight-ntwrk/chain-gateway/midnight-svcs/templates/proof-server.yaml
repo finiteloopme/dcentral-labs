@@ -53,7 +53,7 @@ metadata:
     {{- include "midnight-node.labels" . | nindent 4 }}
     app.kubernetes.io/component: proof-server
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
     {{- range .Values.proofServer.ports }}
     - name: {{ .name }}

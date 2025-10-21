@@ -38,3 +38,19 @@ resource "google_container_cluster" "default" {
     ]
   }
 }
+
+resource "google_compute_firewall" "proof_server" {
+  name    = "${var.cluster_name}-proof-server"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["6300"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  
+  target_tags = ["gke-${var.cluster_name}"]
+  
+  description = "Allow proof server traffic on port 6300"
+}
