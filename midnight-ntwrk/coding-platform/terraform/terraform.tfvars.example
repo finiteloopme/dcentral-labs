@@ -1,0 +1,42 @@
+# Example Terraform Variables Configuration
+# Copy this to terraform.tfvars and update with your values
+
+# Required variables
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+zone        = "us-central1-a"
+environment = "dev"
+
+# Workstation configuration
+workstation_config = {
+  machine_type            = "n2-standard-8"
+  boot_disk_size_gb       = 50
+  persistent_disk_size_gb = 200
+  idle_timeout            = "1200s"   # 20 minutes
+  running_timeout         = "14400s"  # 4 hours
+}
+
+# Custom domain configuration (optional)
+enable_custom_domain = false  # Set to true to enable
+custom_domain       = ""      # e.g., "midnight-dev.yourdomain.com"
+custom_domain_ip    = ""      # Leave empty to use NAT IP
+
+# Additional DNS records (optional)
+additional_dns_records = [
+  # {
+  #   name = "api"
+  #   type = "A"
+  #   ttl  = 300
+  #   data = ["1.2.3.4"]
+  # },
+  # {
+  #   name = "docs"
+  #   type = "CNAME"
+  #   ttl  = 300
+  #   data = ["docs.example.com."]
+  # }
+]
+
+# State bucket configuration
+state_bucket_name     = ""  # Leave empty to auto-generate
+state_bucket_location = "US"

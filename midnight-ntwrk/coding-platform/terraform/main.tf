@@ -73,3 +73,21 @@ module "workstations" {
     module.registry
   ]
 }
+
+# DNS module for custom domain
+module "dns" {
+  source = "./modules/dns"
+  
+  project_id    = var.project_id
+  environment   = var.environment
+  domain_name   = var.custom_domain
+  enable_dns    = var.enable_custom_domain
+  workstation_ip = var.custom_domain_ip != "" ? var.custom_domain_ip : module.networking.nat_ip
+  
+  dns_records = var.additional_dns_records
+  
+  depends_on = [
+    google_project_service.apis,
+    module.networking
+  ]
+}

@@ -51,6 +51,35 @@ variable "state_bucket_location" {
   default     = "US"
 }
 
+variable "enable_custom_domain" {
+  description = "Enable custom domain for workstation access"
+  type        = bool
+  default     = false
+}
+
+variable "custom_domain" {
+  description = "Custom domain for workstation access (e.g., 'midnight-dev.example.com')"
+  type        = string
+  default     = ""
+}
+
+variable "custom_domain_ip" {
+  description = "IP address for custom domain (leave empty to use NAT IP)"
+  type        = string
+  default     = ""
+}
+
+variable "additional_dns_records" {
+  description = "Additional DNS records to create"
+  type = list(object({
+    name = string
+    type = string
+    ttl  = number
+    data = list(string)
+  }))
+  default = []
+}
+
 
 }
 
