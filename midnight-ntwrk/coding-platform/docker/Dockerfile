@@ -9,11 +9,21 @@ FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss
 # Extension version
 ARG MIDNIGHT_EXT_VERSION=0.2.13
 
+# Proof service configuration (can be overridden at build time)
+ARG PROOF_SERVICE_MODE=local
+ARG PROOF_SERVICE_URL=
+ARG PROOF_SERVICE_API_KEY=
+
 # Switch to root for installation
 USER root
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Set proof service environment variables from build args
+ENV PROOF_SERVICE_MODE=${PROOF_SERVICE_MODE}
+ENV PROOF_SERVICE_URL=${PROOF_SERVICE_URL}
+ENV PROOF_SERVICE_API_KEY=${PROOF_SERVICE_API_KEY}
 
 # Install additional packages required for Midnight development
 RUN apt-get update && \
@@ -66,8 +76,10 @@ COPY templates/ /opt/templates/
 
 # Copy Midnight tools and scripts  
 COPY scripts/*.sh /opt/midnight/bin/
+COPY scripts/*.sh /docker/scripts/
 COPY scripts/*.json /opt/midnight/bin/
 RUN chmod +x /opt/midnight/bin/*.sh && \
+    chmod +x /docker/scripts/*.sh && \
     for script in /opt/midnight/bin/*.sh; do \
         if [ -f "$script" ]; then \
             basename_script=$(basename "$script" .sh); \
@@ -112,8 +124,8 @@ fi' > /etc/workstation-startup.d/001_ensure-dev-null.sh && \
 
 # Create symlinks for Midnight tools (but not opencode - that's installed via npm)
 RUN ln -sf /opt/midnight/bin/midnight /usr/local/bin/midnight && \
-    ln -sf /opt/midnight/bin/prove /usr/local/bin/prove && \
-    ln -sf /opt/midnight/bin/verify /usr/local/bin/verify
+    ln -sf /docker/scripts/prove-wrapper.sh /usr/local/bin/prove && \
+    ln -sf /docker/scripts/verify-wrapper.sh /usr/local/bin/verify
 
 # Set permissions for all directories
 RUN chmod -R 755 /opt/midnight && \

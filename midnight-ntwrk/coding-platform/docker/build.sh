@@ -27,6 +27,7 @@ IMAGE_TAG="latest"
 REGISTRY=""
 PUSH=false
 
+# Proof service configuration
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -46,6 +47,11 @@ while [[ $# -gt 0 ]]; do
             PUSH=true
             shift
             ;;
+        --proof-url|--proof-key|--proof-mode)
+            # Deprecated - ignore these options
+            echo "Warning: $1 is deprecated and ignored (proof server is now built-in)"
+            shift 2
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -53,7 +59,20 @@ while [[ $# -gt 0 ]]; do
             echo "  --tag TAG         Container image tag (default: latest)"
             echo "  --registry REG    Registry URL (e.g., us-central1-docker.pkg.dev/PROJECT/REPO)"
             echo "  --push            Push image to registry after building"
+            echo "  --proof-url URL   External proof service URL (sets mode to external)"
+            echo "  --proof-key KEY   API key for external proof service (optional)"
+            echo "  --proof-mode MODE Proof service mode: local or external (default: local)"
             echo "  --help            Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  # Build with local proof service (default)"
+            echo "  $0"
+            echo ""
+            echo "  # Build with external proof service"
+            echo "  $0 --proof-url https://proof-api.midnight.network"
+            echo ""
+            echo "  # Build with external proof service and API key"
+            echo "  $0 --proof-url https://proof-api.midnight.network --proof-key mykey"
             exit 0
             ;;
         *)
@@ -76,6 +95,7 @@ echo "========================================"
 echo ""
 echo "Image: $FULL_IMAGE_NAME"
 echo "Context: $SCRIPT_DIR"
+echo "Proof Service: Integrated mock server (port 8081)"
 echo ""
 
 # Build the container image using the docker directory as context

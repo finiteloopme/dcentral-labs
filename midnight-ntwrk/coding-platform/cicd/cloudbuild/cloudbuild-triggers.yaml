@@ -14,58 +14,6 @@ triggers:
     filename: 'cicd/cloudbuild/cloudbuild-plan.yaml'
     serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'
     substitutions:
-      _ENVIRONMENT: 'dev'
-      _REGION: 'us-central1'
-      _ZONE: 'us-central1-a'
-    includedFiles:
-      - 'terraform/**'
-      - 'docker/**'
-
-  # Trigger 2: Deploy to Dev on merge to main
-  - name: 'terraform-apply-dev'
-    description: 'Deploy to dev environment on merge to main'
-    github:
-      owner: 'midnight-network'
-      name: 'coding-platform'
-      push:
-        branch: '^main$'
-    filename: 'cloudbuild.yaml'
-    substitutions:
-      _ENVIRONMENT: 'dev'
-      _TERRAFORM_ACTION: 'apply'
-      _AUTO_APPROVE: 'true'
-      _REGION: 'us-central1'
-      _ZONE: 'us-central1-a'
-    includedFiles:
-      - 'terraform/**'
-      - 'docker/**'
-
-  # Trigger 3: Deploy to Staging (manual)
-  - name: 'terraform-apply-staging'
-    description: 'Deploy to staging environment (manual trigger)'
-    github:
-      owner: 'midnight-network'
-      name: 'coding-platform'
-      push:
-        tag: '^staging-.*'
-    filename: 'cloudbuild.yaml'
-    substitutions:
-      _ENVIRONMENT: 'staging'
-      _TERRAFORM_ACTION: 'apply'
-      _AUTO_APPROVE: 'true'
-      _REGION: 'us-central1'
-      _ZONE: 'us-central1-a'
-
-  # Trigger 4: Deploy to Production (manual with approval)
-  - name: 'terraform-apply-prod'
-    description: 'Deploy to production environment (requires approval)'
-    github:
-      owner: 'midnight-network'
-      name: 'coding-platform'
-      push:
-        tag: '^prod-v.*'
-    filename: 'cloudbuild-prod.yaml'
-    substitutions:
       _ENVIRONMENT: 'prod'
       _REGION: 'us-central1'
       _ZONE: 'us-central1-a'
@@ -73,7 +21,42 @@ triggers:
     approvalConfig:
       approvalRequired: true
 
-  # Trigger 5: Destroy Dev Environment (manual)
+  # Trigger 5: Deploy with External Proof Service
+  - name: 'deploy-external-proof'
+    description: 'Deploy with external proof service'
+    github:
+      owner: 'midnight-network'
+      name: 'coding-platform'
+      push:
+        branch: '^feature/midnight-proof$'
+    filename: 'cicd/cloudbuild/cloudbuild.yaml'
+    substitutions:
+      _ENVIRONMENT: 'dev'
+      _TERRAFORM_ACTION: 'apply'
+      _AUTO_APPROVE: 'true'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+    includedFiles:
+      - 'terraform/**'
+      - 'docker/**'
+
+  # Trigger 6: Deploy with Manual Proof Configuration
+  - name: 'deploy-manual-proof'
+    description: 'Deploy with manually configured proof service'
+    disabled: false
+    sourceToBuild:
+      uri: 'https://github.com/midnight-network/coding-platform'
+      ref: 'refs/heads/main'
+      repoType: 'GITHUB'
+    filename: 'cicd/cloudbuild/cloudbuild.yaml'
+    substitutions:
+      _ENVIRONMENT: 'dev'
+      _TERRAFORM_ACTION: 'apply'
+      _AUTO_APPROVE: 'true'
+      _REGION: 'us-central1'
+      _ZONE: 'us-central1-a'
+
+  # Trigger 7: Destroy Dev Environment (manual)
   - name: 'terraform-destroy-dev'
     description: 'Destroy dev environment (manual trigger)'
     sourceToBuild:

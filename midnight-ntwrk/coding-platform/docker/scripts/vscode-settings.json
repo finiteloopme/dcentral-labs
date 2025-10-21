@@ -9,6 +9,20 @@
   "editor.wordWrap": "on",
   "terminal.integrated.fontSize": 14,
   "terminal.integrated.fontFamily": "Fira Code, monospace",
+  "terminal.integrated.env.linux": {
+    "GCP_PROJECT_ID": "${env:GCP_PROJECT_ID}",
+    "GOOGLE_CLOUD_PROJECT": "${env:GOOGLE_CLOUD_PROJECT}"
+  },
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "path": "/bin/bash",
+      "args": ["-l"],
+      "icon": "terminal-bash"
+    }
+  },
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.inheritEnv": true,
+  "terminal.integrated.shellIntegration.enabled": true,
   "workbench.colorTheme": "Default Dark+",
   "git.autofetch": true,
   "git.confirmSync": false,

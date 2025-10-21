@@ -1,0 +1,29 @@
+{
+  "configurations": {
+    "local": {
+      "description": "Local development with simulated proof service",
+      "args": {
+        "PROOF_SERVICE_MODE": "local",
+        "PROOF_SERVICE_URL": "",
+        "PROOF_SERVICE_API_KEY": ""
+      }
+    },
+    "external-midnight": {
+      "description": "Use official Midnight proof service",
+      "args": {
+        "PROOF_SERVICE_MODE": "external",
+        "PROOF_SERVICE_URL": "https://proof-api.midnight.network",
+        "PROOF_SERVICE_API_KEY": ""
+      }
+    },
+    "external-custom": {
+      "description": "Use custom proof service",
+      "args": {
+        "PROOF_SERVICE_MODE": "external",
+        "PROOF_SERVICE_URL": "${CUSTOM_PROOF_URL}",
+        "PROOF_SERVICE_API_KEY": "${CUSTOM_PROOF_KEY}"
+      }
+    }
+  },
+  "default": "local"
+}

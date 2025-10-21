@@ -39,15 +39,25 @@ See [CLOUD_WORKSTATION_STATUS.md](CLOUD_WORKSTATION_STATUS.md) for details.
 # Set your project (one-time)
 gcloud config set project YOUR_PROJECT_ID
 
-# Deploy everything
+# Configure proof service (interactive)
+make configure-proof
+
+# Deploy with configured settings
 make deploy
+
+# Or deploy with environment variables
+PROOF_SERVICE_MODE=external PROOF_SERVICE_URL=https://proof-api.midnight.network make deploy
 ```
 
 ### Local Development
 
 ```bash
-# Run locally (following Cloud Workstations testing guidelines)
+# Build and run locally
+make build
 make run-local
+
+# Or with proof service configuration
+PROOF_SERVICE_MODE=external PROOF_SERVICE_URL=https://your-service make build
 
 # Access services:
 # Code OSS: http://localhost:8080
@@ -465,7 +475,7 @@ make compose-up
 - [Cloud Build Guide](docs/CLOUD_BUILD.md)
 - [Configuration Guide](docs/CONFIGURATION.md)
 - [Vertex AI Setup](docs/VERTEX_AI_SETUP.md)
-- [Proof Service](docs/PROOF_SERVICE.md)
+- [**Proof Service Guide**](docs/PROOF_SERVICE.md) - Complete proof service documentation
 
 ## 🤝 Contributing
 

@@ -24,7 +24,14 @@ else
 fi
 
 PROJECTS_DIR="${WORKSPACE_DIR}/projects"
-TEMPLATES_DIR="${WORKSPACE_DIR}/templates"
+# Use fixed templates if available (with correct ports), otherwise regular templates
+if [ -d "${WORKSPACE_DIR}/templates-fixed" ]; then
+    TEMPLATES_DIR="${WORKSPACE_DIR}/templates-fixed"
+elif [ -d "${WORKSPACE_DIR}/templates-sdk" ]; then
+    TEMPLATES_DIR="${WORKSPACE_DIR}/templates-sdk"
+else
+    TEMPLATES_DIR="${WORKSPACE_DIR}/templates"
+fi
 
 # Function to show help
 show_help() {
@@ -119,19 +126,51 @@ create_project() {
     # Check if templates exist and copy them
     if [ -d "$TEMPLATES_DIR/basic-token" ]; then
         echo "Using template from $TEMPLATES_DIR/basic-token..."
-        cp -r "$TEMPLATES_DIR/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
-            echo -e "${YELLOW}Warning: Could not copy all template files${NC}"
-        }
-    elif [ -d "/opt/templates/basic-token" ]; then
-        echo "Using template from /opt/templates/basic-token..."
-        cp -r "/opt/templates/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
-            echo -e "${YELLOW}Warning: Could not copy all template files${NC}"
-        }
+        # Try SDK template first (with real proof server integration)
+        if [ -d "$TEMPLATES_DIR/../templates-sdk/basic-token" ]; then
+            cp -r "$TEMPLATES_DIR/../templates-sdk/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
+                # Fallback to regular template
+                cp -r "$TEMPLATES_DIR/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
+                    echo "⚠️  Template not found at $TEMPLATES_DIR/basic-token/"
+                    echo "   Trying alternative location..."
+                    # Try alternative location
+                    TEMPLATES_DIR="/opt/templates"
+                    cp -r "/opt/templates/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
+                        echo -e "${YELLOW}Warning: Could not copy all template files${NC}"
+                        create_basic_structure=true
+                    }
+                }
+            }
+        else
+            # No SDK template, try regular template
+            cp -r "$TEMPLATES_DIR/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
+                echo "⚠️  Template not found at $TEMPLATES_DIR/basic-token/"
+                echo "   Trying alternative location..."
+                # Try alternative location
+                TEMPLATES_DIR="/opt/templates"
+                cp -r "/opt/templates/basic-token/"* "$PROJECT_PATH/" 2>/dev/null || {
+                    echo -e "${YELLOW}Warning: Could not copy all template files${NC}"
+                    create_basic_structure=true
+                }
+            }
+        fi
+        
+        # Check if we need to create basic structure due to template copy failure
+        if [ "$create_basic_structure" = "true" ]; then
+            echo "Creating basic project structure..."
+            mkdir -p "$PROJECT_PATH/contracts" "$PROJECT_PATH/src" "$PROJECT_PATH/test" "$PROJECT_PATH/build"
+            create_basic_files=true
+        fi
     else
         echo "Creating project structure from scratch..."
         
         # Create directory structure
         mkdir -p "$PROJECT_PATH/contracts" "$PROJECT_PATH/src" "$PROJECT_PATH/test" "$PROJECT_PATH/build"
+        create_basic_files=true
+    fi
+    
+    # Create basic files if needed
+    if [ "$create_basic_files" = "true" ]; then
         
         # Create sample contract
         cat > "$PROJECT_PATH/contracts/Token.compact" <<'EOF'
@@ -435,33 +474,23 @@ run_tests() {
 
 # Generate proofs
 generate_proofs() {
-    echo -e "${BLUE}Generating proofs...${NC}"
-    
-    if [ ! -d "build" ]; then
-        echo -e "${RED}Error: build/ directory not found${NC}"
-        echo "Run 'midnight compile' first"
-        exit 1
-    fi
-    
-    # Check if prove command exists
+    # Pass through to prove command which handles external/simulation logic
     if command -v prove >/dev/null 2>&1; then
         prove "$@"
     else
-        echo -e "${YELLOW}Proof generation not yet implemented${NC}"
-        echo "This feature will be available in a future release"
+        echo -e "${RED}Error: prove command not found${NC}"
+        exit 1
     fi
 }
 
 # Verify proofs
 verify_proofs() {
-    echo -e "${BLUE}Verifying proofs...${NC}"
-    
-    # Check if verify command exists
+    # Pass through to verify command which handles external/simulation logic
     if command -v verify >/dev/null 2>&1; then
         verify "$@"
     else
-        echo -e "${YELLOW}Proof verification not yet implemented${NC}"
-        echo "This feature will be available in a future release"
+        echo -e "${RED}Error: verify command not found${NC}"
+        exit 1
     fi
 }
 

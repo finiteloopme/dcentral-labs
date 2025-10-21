@@ -11,11 +11,20 @@ case $- in
 esac
 
 # Auto-detect and export GCP project ID for Cloud Workstations
+# This is a fallback in case the terminal didn't inherit the environment
 if [ -z "$GCP_PROJECT_ID" ]; then
-    if [ -n "$CLOUD_WORKSTATIONS_CONFIG_DIRECTORY" ]; then
+    # First try to source from /etc/environment
+    if [ -f /etc/environment ]; then
+        eval $(grep "^GCP_PROJECT_ID=" /etc/environment 2>/dev/null)
+        eval $(grep "^GOOGLE_CLOUD_PROJECT=" /etc/environment 2>/dev/null)
+    fi
+    
+    # If still not set and we're in Cloud Workstations, fetch from metadata
+    if [ -z "$GCP_PROJECT_ID" ] && [ -n "$CLOUD_WORKSTATIONS_CONFIG_DIRECTORY" ]; then
         GCP_PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
             "http://metadata.google.internal/computeMetadata/v1/project/project-id" 2>/dev/null || true)
         export GCP_PROJECT_ID
+        export GOOGLE_CLOUD_PROJECT="$GCP_PROJECT_ID"
     fi
 fi
 
@@ -58,3 +67,7 @@ mkdir -p "$HOME/.config/opencode" 2>/dev/null || true
 # Export useful environment variables
 export MIDNIGHT_HOME="/opt/midnight"
 export PATH="/opt/midnight/bin:$PATH"
+
+# Add helpful aliases
+alias check-proof-service='/opt/midnight/bin/check-proof-service.sh 2>/dev/null || /docker/scripts/check-proof-service.sh 2>/dev/null || echo "Script not found"'
+alias proof-status='check-proof-service'

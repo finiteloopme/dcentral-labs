@@ -75,6 +75,25 @@ variable "proof_service_config" {
   }
 }
 
+variable "proof_service_mode" {
+  description = "Proof service mode override (local or external)"
+  type        = string
+  default     = ""
+}
+
+variable "proof_service_url" {
+  description = "Proof service URL override"
+  type        = string
+  default     = ""
+}
+
+variable "proof_service_api_key" {
+  description = "Proof service API key override"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "enable_real_proof_server" {
   description = "Use real Midnight proof server instead of mock"
   type        = bool
