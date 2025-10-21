@@ -22,8 +22,3 @@ output "network_name" {
   description = "Name of the VPC network"
   value       = module.networking.network_name
 }
-
-output "proof_service_url" {
-  description = "URL of the proof service"
-  value       = "http://${module.networking.nat_ip}:8080"
-}

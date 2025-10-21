@@ -88,12 +88,6 @@ ws-tunnel:
 	@./scripts/gcloud-commands.sh ws-tunnel $(WORKSTATION_ID)
 
 # ============================================================================
-# CONFIGURATION COMMANDS
-# ============================================================================
-
-
-
-# ============================================================================
 # UTILITIES
 # ============================================================================
 
@@ -115,42 +109,3 @@ push: check-project
 # Show deployment status
 status:
 	@./scripts/gcloud-commands.sh status $(WORKSTATION_ID)
-
-# Show current configuration
-config:
-	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(GREEN)Current Configuration$(NC)"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo ""
-	@echo "$(YELLOW)Google Cloud:$(NC)"
-	@echo "  PROJECT_ID: $(PROJECT_ID)"
-	@echo "  REGION: $(REGION)"
-	@echo "  WORKSTATION_ID: $(WORKSTATION_ID)"
-	@echo ""
-	@echo "$(YELLOW)Proof Service:$(NC)"
-	@echo "  Internal mock server on port 8081 (container)"
-	@echo "  Automatic for all projects"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# Proof service targets
-proof-status:
-	@echo "$(GREEN)Checking proof service status...$(NC)"
-	@if [ -f /docker/scripts/proof-service-manager.sh ]; then \
-		/docker/scripts/proof-service-manager.sh status; \
-	else \
-		echo "Proof server runs automatically inside container on port 8081"; \
-		echo "Check with: curl http://localhost:8081/health"; \
-	fi
-
-proof-test:
-	@echo "$(GREEN)Testing proof service...$(NC)"
-	@if [ -f /docker/scripts/proof-service-manager.sh ]; then \
-		/docker/scripts/proof-service-manager.sh test; \
-	else \
-		echo "Creating test proof..."; \
-		echo '{"test": "data"}' > test-circuit.json; \
-		./docker/scripts/prove.sh test-circuit.json && \
-		echo "$(GREEN)✓ Proof generation working$(NC)" && \
-		rm -f test-circuit.json proof.json; \
-	fi
-

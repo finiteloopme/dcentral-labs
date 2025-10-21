@@ -118,13 +118,7 @@ resource "google_workstations_workstation_config" "config" {
     env = {
       MIDNIGHT_ENV             = var.environment
       MIDNIGHT_NETWORK         = "testnet"
-      PROOF_SERVICE_MODE       = var.proof_service_config.mode
-      PROOF_SERVICE_URL        = var.proof_service_config.external_url
-      PROOF_SERVICE_PORT       = tostring(var.proof_service_config.port)
-      PROOF_SERVICE_HOST       = var.proof_service_config.host
-      PROOF_SERVICE_LOG_LEVEL  = var.proof_service_config.log_level
-      PROOF_SERVICE_THREADS    = tostring(var.proof_service_config.threads)
-      PROOF_SERVICE_CACHE_SIZE = tostring(var.proof_service_config.cache_size)
+      # Mock proof server runs automatically on port 8081
       CLOUD_WORKSTATIONS_CONFIG = "true"
       # Pass the project ID for gcloud configuration
       GCP_PROJECT_ID           = var.project_id

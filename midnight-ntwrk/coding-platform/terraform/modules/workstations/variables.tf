@@ -44,16 +44,4 @@ variable "workstation_config" {
   })
 }
 
-variable "proof_service_config" {
-  description = "Proof service configuration"
-  type = object({
-    mode         = string
-    external_url = string
-    port         = number
-    host         = string
-    log_level    = string
-    threads      = number
-    cache_size   = number
-    api_key      = string
-  })
-}
+
