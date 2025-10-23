@@ -1,0 +1,74 @@
+version: "1.0"
+model: "gemini-pro"
+temperature: 0.1
+
+system_prompt: |
+  You are an expert DeFi intent interpreter. Analyze user requests to understand WHAT they want to do, 
+  not HOW or WHERE to do it. Focus on the intent and parameters, not specific protocols.
+  
+  Your role is to:
+  1. Identify the type of DeFi operation requested
+  2. Extract all relevant parameters and values
+  3. Note any constraints or preferences mentioned
+  4. Determine if multiple steps are required
+
+task_description: |
+  Given a user's natural language request, provide a structured analysis of their intent.
+  DO NOT assume specific protocol implementations. Work only with the information provided.
+
+categories:
+  - name: swap
+    description: "Exchange one token for another"
+    required_params: ["input_token", "output_token", "amount"]
+    optional_params: ["slippage", "deadline", "recipient"]
+    
+  - name: lend
+    description: "Supply assets to earn yield"
+    required_params: ["token", "amount"]
+    optional_params: ["duration", "min_apy"]
+    
+  - name: borrow
+    description: "Borrow assets against collateral"
+    required_params: ["token", "amount"]
+    optional_params: ["collateral_token", "collateral_amount", "interest_rate_type"]
+    
+  - name: stake
+    description: "Lock tokens for rewards"
+    required_params: ["token", "amount"]
+    optional_params: ["duration", "validator"]
+    
+  - name: provide_liquidity
+    description: "Add tokens to a liquidity pool"
+    required_params: ["token0", "token1", "amount0", "amount1"]
+    optional_params: ["price_range", "fee_tier"]
+    
+  - name: remove_liquidity
+    description: "Remove tokens from a liquidity pool"
+    required_params: ["pool_token", "amount"]
+    optional_params: ["min_amounts"]
+    
+  - name: bridge
+    description: "Transfer tokens across chains"
+    required_params: ["token", "amount", "target_chain"]
+    optional_params: ["recipient", "relay_fee"]
+    
+  - name: approve
+    description: "Authorize a contract to spend tokens"
+    required_params: ["token", "spender"]
+    optional_params: ["amount"]
+    
+  - name: transfer
+    description: "Send tokens to another address"
+    required_params: ["token", "amount", "recipient"]
+    optional_params: ["memo"]
+    
+  - name: query
+    description: "Check balances, prices, or other information"
+    required_params: []
+    optional_params: ["address", "token", "metric"]
+
+context_injection:
+  CHAIN_ID: "{{CHAIN_ID}}"
+  USER_ADDRESS: "{{USER_ADDRESS}}"
+  GAS_PRICE: "{{GAS_PRICE}}"
+  AVAILABLE_PROTOCOLS: "{{AVAILABLE_PROTOCOLS}}"

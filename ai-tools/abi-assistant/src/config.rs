@@ -94,10 +94,28 @@ pub struct FeaturesConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IntentConfig {
+    #[serde(default = "default_intent_strategy")]
+    pub strategy: String,
     pub confidence_threshold: f64,
     pub max_suggestions: usize,
     pub fuzzy_matching: bool,
     pub protocols: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub gemini: Option<GeminiConfig>,
+}
+
+fn default_intent_strategy() -> String {
+    "gemini_first".to_string()
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GeminiConfig {
+    pub enabled: bool,
+    pub api_key: String,
+    pub model: String,
+    pub timeout: u64,
+    pub max_retries: u32,
+    pub prompt_file: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -112,10 +130,18 @@ pub struct GasConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CacheConfig {
     pub enabled: bool,
+    pub ttl: u64,
+    pub max_size: usize,
     pub max_cached_abis: usize,
     pub abi_cache_ttl: u64,
     pub max_cached_intents: usize,
     pub intent_cache_ttl: u64,
+    #[serde(default = "default_normalize_queries")]
+    pub normalize_queries: bool,
+}
+
+fn default_normalize_queries() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -370,10 +396,12 @@ impl Default for Config {
                 debug_mode: false,
             },
             intent: IntentConfig {
+                strategy: default_intent_strategy(),
                 confidence_threshold: 0.7,
                 max_suggestions: 3,
                 fuzzy_matching: true,
                 protocols: HashMap::new(),
+                gemini: None,
             },
             gas: GasConfig {
                 default_gas_limit: 150000,
@@ -384,10 +412,13 @@ impl Default for Config {
             },
             cache: CacheConfig {
                 enabled: true,
+                ttl: 3600,
+                max_size: 1000,
                 max_cached_abis: 100,
                 abi_cache_ttl: 3600,
                 max_cached_intents: 50,
                 intent_cache_ttl: 300,
+                normalize_queries: default_normalize_queries(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),

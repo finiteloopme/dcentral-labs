@@ -572,19 +572,19 @@ Forked Tests    → Test against real protocols
 - [x] ABI parsing implementation
 - [x] SQLite schema and storage
 
-### Phase 2: Intent Layer
-- [ ] Intent classification system
-- [ ] Pattern matching engine
-- [ ] Protocol registry
-- [ ] Intent resolution pipeline
+### Phase 2: Intent Layer ✅ Complete
+- [x] Intent classification system
+- [x] Pattern matching engine
+- [x] Protocol registry
+- [x] Intent resolution pipeline
 
-### Phase 3: Core Tools
-- [ ] implement `interpret_intent`
-- [ ] implement `encode_function_call`
-- [ ] implement `decode_transaction`
-- [ ] implement `estimate_gas`
-- [ ] implement `build_transaction`
-- [ ] implement `export_for_signing`
+### Phase 3: Core Tools ✅ Complete
+- [x] implement `interpret_intent` (enhanced with Gemini integration)
+- [x] implement `encode_function_call` (generic ABI encoding)
+- [x] implement `decode_transaction` (supports multiple protocols)
+- [x] implement `estimate_gas` (placeholder for RPC integration)
+- [x] implement `build_transaction` (multiple transaction types)
+- [x] implement `export_for_signing` (6 export formats)
 
 ### Phase 4: Dynamic Protocol Integration
 - [ ] Protocol-agnostic ABI discovery system
@@ -752,7 +752,7 @@ MIT License - See LICENSE file for details
 - Added protocol pattern recognition for automatic classification
 - Implemented Gemini CLI agent example with complete integration
 
-### Session 2 (2024-10-22) - Current
+### Session 2 (2024-10-22)
 - **Resolved Rust dependency issues** with `edition2024` requirement
   - Pinned dependencies to stable versions (Rust 1.79 compatible)
   - Used minimal dependencies initially (serde, serde_json, hex, sha3)
@@ -773,11 +773,65 @@ MIT License - See LICENSE file for details
   - All unit tests passing (4 tests for ABI modules)
   - Server successfully starts and listens on port 3000
 
+### Session 3 (2024-10-23)
+- **Implemented Phase 2: Intent Layer** ✅
+  - Created complete intent module structure with classifier, patterns, registry, and resolver
+  - Built pattern matching engine for DeFi operations (swap, lend, stake, etc.)
+  - Implemented protocol registry with default protocols (Uniswap, Aave, Lido, Compound)
+  - Created intent resolution pipeline that converts natural language to contract calls
+  - Integrated intent system with MCP service
+  - All 41 tests passing (17 new intent tests added)
+- **Key components added**:
+  - `IntentClassifier`: Classifies text into DeFi intent categories
+  - `PatternMatcher`: Matches patterns and scores confidence
+  - `ProtocolRegistry`: Manages protocol information and function mappings
+  - `IntentResolver`: Complete pipeline from text to contract call suggestions
+- **MCP tool enhancement**:
+  - `interpret_intent` now returns detailed protocol suggestions with parameters
+  - Confidence scoring based on pattern matching and protocol mentions
+  - Support for multiple protocol suggestions ranked by confidence
+
+### Session 4 (2024-10-23)
+- **Enhanced Phase 2 with Gemini Integration** ✅
+  - Created modular prompt management system with YAML configuration
+  - Implemented Gemini client with JSON response format
+  - Built hybrid intent resolver with 5 strategies (GeminiOnly, LocalOnly, GeminiFirst, LocalFirst, Smart)
+  - Added LRU cache with TTL and query normalization
+  - Created protocol discovery interface for dynamic protocol support
+  - Separated all prompts and templates from code
+- **Key architectural improvements**:
+  - Complete separation of concerns (prompts, logic, protocols)
+  - Protocol-agnostic prompt design for future dynamic discovery
+  - User-configurable resolution strategies
+  - Fallback mechanisms for reliability
+  - Smart query routing based on complexity assessment
+- **Testing**: All 53 tests passing (added 12 new tests)
+
+### Session 5 (2024-10-23) - Current
+- **Implemented Phase 3: Core Tools** ✅
+  - Enhanced `encode_function_call` with generic ABI encoding supporting any function signature
+  - Implemented comprehensive `decode_transaction` with known function selector mapping
+  - Created `transaction` module with builder and formatter
+  - Built `build_transaction` tool supporting multiple transaction types (transfer, approve, swap, etc.)
+  - Implemented `export_for_signing` with 6 export formats (raw_json, eip712, qr_code, wallet_connect, ethers_js, raw_hex)
+  - Added support for complete transaction lifecycle without handling private keys
+- **Key architectural components**:
+  - `AbiEncoder`: Generic function encoding with automatic parameter type detection
+  - `AbiDecoder`: Enhanced with protocol-specific function recognition
+  - `TransactionBuilder`: Fluent API for constructing transactions
+  - `TransactionFormatter`: Multi-format export for various wallet types
+- **Testing**: All 56 tests passing (added transaction tests)
+- **Examples created**:
+  - `examples/transaction-building.rs`: Comprehensive Rust demo
+  - `examples/curl-client/transaction-tools.sh`: MCP testing script showing all new tools
+
 ### Current Status
-- Basic MCP server is functional and accepting connections
-- Database initialization working with proper schema
-- Container-based development environment fully operational
-- Ready to proceed with Phase 2: Intent Layer
+- Phase 1 (Foundation) ✅ Complete
+- Phase 2 (Intent Layer with Gemini) ✅ Complete
+- Phase 3 (Core Tools) ✅ Complete
+- All 56 tests passing (added 3 new tests for transaction building)
+- MCP server functional with complete transaction lifecycle support
+- Ready to proceed with Phase 4: Dynamic Protocol Integration
 
 ### Next Steps
 1. Fix health endpoint issue (connection reset)

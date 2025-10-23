@@ -163,10 +163,12 @@ async fn fully_custom_server() -> Result<()> {
             debug_mode: false,
         },
         intent: IntentConfig {
+            strategy: "gemini_first".to_string(),
             confidence_threshold: 0.8,
             max_suggestions: 5,
             fuzzy_matching: true,
             protocols: HashMap::new(),
+            gemini: None,
         },
         gas: GasConfig {
             default_gas_limit: 200000,
@@ -177,10 +179,13 @@ async fn fully_custom_server() -> Result<()> {
         },
         cache: CacheConfig {
             enabled: true,
+            ttl: 3600,
+            max_size: 1000,
             max_cached_abis: 200,
             abi_cache_ttl: 7200,
             max_cached_intents: 100,
             intent_cache_ttl: 600,
+            normalize_queries: true,
         },
         logging: LoggingConfig {
             level: "debug".to_string(),

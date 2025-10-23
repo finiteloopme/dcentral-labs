@@ -5,11 +5,12 @@ use rmcp::{
         router::tool::ToolRouter,
         tool::Parameters,
     },
-    model::{ServerCapabilities, ServerInfo, CallToolResult, Content},
+    model::{ServerCapabilities, ServerInfo, CallToolResult, Content, ErrorCode},
     schemars, tool, tool_handler, tool_router,
     ErrorData as McpError,
 };
 use serde_json::json;
+use crate::intent::resolver::IntentResolver;
 use tracing::{info, debug};
 
 /// Input for interpret_intent tool
@@ -22,14 +23,10 @@ pub struct InterpretIntentArgs {
 /// Input for encode_function_call tool
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct EncodeFunctionArgs {
-    /// Function name
-    pub function: String,
-    /// First parameter (typically address)
-    #[serde(default)]
-    pub param1: String,
-    /// Second parameter (typically amount)
-    #[serde(default)]
-    pub param2: String,
+    /// Function signature (e.g., "transfer(address,uint256)")
+    pub signature: String,
+    /// Parameters as JSON array
+    pub parameters: serde_json::Value,
 }
 
 /// Input for decode_transaction tool
@@ -39,10 +36,37 @@ pub struct DecodeTransactionArgs {
     pub data: String,
 }
 
+/// Input for build_transaction tool
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct BuildTransactionArgs {
+    /// Type of transaction (transfer, approve, swap, supply, etc.)
+    pub transaction_type: String,
+    /// Protocol name (optional)
+    #[serde(default)]
+    pub protocol: String,
+    /// Parameters for the transaction
+    pub parameters: serde_json::Value,
+}
+
+/// Input for export_for_signing tool
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ExportTransactionArgs {
+    /// Transaction object to export
+    pub transaction: serde_json::Value,
+    /// Export format (raw_json, eip712, qr_code, wallet_connect, ethers_js, raw_hex)
+    #[serde(default = "default_export_format")]
+    pub format: String,
+}
+
+fn default_export_format() -> String {
+    "raw_json".to_string()
+}
+
 /// ABI Assistant MCP Service implementation
 #[derive(Clone)]
 pub struct AbiAssistantService {
     tool_router: ToolRouter<AbiAssistantService>,
+    intent_resolver: IntentResolver,
 }
 
 #[tool_router]
@@ -51,6 +75,7 @@ impl AbiAssistantService {
         info!("Creating ABI Assistant MCP service");
         Self {
             tool_router: Self::tool_router(),
+            intent_resolver: IntentResolver::new(),
         }
     }
     
@@ -58,70 +83,67 @@ impl AbiAssistantService {
     async fn interpret_intent(&self, Parameters(args): Parameters<InterpretIntentArgs>) -> Result<CallToolResult, McpError> {
         debug!("Interpreting intent: {}", args.intent);
         
-        let result = if args.intent.contains("swap") || args.intent.contains("exchange") {
-            json!({
-                "protocol": "Uniswap",
-                "function": "swapExactTokensForTokens",
-                "confidence": 0.85
-            })
-        } else if args.intent.contains("transfer") || args.intent.contains("send") {
-            json!({
-                "protocol": "ERC20",
-                "function": "transfer",
-                "confidence": 0.90
-            })
-        } else if args.intent.contains("approve") {
-            json!({
-                "protocol": "ERC20",
-                "function": "approve",
-                "confidence": 0.95
-            })
-        } else {
-            json!({
-                "error": "Could not interpret intent",
-                "confidence": 0.0
-            })
-        };
-        
-        Ok(CallToolResult::success(vec![
-            Content::text(serde_json::to_string(&result).unwrap())
-        ]))
+        // Use the intent resolver to interpret the intent
+        match self.intent_resolver.resolve(&args.intent) {
+            Ok(resolved) => {
+                let mut suggestions = Vec::new();
+                
+                for (i, call) in resolved.contract_calls.iter().take(3).enumerate() {
+                    suggestions.push(json!({
+                        "rank": i + 1,
+                        "protocol": call.protocol_name,
+                        "contract": call.contract_address,
+                        "function": call.function_name,
+                        "parameters": call.parameters,
+                        "confidence": call.confidence,
+                        "gas_estimate": call.estimated_gas
+                    }));
+                }
+                
+                let result = json!({
+                    "category": resolved.category.as_string(),
+                    "confidence": resolved.confidence,
+                    "parameters": resolved.parameters,
+                    "suggestions": suggestions
+                });
+                
+                Ok(CallToolResult::success(vec![
+                    Content::text(serde_json::to_string_pretty(&result).unwrap())
+                ]))
+            },
+            Err(e) => {
+                let result = json!({
+                    "error": format!("Failed to interpret intent: {}", e),
+                    "confidence": 0.0
+                });
+                
+                Ok(CallToolResult::success(vec![
+                    Content::text(serde_json::to_string(&result).unwrap())
+                ]))
+            }
+        }
     }
     
     #[tool(description = "Encode a function call with ABI")]
     async fn encode_function_call(&self, Parameters(args): Parameters<EncodeFunctionArgs>) -> Result<CallToolResult, McpError> {
-        debug!("Encoding function: {} with params: {} {}", args.function, args.param1, args.param2);
+        debug!("Encoding function: {} with params: {:?}", args.signature, args.parameters);
         
-        let result = match args.function.as_str() {
-            "transfer" => {
-                match crate::abi::encoder::AbiEncoder::encode_transfer(&args.param1, &args.param2) {
-                    Ok(encoded) => json!({
-                        "encoded": encoded,
-                        "function": "transfer"
-                    }),
-                    Err(e) => json!({
-                        "error": format!("Encoding failed: {}", e)
-                    })
-                }
-            },
-            "approve" => {
-                match crate::abi::encoder::AbiEncoder::encode_approve(&args.param1, &args.param2) {
-                    Ok(encoded) => json!({
-                        "encoded": encoded,
-                        "function": "approve"
-                    }),
-                    Err(e) => json!({
-                        "error": format!("Encoding failed: {}", e)
-                    })
-                }
-            },
-            _ => json!({
-                "error": format!("Unknown function: {}", args.function)
+        let result = match crate::abi::encoder::AbiEncoder::encode_function(&args.signature, &args.parameters) {
+            Ok(encoded) => json!({
+                "success": true,
+                "signature": args.signature,
+                "encoded": encoded,
+                "selector": &encoded[2..10], // First 4 bytes after 0x
+                "data_length": (encoded.len() - 2) / 2, // Bytes count
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": format!("Encoding failed: {}", e)
             })
         };
         
         Ok(CallToolResult::success(vec![
-            Content::text(serde_json::to_string(&result).unwrap())
+            Content::text(serde_json::to_string_pretty(&result).unwrap())
         ]))
     }
     
@@ -150,6 +172,234 @@ impl AbiAssistantService {
                 ]))
             }
         }
+    }
+    
+    #[tool(description = "Build a transaction for signing")]
+    async fn build_transaction(&self, Parameters(args): Parameters<BuildTransactionArgs>) -> Result<CallToolResult, McpError> {
+        debug!("Building transaction: {} with params: {:?}", args.transaction_type, args.parameters);
+        
+        use crate::transaction::builder;
+        
+        let result = match args.transaction_type.as_str() {
+            "transfer" | "token_transfer" => {
+                // Extract parameters
+                let params = args.parameters.as_object()
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Invalid parameters", None))?;
+                
+                let token_address = params.get("token_address")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing token_address", None))?;
+                
+                let to = params.get("to")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing to address", None))?;
+                
+                let amount = params.get("amount")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing amount", None))?;
+                
+                let from = params.get("from").and_then(|v| v.as_str());
+                
+                match builder::build_token_transfer(token_address, to, amount, from) {
+                    Ok(tx) => json!({
+                        "success": true,
+                        "transaction": tx,
+                        "type": "ERC20 Transfer"
+                    }),
+                    Err(e) => json!({
+                        "success": false,
+                        "error": format!("Failed to build transfer: {}", e)
+                    })
+                }
+            },
+            "approve" | "token_approval" => {
+                let params = args.parameters.as_object()
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Invalid parameters", None))?;
+                
+                let token_address = params.get("token_address")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing token_address", None))?;
+                
+                let spender = params.get("spender")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing spender", None))?;
+                
+                let amount = params.get("amount")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing amount", None))?;
+                
+                let from = params.get("from").and_then(|v| v.as_str());
+                
+                match builder::build_token_approval(token_address, spender, amount, from) {
+                    Ok(tx) => json!({
+                        "success": true,
+                        "transaction": tx,
+                        "type": "ERC20 Approval"
+                    }),
+                    Err(e) => json!({
+                        "success": false,
+                        "error": format!("Failed to build approval: {}", e)
+                    })
+                }
+            },
+            "eth_transfer" => {
+                let params = args.parameters.as_object()
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Invalid parameters", None))?;
+                
+                let to = params.get("to")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing to address", None))?;
+                
+                let amount = params.get("amount")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing amount", None))?;
+                
+                let from = params.get("from").and_then(|v| v.as_str());
+                
+                match builder::build_eth_transfer(to, amount, from) {
+                    Ok(tx) => json!({
+                        "success": true,
+                        "transaction": tx,
+                        "type": "ETH Transfer"
+                    }),
+                    Err(e) => json!({
+                        "success": false,
+                        "error": format!("Failed to build ETH transfer: {}", e)
+                    })
+                }
+            },
+            "swap" => {
+                let params = args.parameters.as_object()
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Invalid parameters", None))?;
+                
+                let router_address = params.get("router_address")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing router_address", None))?;
+                
+                let amount_in = params.get("amount_in")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing amount_in", None))?;
+                
+                let amount_out_min = params.get("amount_out_min")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing amount_out_min", None))?;
+                
+                let path = params.get("path")
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| {
+                        arr.iter()
+                            .map(|v| v.as_str().map(String::from))
+                            .collect::<Option<Vec<String>>>()
+                    })
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Invalid path array", None))?;
+                
+                let to = params.get("to")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| McpError::new(ErrorCode::INVALID_PARAMS, "Missing to address", None))?;
+                
+                let deadline = params.get("deadline")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("9999999999");
+                
+                let from = params.get("from").and_then(|v| v.as_str());
+                
+                match builder::build_uniswap_swap(router_address, amount_in, amount_out_min, path, to, deadline, from) {
+                    Ok(tx) => json!({
+                        "success": true,
+                        "transaction": tx,
+                        "type": "Uniswap Swap"
+                    }),
+                    Err(e) => json!({
+                        "success": false,
+                        "error": format!("Failed to build swap: {}", e)
+                    })
+                }
+            },
+            _ => json!({
+                "success": false,
+                "error": format!("Unknown transaction type: {}", args.transaction_type),
+                "supported_types": ["transfer", "approve", "eth_transfer", "swap"]
+            })
+        };
+        
+        Ok(CallToolResult::success(vec![
+            Content::text(serde_json::to_string_pretty(&result).unwrap())
+        ]))
+    }
+    
+    #[tool(description = "Export transaction for signing in various formats")]
+    async fn export_for_signing(&self, Parameters(args): Parameters<ExportTransactionArgs>) -> Result<CallToolResult, McpError> {
+        debug!("Exporting transaction in format: {}", args.format);
+        
+        use crate::transaction::{builder::Transaction, formatter::{TransactionFormatter, ExportFormat}};
+        
+        // Parse transaction from JSON
+        let tx: Transaction = match serde_json::from_value(args.transaction) {
+            Ok(tx) => tx,
+            Err(e) => {
+                let result = json!({
+                    "success": false,
+                    "error": format!("Invalid transaction: {}", e)
+                });
+                return Ok(CallToolResult::success(vec![
+                    Content::text(serde_json::to_string(&result).unwrap())
+                ]));
+            }
+        };
+        
+        let format = match args.format.as_str() {
+            "raw_json" => ExportFormat::RawJson,
+            "eip712" => ExportFormat::Eip712,
+            "qr_code" => ExportFormat::QrCode,
+            "wallet_connect" => ExportFormat::WalletConnect,
+            "ethers_js" => ExportFormat::EthersJs,
+            "raw_hex" => ExportFormat::RawHex,
+            "all" => {
+                // Special case: export in all formats
+                match TransactionFormatter::export_all_formats(&tx) {
+                    Ok(result) => {
+                        return Ok(CallToolResult::success(vec![
+                            Content::text(serde_json::to_string_pretty(&result).unwrap())
+                        ]));
+                    },
+                    Err(e) => {
+                        let result = json!({
+                            "success": false,
+                            "error": format!("Export failed: {}", e)
+                        });
+                        return Ok(CallToolResult::success(vec![
+                            Content::text(serde_json::to_string(&result).unwrap())
+                        ]));
+                    }
+                }
+            },
+            _ => {
+                let result = json!({
+                    "success": false,
+                    "error": format!("Unknown format: {}", args.format),
+                    "supported_formats": ["raw_json", "eip712", "qr_code", "wallet_connect", "ethers_js", "raw_hex", "all"]
+                });
+                return Ok(CallToolResult::success(vec![
+                    Content::text(serde_json::to_string(&result).unwrap())
+                ]));
+            }
+        };
+        
+        let result = match TransactionFormatter::export(&tx, format) {
+            Ok(exported) => json!({
+                "success": true,
+                "format": args.format,
+                "data": exported
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": format!("Export failed: {}", e)
+            })
+        };
+        
+        Ok(CallToolResult::success(vec![
+            Content::text(serde_json::to_string_pretty(&result).unwrap())
+        ]))
     }
     
     #[tool(description = "Estimate gas for a transaction")]

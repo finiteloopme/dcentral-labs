@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "description": "Standard response format for intent classification",
+  "response_format": {
+    "intent_type": {
+      "type": "string",
+      "enum": ["swap", "lend", "borrow", "stake", "provide_liquidity", "remove_liquidity", "bridge", "approve", "transfer", "query"],
+      "required": true,
+      "description": "The classified type of DeFi operation"
+    },
+    "confidence": {
+      "type": "number",
+      "min": 0.0,
+      "max": 1.0,
+      "required": true,
+      "description": "Confidence level in the classification"
+    },
+    "parameters": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "tokens_involved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of token symbols mentioned"
+        },
+        "amounts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of amounts mentioned (can include percentages)"
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Additional constraints like slippage, deadline, etc."
+        }
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "mentioned_protocols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Any protocols explicitly mentioned by the user"
+        },
+        "optimization_goal": {
+          "type": "string",
+          "enum": ["best_price", "lowest_gas", "fastest", "most_secure", "highest_yield"],
+          "description": "What the user wants to optimize for"
+        }
+      }
+    },
+    "multi_step": {
+      "type": "boolean",
+      "required": true,
+      "description": "Whether this requires multiple sequential operations"
+    },
+    "reasoning": {
+      "type": "string",
+      "required": false,
+      "description": "Optional explanation of the classification logic"
+    }
+  }
+}

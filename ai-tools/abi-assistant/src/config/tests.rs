@@ -122,6 +122,13 @@ pretty_json = true
 
     #[test]
     fn test_env_override() {
+        // Save existing values
+        let old_host = env::var("MCP_HOST").ok();
+        let old_port = env::var("MCP_PORT").ok();
+        let old_db = env::var("DATABASE_URL").ok();
+        let old_eth = env::var("ETHEREUM_RPC_URL").ok();
+        
+        // Set test values
         env::set_var("MCP_HOST", "192.168.1.1");
         env::set_var("MCP_PORT", "4000");
         env::set_var("DATABASE_URL", "sqlite://env.db");
@@ -135,11 +142,23 @@ pretty_json = true
         assert_eq!(config.database.url, "sqlite://env.db");
         assert_eq!(config.blockchain.ethereum.rpc_url, Some("http://localhost:7545".to_string()));
         
-        // Clean up
-        env::remove_var("MCP_HOST");
-        env::remove_var("MCP_PORT");
-        env::remove_var("DATABASE_URL");
-        env::remove_var("ETHEREUM_RPC_URL");
+        // Restore original values or remove
+        match old_host {
+            Some(v) => env::set_var("MCP_HOST", v),
+            None => env::remove_var("MCP_HOST"),
+        }
+        match old_port {
+            Some(v) => env::set_var("MCP_PORT", v),
+            None => env::remove_var("MCP_PORT"),
+        }
+        match old_db {
+            Some(v) => env::set_var("DATABASE_URL", v),
+            None => env::remove_var("DATABASE_URL"),
+        }
+        match old_eth {
+            Some(v) => env::set_var("ETHEREUM_RPC_URL", v),
+            None => env::remove_var("ETHEREUM_RPC_URL"),
+        }
     }
 
     #[test]

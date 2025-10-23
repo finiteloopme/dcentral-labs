@@ -25,6 +25,21 @@ anyhow = "1.0"
 # Database
 rusqlite = { version = "0.29", features = ["bundled"] }
 
+# Text processing
+regex = "1.10"
+
+# Caching
+lru = "0.12"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Async traits
+async-trait = "0.1"
+
+# YAML parsing
+serde_yaml = "0.9"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -50,6 +65,10 @@ tempfile = "3.8"
 [[example]]
 name = "library-usage"
 path = "examples/library-usage.rs"
+
+[[example]]
+name = "intent-resolution"
+path = "examples/intent-resolution.rs"
 
 [workspace]
 # Ensures we use resolver v2 which handles dependencies better

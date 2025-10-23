@@ -74,6 +74,27 @@ You can also use Gemini's API directly:
 python example.py
 ```
 
+## Intent Resolution Integration
+
+The new `intent-integration.py` example shows how to:
+1. Use Gemini to enhance vague user requests
+2. Send clarified intents to ABI Assistant
+3. Process structured responses with protocol suggestions
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the integration example
+python intent-integration.py
+```
+
+This demonstrates the full pipeline:
+- User: "I want to trade some tokens"
+- Gemini: Enhances to "swap 100 USDC for ETH"
+- ABI Assistant: Returns protocol suggestions (Uniswap, Sushiswap, etc.)
+- Result: Ready-to-execute transaction parameters
+
 ## Troubleshooting
 
 ### Gemini not connecting?

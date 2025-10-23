@@ -129,6 +129,9 @@ debug_mode = false
 [intent]
 # Intent interpretation configuration
 
+# Resolution strategy: "gemini_only", "local_only", "gemini_first", "local_first", "smart"
+strategy = "gemini_first"
+
 # Confidence threshold for intent matching (0.0 - 1.0)
 confidence_threshold = 0.7
 
@@ -138,9 +141,12 @@ max_suggestions = 3
 # Enable fuzzy matching for protocol names
 fuzzy_matching = true
 
-# Common protocol mappings
+# Protocol name normalization and aliasing
+# NOTE: This is for name normalization only, not protocol definitions
+# In Phase 4, actual protocol discovery will be dynamic
+# These mappings help users who say "uni" to match "Uniswap V3"
 [intent.protocols]
-# Map common names to actual protocol identifiers
+# Map common names/typos/abbreviations to canonical protocol names
 uniswap = ["Uniswap", "UniswapV2", "UniswapV3", "uni"]
 sushiswap = ["Sushiswap", "Sushi", "sushi"]
 aave = ["Aave", "AaveV2", "AaveV3", "aave"]
@@ -173,6 +179,12 @@ max_gas_price = 500
 # Enable in-memory caching
 enabled = true
 
+# General cache TTL in seconds
+ttl = 3600
+
+# Maximum cache size
+max_size = 1000
+
 # Maximum number of cached ABIs
 max_cached_abis = 100
 
@@ -184,6 +196,9 @@ max_cached_intents = 50
 
 # Intent cache TTL in seconds (5 minutes default)
 intent_cache_ttl = 300
+
+# Normalize queries for better cache hit rate
+normalize_queries = true
 
 [logging]
 # Logging configuration

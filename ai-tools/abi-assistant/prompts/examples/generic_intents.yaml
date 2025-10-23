@@ -1,0 +1,101 @@
+# Generic intent examples without protocol-specific information
+examples:
+  swap:
+    - input: "I want to swap 100 USDC for ETH"
+      output:
+        intent_type: "swap"
+        confidence: 0.95
+        parameters:
+          tokens_involved: ["USDC", "ETH"]
+          amounts: ["100"]
+          constraints: {}
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "best_price"
+        multi_step: false
+        
+    - input: "Exchange 1 ETH for DAI with 0.5% slippage"
+      output:
+        intent_type: "swap"
+        confidence: 0.98
+        parameters:
+          tokens_involved: ["ETH", "DAI"]
+          amounts: ["1"]
+          constraints:
+            slippage: "0.5"
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "best_price"
+        multi_step: false
+
+  lend:
+    - input: "Lend 1000 DAI"
+      output:
+        intent_type: "lend"
+        confidence: 0.9
+        parameters:
+          tokens_involved: ["DAI"]
+          amounts: ["1000"]
+          constraints: {}
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "highest_yield"
+        multi_step: false
+        
+    - input: "Supply USDC to earn at least 5% APY"
+      output:
+        intent_type: "lend"
+        confidence: 0.92
+        parameters:
+          tokens_involved: ["USDC"]
+          amounts: []
+          constraints:
+            min_apy: "5"
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "highest_yield"
+        multi_step: false
+
+  borrow:
+    - input: "Borrow 5000 USDC against my ETH"
+      output:
+        intent_type: "borrow"
+        confidence: 0.93
+        parameters:
+          tokens_involved: ["USDC", "ETH"]
+          amounts: ["5000"]
+          constraints:
+            collateral_token: "ETH"
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "lowest_gas"
+        multi_step: false
+
+  stake:
+    - input: "Stake 32 ETH"
+      output:
+        intent_type: "stake"
+        confidence: 0.95
+        parameters:
+          tokens_involved: ["ETH"]
+          amounts: ["32"]
+          constraints: {}
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "most_secure"
+        multi_step: false
+
+  multi_step:
+    - input: "Swap half my USDC for ETH then stake it"
+      output:
+        intent_type: "swap"
+        confidence: 0.85
+        parameters:
+          tokens_involved: ["USDC", "ETH"]
+          amounts: ["50%"]
+          constraints: {}
+        preferences:
+          mentioned_protocols: []
+          optimization_goal: "best_price"
+        multi_step: true
+        reasoning: "This requires two operations: first swap, then stake"
