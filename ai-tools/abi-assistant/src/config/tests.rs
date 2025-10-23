@@ -72,6 +72,10 @@ max_gas_price = 500000000000
 enabled = true
 ttl = 3600
 max_size = 1000
+max_cached_abis = 1000
+abi_cache_ttl = 7200
+max_cached_intents = 500
+intent_cache_ttl = 1800
 
 [logging]
 level = "info"
@@ -80,9 +84,15 @@ format = "pretty"
 [security]
 rate_limiting = true
 requests_per_minute = 60
+max_requests_per_minute = 100
 require_auth = false
+require_signatures = false
+allowed_origins = ["*"]
+max_body_size = 10485760
+request_timeout = 30
 
 [monitoring]
+enabled = true
 metrics_enabled = false
 metrics_port = 9090
 health_check_interval = 60
@@ -91,6 +101,10 @@ health_check_interval = 60
 debug_mode = false
 verbose_errors = false
 mock_blockchain = false
+hot_reload = false
+log_requests = false
+mock_mode = false
+pretty_json = true
 "#;
 
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -158,8 +172,14 @@ chain_id = 1
 [api_keys]
 
 [features]
-simulation_enabled = true
+fetch_abi_from_explorers = true
+simulate_transactions = true
 gas_optimization = true
+mev_protection = false
+cross_chain = false
+cache_abis = true
+debug_mode = false
+simulation_enabled = true
 intent_interpretation = true
 
 [intent]
@@ -170,14 +190,22 @@ fuzzy_matching = true
 [intent.protocols]
 
 [gas]
+default_gas_limit = 3000000
 estimation_mode = "standard"
 buffer_percentage = 20
 price_strategy = "market"
+custom_gas_price = 30000000000
+gas_buffer_percent = 20
+max_gas_price = 500000000000
 
 [cache]
 enabled = true
 ttl = 3600
 max_size = 1000
+max_cached_abis = 1000
+abi_cache_ttl = 7200
+max_cached_intents = 500
+intent_cache_ttl = 1800
 
 [logging]
 level = "info"
@@ -186,9 +214,15 @@ format = "pretty"
 [security]
 rate_limiting = true
 requests_per_minute = 60
+max_requests_per_minute = 100
 require_auth = false
+require_signatures = false
+allowed_origins = ["*"]
+max_body_size = 10485760
+request_timeout = 30
 
 [monitoring]
+enabled = true
 metrics_enabled = false
 metrics_port = 9090
 health_check_interval = 60
@@ -197,6 +231,10 @@ health_check_interval = 60
 debug_mode = false
 verbose_errors = false
 mock_blockchain = false
+hot_reload = false
+log_requests = false
+mock_mode = false
+pretty_json = true
 "#;
 
         let mut temp_file = NamedTempFile::new().unwrap();
