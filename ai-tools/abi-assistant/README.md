@@ -24,7 +24,7 @@ make setup
 cp .env.example .env
 # Edit .env with your RPC endpoints and API keys
 
-# Run development server
+# Run development server (HTTP mode on port 3000)
 make dev
 
 # In another terminal, run tests
@@ -40,6 +40,28 @@ podman-compose up dev
 # Or run in background
 podman-compose up -d dev
 ```
+
+## API Endpoints
+
+The ABI Assistant MCP Server provides multiple endpoints:
+
+### JSON-RPC Endpoint
+- **URL**: `POST http://localhost:3000/`
+- **Protocol**: JSON-RPC 2.0
+- **Use**: Standard API calls
+
+### SSE Endpoint (Server-Sent Events)
+- **URL**: `GET/POST http://localhost:3000/sse`
+- **Protocol**: Server-Sent Events
+- **Use**: Real-time streaming for Gemini CLI and other MCP clients
+
+### Health Check
+- **URL**: `GET http://localhost:3000/health`
+- **Response**: Simple OK status
+
+For detailed examples, see `examples/gemini-agent/`:
+- `test-http-interface.sh` - Comprehensive HTTP testing
+- `curl-quick-reference.md` - All curl commands
 
 ## Project Structure
 
@@ -82,34 +104,39 @@ cp .env.example .env
 # Edit .env with your RPC endpoints and API keys
 ```
 
-### Using Podman Compose
+### Using Podman/Docker Compose
 
 ```bash
-# Start production server
-podman-compose up abi-assistant
+# Using the convenience script (recommended)
+./scripts/docker-compose.sh up abi-assistant    # Start production server
+./scripts/docker-compose.sh up dev              # Start development environment
+./scripts/docker-compose.sh up -d               # Run in background
 
-# Start development environment
-podman-compose up dev
-
-# Run in background
-podman-compose up -d
+# Or directly with docker-compose
+docker-compose -f oci/docker-compose.yml up abi-assistant
+docker-compose -f oci/docker-compose.yml up dev
+docker-compose -f oci/docker-compose.yml up -d
 ```
 
 ## Usage
 
-### Development (Container-based)
+### Development
 
 ```bash
-make dev          # Start development server in container
-make test         # Run all tests in container
-make lint         # Run linter in container
-make format       # Format code in container
+# Local development (requires Rust installed)
+make dev          # Start development server locally
+make test         # Run quick tests
+make test-full    # Run full test suite
 
-# Enter container shell for debugging
-make container-shell
+# Container-based development (no Rust required)
+make dev-container     # Start development server in container
+make container-shell   # Enter container shell for debugging
+make container-build   # Build container images
 
-# View container logs
-podman logs -f abi-assistant-dev
+# Code quality
+make lint         # Run linter
+make format       # Format code
+make check        # Run all checks
 ```
 
 ### Working with ABIs
@@ -223,14 +250,31 @@ MCP_PORT=3000
 ## Testing
 
 ```bash
-# Run all tests
+# Run tests
 make test
 
-# Run specific test suites
-make test-unit        # Unit tests only
-make test-integration # Integration tests
-make test-forked      # Forked mainnet tests
+# Run specific test
+make test-unit
+make test-integration
+
+# Generate coverage report
+make coverage
 ```
+
+### Testing with Anvil (Local Blockchain)
+
+```bash
+# Terminal 1: Start local Ethereum node
+make anvil
+
+# Terminal 2: Run integration tests
+make test-integration
+
+# Or fork mainnet for testing real protocols
+FORK_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY make anvil-fork
+```
+
+See [docs/TESTING_WITH_ANVIL.md](docs/TESTING_WITH_ANVIL.md) for detailed testing guide.
 
 ## Building
 

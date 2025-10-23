@@ -1,249 +1,189 @@
-mod handlers;
-mod tools;
+/// MCP Server module - provides server functionality that can be used as a library
+pub mod transport;
+pub mod builder;
 
-use std::net::SocketAddr;
-use hyper::{Body, Request, Response, Server, Method, StatusCode};
-use hyper::service::{make_service_fn, service_fn};
-use std::convert::Infallible;
-use serde_json::{json, Value};
-use tracing::{info, debug, error};
+use crate::config::Config;
+use crate::mcp_service::AbiAssistantService;
+use anyhow::Result;
+use tracing::{info, error};
+use std::sync::Arc;
 
-pub use handlers::*;
-pub use tools::*;
+pub use builder::ServerBuilder;
+pub use transport::{TransportMode, ServerHandle};
 
-/// MCP Server implementation
-pub struct McpServer {
-    port: u16,
+/// Main server struct that manages MCP server instances
+pub struct Server {
+    config: Config,
+    service_factory: Arc<dyn Fn() -> AbiAssistantService + Send + Sync>,
 }
 
-impl McpServer {
-    pub fn new(port: u16) -> Self {
-        Self { port }
+impl Server {
+    /// Create a new server with the given configuration
+    pub fn new(config: Config) -> Self {
+        Self {
+            config,
+            service_factory: Arc::new(|| AbiAssistantService::new()),
+        }
     }
     
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let addr = SocketAddr::from(([127, 0, 0, 1], self.port));
+    /// Create a server builder for more flexible configuration
+    pub fn builder() -> ServerBuilder {
+        ServerBuilder::new()
+    }
+    
+    /// Create a server with a custom service factory
+    pub fn with_service_factory<F>(config: Config, factory: F) -> Self 
+    where
+        F: Fn() -> AbiAssistantService + Send + Sync + 'static,
+    {
+        Self {
+            config,
+            service_factory: Arc::new(factory),
+        }
+    }
+    
+    /// Run the server with the configured transport mode
+    pub async fn run(self) -> Result<()> {
+        match self.config.server.transport.as_str() {
+            "sse" => self.run_sse().await,
+            "http" => self.run_http().await,
+            "unified" => self.run_unified().await,
+            "both" => self.run_both().await,
+            _ => {
+                error!("Unknown transport mode: {}", self.config.server.transport);
+                Err(anyhow::anyhow!("Unknown transport mode"))
+            }
+        }
+    }
+    
+    /// Run SSE-only server
+    pub async fn run_sse(self) -> Result<()> {
+        let handle = transport::start_sse_server(&self.config, self.service_factory).await?;
+        handle.wait_for_shutdown().await;
+        Ok(())
+    }
+    
+    /// Run HTTP-only server
+    pub async fn run_http(self) -> Result<()> {
+        let handle = transport::start_http_server(&self.config, self.service_factory).await?;
+        handle.wait_for_shutdown().await;
+        Ok(())
+    }
+    
+    /// Run unified server (SSE + HTTP on same port)
+    pub async fn run_unified(self) -> Result<()> {
+        let handle = transport::start_unified_server(&self.config, self.service_factory).await?;
+        handle.wait_for_shutdown().await;
+        Ok(())
+    }
+    
+    /// Run both servers on separate ports
+    pub async fn run_both(self) -> Result<()> {
+        let config_sse = self.config.clone();
+        let config_http = self.config.clone();
+        let factory_sse = self.service_factory.clone();
+        let factory_http = self.service_factory.clone();
         
-        let make_svc = make_service_fn(|_conn| async {
-            Ok::<_, Infallible>(service_fn(handle_request))
+        // Start SSE server
+        let sse_handle = tokio::spawn(async move {
+            match transport::start_sse_server(&config_sse, factory_sse).await {
+                Ok(handle) => {
+                    handle.wait_for_shutdown().await;
+                }
+                Err(e) => {
+                    error!("SSE server error: {}", e);
+                }
+            }
         });
         
-        let server = Server::bind(&addr).serve(make_svc);
+        // Start HTTP server
+        let http_handle = tokio::spawn(async move {
+            match transport::start_http_server(&config_http, factory_http).await {
+                Ok(handle) => {
+                    handle.wait_for_shutdown().await;
+                }
+                Err(e) => {
+                    error!("HTTP server error: {}", e);
+                }
+            }
+        });
         
-        info!("MCP Server listening on http://{}", addr);
+        info!("📌 Press Ctrl+C to stop all servers");
         
-        server.await?;
+        // Wait for either server to exit or Ctrl+C
+        tokio::select! {
+            _ = sse_handle => {},
+            _ = http_handle => {},
+            _ = tokio::signal::ctrl_c() => {
+                info!("Received shutdown signal");
+            }
+        }
         
         Ok(())
     }
-}
-
-async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    let response = match (req.method(), req.uri().path()) {
-        (&Method::POST, "/") => {
-            // Handle JSON-RPC requests
-            handle_jsonrpc(req).await
-        },
-        (&Method::GET, "/health") => {
-            Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::from("OK"))
-                .unwrap()
-        },
-        _ => {
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("Not Found"))
-                .unwrap()
+    
+    /// Get the configuration
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+    
+    /// Log blockchain configuration
+    pub fn log_blockchain_config(&self) {
+        let config = &self.config;
+        
+        // Log Ethereum configuration
+        if let Some(ref rpc_url) = config.blockchain.ethereum.rpc_url {
+            info!("🔗 {} RPC URL: {}", config.blockchain.ethereum.name, rpc_url);
         }
-    };
-    
-    Ok(response)
-}
-
-async fn handle_jsonrpc(req: Request<Body>) -> Response<Body> {
-    let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            error!("Failed to read request body: {}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Body::from("Invalid request body"))
-                .unwrap();
-        }
-    };
-    
-    let request: Value = match serde_json::from_slice(&body_bytes) {
-        Ok(val) => val,
-        Err(e) => {
-            error!("Failed to parse JSON: {}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(Body::from("Invalid JSON"))
-                .unwrap();
-        }
-    };
-    
-    debug!("Received JSON-RPC request: {:?}", request);
-    
-    // Process the JSON-RPC request
-    let response = process_jsonrpc_request(request).await;
-    
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_string(&response).unwrap()))
-        .unwrap()
-}
-
-async fn process_jsonrpc_request(request: Value) -> Value {
-    let method = request.get("method").and_then(|v| v.as_str()).unwrap_or("");
-    let default_params = json!({});
-    let params = request.get("params").unwrap_or(&default_params);
-    let default_id = json!(null);
-    let id = request.get("id").unwrap_or(&default_id);
-    
-    let result = match method {
-        "tools/list" => {
-            // Return list of available tools
-            json!({
-                "tools": [
-                    {
-                        "name": "interpret_intent",
-                        "description": "Convert natural language to contract calls",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "intent": {
-                                    "type": "string",
-                                    "description": "Natural language description of the desired action"
-                                }
-                            },
-                            "required": ["intent"]
-                        }
-                    },
-                    {
-                        "name": "encode_function_call",
-                        "description": "Encode a function call with ABI",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "function": {
-                                    "type": "string",
-                                    "description": "Function name"
-                                },
-                                "params": {
-                                    "type": "array",
-                                    "description": "Function parameters"
-                                }
-                            },
-                            "required": ["function"]
-                        }
-                    }
-                ]
-            })
-        },
-        "tools/call" => {
-            // Handle tool calls
-            let tool_name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let default_arguments = json!({});
-            let arguments = params.get("arguments").unwrap_or(&default_arguments);
-            
-            match tool_name {
-                "interpret_intent" => {
-                    let intent = arguments.get("intent").and_then(|v| v.as_str()).unwrap_or("");
-                    interpret_intent_handler(intent).await
-                },
-                "encode_function_call" => {
-                    let function = arguments.get("function").and_then(|v| v.as_str()).unwrap_or("");
-                    let default_params = json!([]);
-                    let params = arguments.get("params").unwrap_or(&default_params);
-                    encode_function_handler(function, params).await
-                },
-                _ => {
-                    json!({
-                        "error": format!("Unknown tool: {}", tool_name)
-                    })
+        
+        // Log other chains if enabled
+        if let Some(ref polygon) = config.blockchain.polygon {
+            if polygon.enabled.unwrap_or(false) {
+                if let Some(ref rpc_url) = polygon.rpc_url {
+                    info!("🔗 {} RPC URL: {}", polygon.name, rpc_url);
                 }
             }
-        },
-        _ => {
-            json!({
-                "error": format!("Unknown method: {}", method)
-            })
         }
-    };
-    
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    })
-}
-
-async fn interpret_intent_handler(intent: &str) -> Value {
-    // Simple intent interpretation for now
-    let result = if intent.contains("swap") || intent.contains("exchange") {
-        json!({
-            "protocol": "Uniswap",
-            "function": "swapExactTokensForTokens",
-            "confidence": 0.85
-        })
-    } else if intent.contains("transfer") || intent.contains("send") {
-        json!({
-            "protocol": "ERC20",
-            "function": "transfer",
-            "confidence": 0.90
-        })
-    } else if intent.contains("approve") {
-        json!({
-            "protocol": "ERC20",
-            "function": "approve",
-            "confidence": 0.95
-        })
-    } else {
-        json!({
-            "error": "Could not interpret intent",
-            "confidence": 0.0
-        })
-    };
-    
-    result
-}
-
-async fn encode_function_handler(function: &str, params: &Value) -> Value {
-    // Simple encoding handler
-    match function {
-        "transfer" => {
-            let to = params.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let amount = params.get(1).and_then(|v| v.as_str()).unwrap_or("0");
-            
-            match crate::abi::encoder::AbiEncoder::encode_transfer(to, amount) {
-                Ok(encoded) => json!({
-                    "encoded": encoded,
-                    "function": "transfer"
-                }),
-                Err(e) => json!({
-                    "error": format!("Encoding failed: {}", e)
-                })
+        
+        if let Some(ref arbitrum) = config.blockchain.arbitrum {
+            if arbitrum.enabled.unwrap_or(false) {
+                if let Some(ref rpc_url) = arbitrum.rpc_url {
+                    info!("🔗 {} RPC URL: {}", arbitrum.name, rpc_url);
+                }
             }
-        },
-        "approve" => {
-            let spender = params.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let amount = params.get(1).and_then(|v| v.as_str()).unwrap_or("0");
-            
-            match crate::abi::encoder::AbiEncoder::encode_approve(spender, amount) {
-                Ok(encoded) => json!({
-                    "encoded": encoded,
-                    "function": "approve"
-                }),
-                Err(e) => json!({
-                    "error": format!("Encoding failed: {}", e)
-                })
+        }
+        
+        if let Some(ref optimism) = config.blockchain.optimism {
+            if optimism.enabled.unwrap_or(false) {
+                if let Some(ref rpc_url) = optimism.rpc_url {
+                    info!("🔗 {} RPC URL: {}", optimism.name, rpc_url);
+                }
             }
-        },
-        _ => json!({
-            "error": format!("Unknown function: {}", function)
-        })
+        }
+        
+        if let Some(ref base) = config.blockchain.base {
+            if base.enabled.unwrap_or(false) {
+                if let Some(ref rpc_url) = base.rpc_url {
+                    info!("🔗 {} RPC URL: {}", base.name, rpc_url);
+                }
+            }
+        }
+        
+        // Log feature flags
+        if config.features.debug_mode {
+            info!("🐛 Debug mode enabled");
+        }
+        
+        if config.features.simulate_transactions {
+            info!("✨ Transaction simulation enabled");
+        }
+        
+        if config.features.gas_optimization {
+            info!("⛽ Gas optimization enabled");
+        }
+        
+        if config.features.mev_protection {
+            info!("🛡️ MEV protection enabled");
+        }
     }
 }

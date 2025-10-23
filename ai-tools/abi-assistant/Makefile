@@ -9,29 +9,38 @@ help: ## Show help message
 
 # Development
 setup: ## Initial project setup
-	@scripts/podman-setup.sh
+	@scripts/container.sh setup
 
-dev: ## Run development server
-	@scripts/podman-dev.sh
+dev: ## Run development server (local)
+	@scripts/dev.sh
 
-test: ## Run tests
-	@scripts/podman-test.sh
+dev-container: ## Run development server (container)
+	@scripts/container.sh run dev
+
+test: ## Run tests (local)
+	@scripts/test.sh quick
+
+test-full: ## Run full test suite
+	@scripts/test.sh full
+
+test-mcp: ## Test MCP server endpoints
+	@scripts/test-mcp.sh
 
 build: ## Build release binary
-	@scripts/podman-build.sh release
+	@scripts/container.sh build prod
 
 run: ## Run production server
-	@scripts/podman-run.sh
+	@scripts/container.sh run prod
 
 # Code Quality
 lint: ## Run linter
-	@scripts/podman-dev.sh lint
+	@scripts/container.sh lint
 
 format: ## Format code
-	@scripts/podman-dev.sh format
+	@scripts/container.sh format
 
 check: ## Run all checks
-	@scripts/podman-test.sh full
+	@scripts/test.sh full
 
 # Database
 db-setup: ## Initialize database
@@ -40,23 +49,42 @@ db-setup: ## Initialize database
 db-reset: ## Reset database
 	@scripts/db-setup.sh reset
 
+# Testing with Anvil
+anvil: ## Start Anvil local blockchain
+	@scripts/anvil.sh start
+
+anvil-fork: ## Start Anvil with mainnet fork
+	@scripts/anvil.sh fork
+
+anvil-stop: ## Stop Anvil container
+	@scripts/anvil.sh stop
+
+anvil-status: ## Check Anvil status
+	@scripts/anvil.sh status
+
 # Container Management
 container-build: ## Build containers
-	@scripts/podman-build.sh dev
+	@scripts/container.sh build dev
 
 container-shell: ## Enter dev container
-	@scripts/podman-dev.sh shell
+	@scripts/container.sh shell
 
 container-stop: ## Stop all containers
-	@scripts/podman-dev.sh stop
+	@scripts/container.sh stop
+
+container-clean: ## Clean containers and artifacts
+	@scripts/container.sh clean
+
+docker-compose: ## Run with docker-compose
+	@scripts/docker-compose.sh up
 
 # Cleanup
 clean: ## Clean everything
-	@scripts/podman-clean.sh
+	@scripts/container.sh clean
 
 # Utilities
 coverage: ## Generate test coverage
-	@scripts/podman-coverage.sh
+	@scripts/container.sh coverage
 
 doc: ## Generate documentation
-	@scripts/podman-dev.sh doc
+	@cargo doc --open

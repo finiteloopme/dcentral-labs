@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
+# Quick test runner for local development (no container)
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPT_DIR/common.sh"
 
-log_info "Running comprehensive test suite..."
+# Parse arguments
+TEST_MODE="${1:-quick}"
+
+if [[ "$TEST_MODE" == "--container" ]]; then
+    # Use container for testing
+    shift || true
+    exec "$SCRIPT_DIR/container.sh" test "${1:-quick}"
+fi
 
 # Load environment for test configuration
 load_env
 
 # Track if any test fails
 FAILED=0
+
+if [[ "$TEST_MODE" == "quick" ]]; then
+    log_info "Running quick tests..."
+    cargo test
+elif [[ "$TEST_MODE" == "full" ]]; then
+    log_info "Running full test suite..."
 
 # Run format check
 log_info "Checking code formatting..."
@@ -56,10 +70,14 @@ else
     log_info "Skipping security audit (cargo-audit not installed)"
 fi
 
-# Summary
-if [ $FAILED -eq 0 ]; then
-    log_info "✅ All tests passed!"
+    # Summary
+    if [ $FAILED -eq 0 ]; then
+        log_success "All tests passed!"
+    else
+        log_error "Some tests failed"
+        exit 1
+    fi
 else
-    log_error "❌ Some tests failed"
+    log_error "Invalid test mode: $TEST_MODE (use 'quick' or 'full')"
     exit 1
 fi

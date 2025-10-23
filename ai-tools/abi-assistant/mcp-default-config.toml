@@ -1,0 +1,261 @@
+# MCP Server Default Configuration
+# This file contains all the default settings for the ABI Assistant MCP Server.
+# Copy this file to 'mcp-config.toml' and modify as needed.
+# Environment variables override these settings.
+
+[server]
+# Server name and version
+name = "abi-assistant"
+version = "0.1.0"
+description = "An MCP server for interacting with EVM smart contracts through natural language"
+
+# Network binding configuration
+host = "127.0.0.1"
+port = 3000
+
+# Transport mode: "sse", "http", "unified", or "both"
+# - sse: Server-Sent Events transport only
+# - http: Streamable HTTP transport only
+# - unified: Both transports multiplexed on single port (recommended)
+# - both: Both transports on separate ports (SSE on port, HTTP on port+1)
+transport = "unified"
+
+# MCP Protocol version
+protocol_version = "2024-11-05"
+
+[server.sse]
+# SSE-specific configuration
+path = "/sse"
+message_path = "/message"
+# Keep-alive interval in seconds (optional, comment out to disable)
+# keep_alive_interval = 30
+
+[server.http]
+# HTTP-specific configuration
+# Note: HTTP streaming uses root path "/" by default (MCP standard)
+health_path = "/health"
+# When transport="both", HTTP port offset from main port
+port_offset = 1
+
+[database]
+# Database configuration
+# Supports SQLite for now, PostgreSQL support planned
+url = "sqlite://./data/abi_assistant.db"
+
+# Connection pool settings (for future PostgreSQL support)
+# max_connections = 10
+# min_connections = 2
+# connection_timeout = 30
+
+[blockchain]
+# Default RPC endpoints for different chains
+# These can be overridden by environment variables
+
+[blockchain.ethereum]
+rpc_url = "http://localhost:8545"
+chain_id = 1
+name = "Ethereum Mainnet"
+# Optional: Backup RPC URLs
+# backup_rpcs = ["https://eth.public-rpc.com"]
+
+[blockchain.polygon]
+# rpc_url = "https://polygon-rpc.com"
+chain_id = 137
+name = "Polygon"
+enabled = false
+
+[blockchain.arbitrum]
+# rpc_url = "https://arb1.arbitrum.io/rpc"
+chain_id = 42161
+name = "Arbitrum One"
+enabled = false
+
+[blockchain.optimism]
+# rpc_url = "https://mainnet.optimism.io"
+chain_id = 10
+name = "Optimism"
+enabled = false
+
+[blockchain.base]
+# rpc_url = "https://mainnet.base.org"
+chain_id = 8453
+name = "Base"
+enabled = false
+
+[api_keys]
+# External API keys for enhanced functionality
+# WARNING: Do not commit actual keys to version control!
+# Use environment variables or a separate, gitignored config file
+
+# For fetching verified contract ABIs
+etherscan_api_key = ""
+polygonscan_api_key = ""
+arbiscan_api_key = ""
+optimistic_etherscan_api_key = ""
+basescan_api_key = ""
+
+# Backup RPC provider
+infura_api_key = ""
+alchemy_api_key = ""
+
+# Price data (optional)
+# coingecko_api_key = ""
+# coinmarketcap_api_key = ""
+
+[features]
+# Feature flags to enable/disable functionality
+
+# Enable ABI fetching from block explorers
+fetch_abi_from_explorers = true
+
+# Enable transaction simulation before suggesting
+simulate_transactions = true
+
+# Enable gas price optimization suggestions
+gas_optimization = true
+
+# Enable MEV protection warnings
+mev_protection = false
+
+# Enable cross-chain support
+cross_chain = false
+
+# Cache ABIs locally after fetching
+cache_abis = true
+
+# Enable debug mode for verbose logging
+debug_mode = false
+
+[intent]
+# Intent interpretation configuration
+
+# Confidence threshold for intent matching (0.0 - 1.0)
+confidence_threshold = 0.7
+
+# Maximum number of intent suggestions to return
+max_suggestions = 3
+
+# Enable fuzzy matching for protocol names
+fuzzy_matching = true
+
+# Common protocol mappings
+[intent.protocols]
+# Map common names to actual protocol identifiers
+uniswap = ["Uniswap", "UniswapV2", "UniswapV3", "uni"]
+sushiswap = ["Sushiswap", "Sushi", "sushi"]
+aave = ["Aave", "AaveV2", "AaveV3", "aave"]
+compound = ["Compound", "CompoundV2", "CompoundV3", "comp"]
+curve = ["Curve", "CurveFinance", "curve"]
+balancer = ["Balancer", "BalancerV2", "bal"]
+yearn = ["Yearn", "YearnFinance", "YFI", "yearn"]
+
+[gas]
+# Gas estimation configuration
+
+# Default gas limit for transactions
+default_gas_limit = 150000
+
+# Gas price strategy: "standard", "fast", "slow", "custom"
+price_strategy = "standard"
+
+# Custom gas price in gwei (only used if strategy = "custom")
+custom_gas_price = 30
+
+# Buffer percentage to add to gas estimates (0-100)
+gas_buffer_percent = 20
+
+# Maximum gas price in gwei (safety limit)
+max_gas_price = 500
+
+[cache]
+# Caching configuration
+
+# Enable in-memory caching
+enabled = true
+
+# Maximum number of cached ABIs
+max_cached_abis = 100
+
+# Cache TTL in seconds (1 hour default)
+abi_cache_ttl = 3600
+
+# Maximum number of cached intents
+max_cached_intents = 50
+
+# Intent cache TTL in seconds (5 minutes default)
+intent_cache_ttl = 300
+
+[logging]
+# Logging configuration
+
+# Log level: "error", "warn", "info", "debug", "trace"
+level = "info"
+
+# Log format: "json", "pretty", "compact"
+format = "pretty"
+
+# Log to file (optional)
+# file = "./logs/mcp-server.log"
+
+# Maximum log file size in MB (for rotation)
+# max_file_size = 10
+
+# Number of backup log files to keep
+# max_backups = 5
+
+[security]
+# Security settings
+
+# Enable request rate limiting
+rate_limiting = true
+
+# Maximum requests per minute per client
+max_requests_per_minute = 60
+
+# Enable request signature verification (for production)
+require_signatures = false
+
+# Allowed origins for CORS (when using HTTP transport)
+allowed_origins = ["*"]
+
+# Maximum request body size in bytes
+max_body_size = 1048576  # 1MB
+
+# Request timeout in seconds
+request_timeout = 30
+
+[monitoring]
+# Monitoring and metrics configuration
+
+# Enable metrics collection
+enabled = false
+
+# Metrics export format: "prometheus", "json"
+# format = "prometheus"
+
+# Metrics endpoint (when enabled)
+# endpoint = "/metrics"
+
+# Collect detailed performance metrics
+# detailed_metrics = false
+
+[development]
+# Development-specific settings
+
+# Enable hot reloading (watches for config changes)
+hot_reload = false
+
+# Enable request/response logging
+log_requests = false
+
+# Enable mock mode (no real blockchain calls)
+mock_mode = false
+
+# Pretty print JSON responses
+pretty_json = true
+
+# Default test wallet addresses (DO NOT USE IN PRODUCTION)
+[development.test_wallets]
+alice = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+bob = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+charlie = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"

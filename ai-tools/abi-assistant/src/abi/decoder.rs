@@ -73,6 +73,57 @@ impl AbiDecoder {
             "amount": amount_hex,
         }))
     }
+    
+    /// Generic function call decoder
+    pub fn decode_function_call(data: &str) -> Result<DecodedCall, Box<dyn Error>> {
+        // Remove 0x prefix
+        let data = if data.starts_with("0x") {
+            &data[2..]
+        } else {
+            data
+        };
+        
+        if data.len() < 8 {
+            return Err(Box::new(AbiError {
+                message: "Invalid function call data".to_string(),
+            }));
+        }
+        
+        let selector = &data[0..8];
+        
+        // Try to decode known function selectors
+        match selector {
+            "a9059cbb" => {
+                let decoded = Self::decode_transfer(&format!("0x{}", data))?;
+                Ok(DecodedCall {
+                    function: "transfer".to_string(),
+                    params: decoded,
+                })
+            },
+            "095ea7b3" => {
+                let decoded = Self::decode_approve(&format!("0x{}", data))?;
+                Ok(DecodedCall {
+                    function: "approve".to_string(),
+                    params: decoded,
+                })
+            },
+            _ => {
+                Ok(DecodedCall {
+                    function: format!("unknown_0x{}", selector),
+                    params: json!({
+                        "selector": format!("0x{}", selector),
+                        "data": format!("0x{}", data)
+                    }),
+                })
+            }
+        }
+    }
+}
+
+/// Decoded function call
+pub struct DecodedCall {
+    pub function: String,
+    pub params: Value,
 }
 
 #[cfg(test)]

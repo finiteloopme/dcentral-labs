@@ -1,0 +1,19 @@
+{
+  "model": {
+    "default": "gemini-2.5-pro"
+  },
+  "ui": {
+    "theme": "ANSI"
+  },
+  "mcpServers": {
+    "abi-assistant": {
+      "url": "http://localhost:3000/sse",
+      "trust": true
+    }
+  },
+  "mcp": {
+    "allowed": [
+      "abi-assistant"
+    ]
+  }
+}

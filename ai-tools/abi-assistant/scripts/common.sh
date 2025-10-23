@@ -21,6 +21,14 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+log_warning() {
+    log_warn "$1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
 log_debug() {
     if [ "${DEBUG:-0}" = "1" ]; then
         echo -e "${BLUE}[DEBUG]${NC} $1"
@@ -99,11 +107,14 @@ ensure_dir() {
 
 # Get project root directory
 get_project_root() {
-    git rev-parse --show-toplevel 2>/dev/null || pwd
+    # Get the directory containing the scripts folder
+    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 }
 
-# Export common variables
-export PROJECT_ROOT=$(get_project_root)
+# Export common variables if not already set
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    export PROJECT_ROOT=$(get_project_root)
+fi
 export SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 export DATA_DIR="$PROJECT_ROOT/data"
 export LOGS_DIR="$PROJECT_ROOT/logs"

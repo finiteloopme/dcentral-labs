@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  abi-assistant:
+    build:
+      context: ..
+      dockerfile: oci/Dockerfile
+    container_name: abi-assistant-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../data:/data:Z
+      - ../logs:/logs:Z
+      - ../resources:/home/abi-assistant/resources:Z
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - DATABASE_URL=sqlite:///data/abi_assistant.db
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=3000
+    env_file:
+      - ../.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  dev:
+    build:
+      context: ..
+      dockerfile: oci/Dockerfile.dev
+    container_name: abi-assistant-dev
+    ports:
+      - "3000:3000"
+      - "8080:8080"  # For documentation server
+    volumes:
+      - ..:/workspace:Z
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    environment:
+      - RUST_LOG=${RUST_LOG:-debug}
+      - DATABASE_URL=sqlite:///workspace/data/abi_assistant.db
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=3000
+    env_file:
+      - ../.env
+    command: cargo watch -x 'run' -w src/
+    stdin_open: true
+    tty: true
+
+volumes:
+  cargo-cache:
+  target-cache:

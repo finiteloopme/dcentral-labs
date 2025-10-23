@@ -1,2 +1,70 @@
+# Rust build artifacts
 target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Database files
 data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test coverage
+tarpaulin-report.html
+cobertura.xml
+coverage/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+dist/
+build/
+
+# Debug files
+*.dSYM/
+
+# Python cache (for examples)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Node modules (if any frontend added)
+node_modules/
+
+# MCP specific
+mcp-config.toml
+session_data/
+.mcp_cache/
+
+# Backup files
+*.backup
+*.bak
+
+# OS files
+Thumbs.db
+ehthumbs.db

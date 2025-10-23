@@ -7,10 +7,6 @@ pub mod parser;
 pub mod encoder;
 pub mod decoder;
 
-pub use parser::AbiParser;
-pub use encoder::AbiEncoder;
-pub use decoder::AbiDecoder;
-
 /// Represents a parsed ABI with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedAbi {

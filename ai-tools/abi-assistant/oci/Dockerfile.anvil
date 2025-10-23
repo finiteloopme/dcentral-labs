@@ -1,0 +1,18 @@
+# Anvil container for local Ethereum testing
+FROM ghcr.io/foundry-rs/foundry:latest
+
+# Expose the RPC port
+EXPOSE 8545
+
+# Set up healthcheck
+HEALTHCHECK --interval=3s --timeout=3s --start-period=5s --retries=5 \
+  CMD cast block-number --rpc-url http://localhost:8545 || exit 1
+
+# Default entrypoint with common test settings
+ENTRYPOINT ["anvil"]
+
+# Default arguments:
+# --host 0.0.0.0 - Listen on all interfaces (needed for container networking)
+# --fork-url - Optional: fork mainnet for testing real protocols
+# --block-time 1 - Mine a block every second (optional)
+CMD ["--host", "0.0.0.0", "--accounts", "10", "--balance", "10000", "--mnemonic", "test test test test test test test test test test test junk"]
