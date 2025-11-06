@@ -1,0 +1,37 @@
+steps:
+  # Build TEE container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/tee-images/tee-service', '-f', 'cicd/Dockerfile', '.']
+  
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/tee-images/tee-service']
+  
+  # Get image digest
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        DIGEST=$(gcloud artifacts docker images describe ${_REGION}-docker.pkg.dev/$PROJECT_ID/tee-images/tee-service --format='value(image_summary.digest)')
+        echo "Image digest: $DIGEST"
+        echo "TEE_IMAGE_DIGEST=$DIGEST" > image_digest.txt
+  
+  # Update Terraform with new image digest
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        source image_digest.txt
+        cd terraform
+        terraform init
+        terraform apply -auto-approve -var="tee_image_digest=$TEE_IMAGE_DIGEST"
+
+substitutions:
+  _REGION: 'us-central1'
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/tee-images/tee-service'
+
+timeout: '1200s'

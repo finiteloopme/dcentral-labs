@@ -1,0 +1,45 @@
+{
+  "name": "Privacy-Preserving DeFi Development",
+  "id": "privacy_defi_dev",
+  "chainType": "Development",
+  "bootNodes": [],
+  "protocolId": "privacy-defi",
+  "genesis": {
+    "runtime": {
+      "system": {
+        "code": "0x",
+        "heapPages": 1024
+      },
+      "timestamp": {
+        "timestamp": 1704067200000
+      },
+      "aura": {
+        "authorities": [
+          "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+        ]
+      },
+      "balances": {
+        "balances": [
+          ["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", 1000000000000000],
+          ["5FHneW46xGXgs5mUikeUexbxww5HyU4Mym4hLwW3SWkvNJWD", 1000000000000000],
+          ["5DAAnrj7vE1g2t1aSdCtZvU2i4zLcqu3rNv2y2sPrhN", 1000000000000000]
+        ]
+      },
+      "transactionPayment": {
+        "multiplier": 1000000000000
+      },
+      "sudo": {
+        "key": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+      }
+    }
+  },
+  "telemetry": {
+    "endpoints": ["wss://telemetry.polkadot.io/submit/"]
+  },
+  "protocolId": "privacy-defi-dev",
+  "properties": {
+    "ss58Format": 42,
+    "tokenDecimals": 12,
+    "tokenSymbol": "MID"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "contracts": [
+    {
+      "contract_id": "defi-vault-001",
+      "contract_name": "DeFiVault", 
+      "deployer": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "verification_key": "mock_verification_key_12345",
+      "circuit_hash": "abc123def456789",
+      "registered_at": 1704067200000,
+      "status": "active"
+    }
+  ],
+  "validators": [
+    {
+      "public_key": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "stake": 1000000000000
+    }
+  ]
+}

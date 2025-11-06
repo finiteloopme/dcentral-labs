@@ -1,0 +1,15 @@
+steps:
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud auth configure-docker ${_REGION}-docker.pkg.dev
+        cd terraform
+        terraform init
+        terraform destroy -auto-approve
+
+substitutions:
+  _REGION: 'us-central1'
+
+timeout: '1200s'

@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+lib/
+
+# Build artifacts
+out/
+target/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cache
+.cache/
+cache/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Foundry
+cache/
+broadcast/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Cloud Build
+cloudbuild.yaml
+
+# Local development
+anvil.log
+frontend.log
+service.log
+contracts/lib

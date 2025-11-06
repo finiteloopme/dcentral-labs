@@ -1,0 +1,30 @@
+[server]
+port = 8080
+host = "0.0.0.0"
+
+[blockchain]
+arc_rpc_url = "http://localhost:8545"
+midnight_rpc_url = "http://localhost:9944"
+chain_id = 31337
+
+[contracts]
+mock_usdc = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+defi_vault = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+compliance_registry = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+
+[proof_server]
+url = "http://localhost:6300"
+timeout_ms = 30000
+mode = "Mock"
+
+[tee]
+private_key_env = "TEE_PRIVATE_KEY"
+attestation_enabled = true
+
+[compliance]
+concentration_limit_percent = 10
+max_deposit_amount = 1000000
+
+[logging]
+level = "info"
+format = "json"
