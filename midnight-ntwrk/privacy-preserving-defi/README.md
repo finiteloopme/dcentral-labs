@@ -2,354 +2,308 @@
 
 A privacy-preserving DeFi transaction system demonstrating confidential risk management on Midnight.network with public enforcement on Arc.network.
 
-## Architecture Overview
+## 🏗️ Architecture Overview
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Operator      │    │   Mock Server   │    │   TEE Service   │
-│   (Local)       │    │   (GCP VM)      │    │   (GCP TDX)     │
-│                 │    │                 │    │                 │
-│  make commands  │◄──►│  Anvil (Arc)    │◄──►│  ZK Proofs      │
-│  Frontend UI    │    │  Midnight Node  │    │  Risk Checks    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   TEE Service   │    │ Midnight Int.   │    │ Midnight Proof  │
+│   (Port 3000)   │◄──►│   (Port 8080)   │◄──►│   (Port 3001)   │◄──►│   Server        │
+│                 │    │                 │    │                 │    │   (Port 6300)   │
+│  User Interface │    │  ZK Proofs      │    │  Compact        │    │  Proof Gen      │
+│  Deposit Flow   │    │  Risk Checks    │    │  Integration     │    │  Verification   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                        ▲
+┌─────────────────┐    ┌─────────────────┐              │
+│ Arc Blockchain  │    │ Smart Contracts │              │
+│ (Port 8545)    │◄──►│   Organized     │──────────────┘
+│                 │    │   by Ecosystem  │
+│  Public State   │    │                 │
+└─────────────────┘    └─────────────────┘
 ```
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 privacy-preserving-defi/
-├── README.md                   # This file
-├── REQUIREMENTS.md             # Detailed requirements
-├── cicd/                       # CI/CD and Docker configurations
-│   ├── cloudbuild-infra.yaml  # CI/CD for infrastructure deployment
-│   ├── cloudbuild-app.yaml    # CI/CD for application build and deploy
-│   ├── cloudbuild-destroy.yaml # CI/CD for infrastructure destruction
-│   ├── docker-compose.yml     # Local development services
-│   ├── Dockerfile             # TEE service container
-│   └── nginx.conf            # Frontend configuration
-├── scripts/                    # Deployment and utility scripts
-│   ├── cloud-deploy.sh        # Cloud deployment via Cloud Build
-│   ├── cloud-destroy.sh       # Cloud destruction via Cloud Build
-│   └── setup-mock-server.sh   # Mock server setup (Terraform)
-│   └── setup-tee-service.sh  # TEE service setup (Terraform)
-├── terraform/                  # Infrastructure as Code (Cloud Build only)
-│   └── main.tf               # GCP infrastructure definition
-├── terraform/                  # Infrastructure as Code
-│   └── main.tf                # GCP resources (VPC, VMs, IAM)
-├── contracts/                  # Smart contracts
-│   ├── DeFiVault.sol          # Arc DeFi vault contract
-│   ├── MockUSDC.sol           # Mock USDC token
-│   ├── ComplianceRegistry.sol # KYC/compliance stub
-│   └── PrivateLedger.compact  # Midnight private ledger
-├── tee-service/               # TEE application
-│   ├── src/
-│   │   └── main.rs           # Rust service implementation
-│   └── Cargo.toml
+├── README.md                   # This file - Project overview and setup
+├── Makefile                    # Build and deployment commands
+├── smart-contracts/           # 🆕 All smart contracts organized by ecosystem
+│   ├── README.md             # Smart contracts overview and guide
+│   ├── addresses.json         # Contract addresses for all networks
+│   ├── evm/                 # Ethereum Virtual Machine contracts
+│   │   ├── README.md         # EVM contract documentation
+│   │   ├── *.sol            # Solidity contract sources
+│   │   ├── script/           # Foundry deployment scripts
+│   │   ├── test/            # Contract tests
+│   │   └── foundry.toml      # Foundry configuration
+│   └── midnight/             # Midnight Compact contracts
+│       ├── README.md         # Midnight contract documentation
+│       ├── *.compact         # Compact contract sources
+│       ├── witnesses.ts      # Witness definitions
+│       └── package.json     # NPM configuration
+├── midnight-integration/       # Midnight.js integration service
+│   ├── src/                  # TypeScript source files
+│   ├── package.json          # Node.js service configuration
+│   └── Dockerfile            # Container configuration
+├── tee-service/               # TEE application (Rust)
+│   ├── src/                  # Rust source files
+│   ├── Cargo.toml           # Rust dependencies
+│   └── config.toml          # Service configuration
 ├── frontend/                  # User interface
-│   └── index.html
-└── scripts/                   # Setup and deployment scripts
-    ├── setup-mock-server.sh
-    ├── setup-tee-service.sh
-    └── seed-contracts.sh
+│   └── index.html           # Simple web UI
+├── scripts/                   # Development and deployment scripts
+│   ├── dev.sh               # Local development commands
+│   ├── cloud.sh             # Cloud deployment commands
+│   └── README.md            # Script documentation
+├── cicd/                      # CI/CD and Docker configurations
+│   ├── docker-compose.yml   # Local development services
+│   ├── docker-compose.prod.yml # Production services
+│   └── *.yaml               # Cloud Build configurations
+├── terraform/                 # Infrastructure as Code
+│   ├── *.tf                 # GCP resources definition
+│   └── scripts/             # Setup scripts
+└── docs/                      # Documentation files
+    ├── CURRENT_STATUS.md    # Current system status
+    ├── REQUIREMENTS.md      # Detailed requirements
+    └── *.md                 # Additional documentation
 ```
 
-## Prerequisites
+## 🚀 Quick Start
 
-- Google Cloud SDK installed and authenticated
-- Docker/Podman installed locally
-- SSH key pair for GCP VM access
-- GCP project with billing enabled
+### Prerequisites
 
-## Quick Start
+- **Node.js 20+** - For Midnight integration service
+- **Rust 1.70+** - For TEE service
+- **Docker/Podman** - For containerized services
+- **Make** - For build automation
+- **Foundry** - For EVM contract development (optional)
 
-### 1. Bootstrap the Project
+### 🏠 Local Development
 
+#### Start All Services (Recommended)
 ```bash
-# Set up GCP project and enable APIs
-make bootstrap
-```
+# Start development environment with mock proofs
+make dev-start
 
-### 2. Local Development (Recommended)
+# Check service status
+make dev-status
 
-#### Option 1: Automated Setup (Recommended)
-```bash
-# One-command local development setup (includes all services)
-make local-dev
-```
-
-#### Option 2: Manual Setup
-```bash
-# Start core services
-make local-start
-
-# Deploy contracts
-cd build && $COMPOSE_CMD --profile deploy up --build contract-deployer
-
-# Add optional services
-$COMPOSE_CMD --profile frontend up frontend      # Frontend dev server
-$COMPOSE_CMD --profile explorer up blockscout     # Block explorer
-$COMPOSE_CMD --profile tools run dev-tools         # Dev tools container
-
-# Test system
-curl http://localhost:8080/healthz
-```
-
-#### Local Development Commands
-```bash
-# Full setup (prerequisites + services + contracts)
-make local-dev
-
-# Service management
-make local-start      # Start all services
-make local-stop       # Stop all services
-make local-restart    # Restart all services
-make local-logs       # Follow service logs
-make local-clean      # Clean containers and volumes
-
-# With Podman (if preferred)
-COMPOSE_CMD=podman-compose make local-start
-COMPOSE_CMD=podman-compose make local-stop
-```
-
-#### Option 2: Manual Setup
-```bash
-# Start core services
-cd build && docker-compose up -d
-
-# Deploy contracts
-docker-compose --profile deploy up --build contract-deployer
-
-# Add optional services
-docker-compose --profile frontend up frontend      # Frontend dev server
-docker-compose --profile explorer up blockscout     # Block explorer
-docker-compose --profile tools run dev-tools         # Dev tools container
-
-# Test system
-curl http://localhost:8080/healthz
-```
-
-### 3. Cloud Deployment
-
-#### Deploy Infrastructure
-```bash
-# Deploy VPC, VMs, and networking
-make infra-up
-```
-
-#### Start Mock Blockchains
-```bash
-# Start Anvil and Midnight nodes on mock server
-make mocks-up
-```
-
-#### Deploy Smart Contracts
-```bash
-# Deploy contracts and store addresses in Secret Manager
-make seed-mocks
-```
-
-#### Deploy TEE Application
-```bash
-# Build and deploy TEE service
-make deploy-app
-```
-
-#### Verify Deployment
-```bash
-# Check TEE service health
-make status
-
-# View TEE service logs
-make logs
-```
-
-## User Journey Demo
-
-1. **Access Frontend**: Open the web interface (URL provided after deployment)
-2. **Initiate Deposit**: Submit a deposit request (e.g., 1M USDC)
-3. **Compliance Check**: TEE verifies user is KYC-approved
-4. **Risk Check**: TEE privately validates 10% TVL concentration limit
-5. **ZK Proof Generation**: TEE generates proof of successful risk check
-6. **Settlement**: TEE executes deposit on Arc with ZK proof
-7. **Atomicity**: If Arc fails, TEE rolls back Midnight state change
-
-## Key Features Demonstrated
-
-- **Privacy**: User balances remain confidential on Midnight
-- **Risk Management**: 10% TVL concentration limit enforced privately
-- **Atomicity**: Cross-chain transaction atomicity via TEE rollback
-- **Zero Knowledge**: ZK proofs of private state transitions
-- **TEE Security**: Intel TDX enclave for trusted computation
-
-## Development Commands
-
-### Local Development
-
-#### Prerequisites
-- Docker & Docker Compose
-- Node.js (for Midnight Compact compiler)
-- Rust (for TEE service)
-- Foundry (for Arc contracts)
-
-#### Quick Start
-```bash
-# 1. Start all services locally
-cd build && docker-compose up -d
-
-# 2. Verify services are running
-docker-compose ps
-
-# 3. Deploy Arc contracts
-make seed-mocks
-
-# 4. Deploy Midnight contract
-midnight deploy --network testnet ../contracts/PrivateLedger.compact
-
-# 5. Test the system
-curl http://localhost:8080/healthz
-```
-
-#### Development Workflow
-```bash
-# Start services in development mode
-cd build && docker-compose up
-
-# Build TEE service with hot reload
-cd tee-service && cargo watch -x run
-
-# Compile Midnight contract
-compact compile ../contracts/PrivateLedger.compact --output ../contracts/dist/
-
-# Deploy Arc contracts
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
-
-# Test frontend
-open frontend/index.html
-```
-
-#### Service URLs
-- **TEE Service**: http://localhost:8080
-- **Arc RPC**: http://localhost:8545
-- **Midnight RPC**: http://localhost:9944
-- **Proof Server**: http://localhost:6300
-- **Block Explorer**: http://localhost:4000 (optional)
-
-#### Debugging
-```bash
 # View logs
-docker-compose logs -f tee-service
-docker-compose logs -f anvil
-docker-compose logs -f midnight-node
+make dev-logs
 
-# Access containers
-docker-compose exec tee-service bash
-docker-compose exec anvil bash
-
-# Reset environment
-docker-compose down -v
-docker-compose up -d
+# Stop all services
+make dev-stop
 ```
 
-### 3. Cloud Deployment
-
-#### Deploy Infrastructure
+#### Build Components
 ```bash
-# Deploy VPC, VMs, and networking via Terraform
-make infra-up
+# Build Midnight Compact contract structure
+make build-compact
 
-# Or plan/apply manually
-make tf-plan      # Review changes
-make tf-apply     # Apply changes
+# Build Midnight integration service
+make build-midnight-integration
+
+# Run tests
+make test
 ```
 
-#### Start Mock Blockchains
+#### Service URLs (Local)
+- **Frontend**: http://localhost:3000
+- **TEE Service**: http://localhost:8080
+- **Midnight Integration**: http://localhost:3001
+- **Arc Blockchain**: http://localhost:8545
+- **Midnight Proof Server**: http://localhost:6300
+
+### 🌩️ Cloud Deployment
+
+#### Deploy to Google Cloud
 ```bash
-# Start Anvil and Midnight nodes on remote VM
-make mocks-up
+# Build and push application image
+make cloud-build
+
+# Deploy infrastructure and application
+make cloud-deploy
+
+# Check deployment status
+make cloud-status
+
+# View service logs
+make cloud-logs
+
+# Test deployed service
+make cloud-test
 ```
 
-#### Deploy Smart Contracts
+#### Cleanup Cloud Resources
 ```bash
-# Deploy contracts to remote infrastructure and store in Secret Manager
-make seed-mocks
+# Destroy all cloud infrastructure
+make cloud-destroy
 ```
 
-#### Deploy TEE Application
+### 🧪 Testing the System
+
+#### Test API Endpoints
 ```bash
-# Build and deploy TEE service via Cloud Build
-make deploy-app
+# Health check
+curl http://localhost:8080/healthz
+
+# Create session
+curl -X POST http://localhost:8080/api/v1/session \
+  -H "Content-Type: application/json" \
+  -d '{"user_address":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8","signature":"0x1234567890abcdef"}'
+
+# Process deposit
+curl -X POST http://localhost:8080/api/v1/deposit \
+  -H "Content-Type: application/json" \
+  -d '{"user_address":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8","user_pubkey":"midnight1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqz3fzypf","amount":"1000","asset":"USDC"}'
 ```
 
-#### Verify Deployment
+#### Test Midnight Integration
 ```bash
-# Check TEE service health on remote VM
-make status
-
-# View TEE service logs from Cloud Logging
-make logs
+# Test Midnight integration service directly
+curl -X POST http://localhost:3001/generate-concentration-proof \
+  -H "Content-Type: application/json" \
+  -d '{"userAmount":"1000","currentTvl":"100000","limit":"10000"}'
 ```
 
-#### Destroy Infrastructure
+## 🎯 User Journey Demo
+
+1. **Access Frontend**: Open http://localhost:3000
+2. **Initiate Deposit**: Submit deposit request (e.g., 1,000 USDC)
+3. **Compliance Check**: TEE verifies user KYC status on Arc
+4. **Risk Check**: TEE privately validates 10% TVL concentration limit
+5. **ZK Proof Generation**: Midnight integration creates ZK proofs
+6. **Settlement**: TEE executes deposit on Arc with ZK proof attachment
+7. **Cross-chain Reference**: Midnight transaction reference created
+
+## ✨ Key Features Demonstrated
+
+- **🔒 Privacy**: User balances remain confidential on Midnight network
+- **⚖️ Risk Management**: 10% TVL concentration limit enforced privately
+- **🔄 Atomicity**: Cross-chain transaction coordination via TEE
+- **🧮 Zero Knowledge**: ZK proofs of private state transitions
+- **🛡️ TEE Security**: Intel TDX enclave for trusted computation
+- **🏗️ Modular Architecture**: Clean separation of blockchain ecosystems
+
+## 📋 Available Commands
+
+### Development Commands
 ```bash
-# Clean up all GCP resources
-make infra-destroy
+make help           # Show all available commands
+make dev-start      # Start local development services
+make dev-stop       # Stop local services
+make dev-restart    # Restart local services
+make dev-status     # Show service status
+make dev-logs       # View service logs
+make dev-clean      # Clean local resources
 ```
 
-## Architecture Components
+### Build Commands
+```bash
+make build-compact           # Build Compact contract structure
+make build-midnight-integration # Build Midnight integration service
+make test                    # Run all tests
+```
 
-### TEE Service API Endpoints
+### Cloud Commands
+```bash
+make cloud-build    # Build and push application image
+make cloud-deploy   # Deploy to Google Cloud
+make cloud-destroy  # Destroy cloud infrastructure
+make cloud-status   # Check deployment status
+make cloud-logs     # View cloud service logs
+make cloud-test     # Test deployed service
+```
 
+### Production Demo
+```bash
+make demo-start     # Start production demo (real proofs)
+make demo-stop      # Stop production demo
+```
+
+## 🏗️ Architecture Components
+
+### Smart Contracts
+- **EVM Contracts** (`smart-contracts/evm/`):
+  - `DeFiVault.sol` - Arc contract accepting ZK proofs
+  - `MockUSDC.sol` - ERC20 token for testing
+  - `ComplianceRegistry.sol` - KYC/compliance verification
+
+- **Midnight Contracts** (`smart-contracts/midnight/`):
+  - `defi-vault.compact` - Private balance management
+  - `witnesses.ts` - Witness function definitions
+
+### Services
+- **TEE Service** (`tee-service/`): Rust-based trusted execution environment
+- **Midnight Integration** (`midnight-integration/`): Node.js ZK proof service
+- **Frontend** (`frontend/`): Simple web interface
+
+### API Endpoints
 - `GET /healthz` - Service health check
 - `POST /api/v1/session` - Establish secure session
 - `POST /api/v1/deposit` - Execute private deposit flow
+- `POST /generate-concentration-proof` - Generate concentration limit proof
 
-### Smart Contracts
+## 🔧 Development Workflow
 
-- **DeFiVault.sol**: Arc contract accepting ZK proofs for deposits
-- **PrivateLedger.compact**: Midnight contract managing private balances
-- **MockUSDC.sol**: ERC20 token for testing
-- **ComplianceRegistry.sol**: KYC/compliance verification
-
-### Security Features
-
-- Intel TDX confidential computing
-- Workload Identity Federation
-- Network isolation via private VPC
-- Attestation-based access control
-
-## Monitoring and Debugging
-
+### Smart Contract Development
 ```bash
-# Check VM status
-gcloud compute instances list
+# EVM contracts
+cd smart-contracts/evm
+forge test                    # Run tests
+forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 
-# SSH into mock server
-gcloud compute ssh mock-server
-
-# SSH into TEE service
-gcloud compute ssh tee-service
-
-# View logs
-make logs
-
-# Check contract addresses
-gcloud secrets versions list arc-contracts
-gcloud secrets versions list midnight-contracts
+# Midnight contracts
+cd smart-contracts/midnight
+npm install                   # Install dependencies
+compact compile defi-vault.compact  # Compile contract
 ```
 
-## MVP Limitations
+### Service Development
+```bash
+# TEE service (Rust)
+cd tee-service
+cargo run                     # Run service
+cargo test                    # Run tests
+cargo watch -x run           # Run with hot reload
 
-- TEE-based rollback (vs cryptographic 2PC)
-- Mock ZK verification in Arc contracts
-- Ephemeral user keys (no hardware wallet integration)
-- Single TEE instance (not decentralized)
+# Midnight integration (Node.js)
+cd midnight-integration
+npm run dev                   # Run development server
+npm run build                 # Build for production
+npm test                      # Run tests
+```
 
-## Cleanup
+## 📊 Current Status
+
+### ✅ Working Components
+- **Local Development**: All services running with mock proofs
+- **Smart Contract Organization**: Clean structure by ecosystem
+- **API Integration**: Complete REST API functionality
+- **Build Processes**: Automated building and testing
+- **Documentation**: Comprehensive guides and API docs
+
+### ⚠️ Limitations
+- **Mock ZK Proofs**: Using deterministic mock proofs (Midnight packages not public)
+- **Midnight Node**: Blocked by upstream chain_spec issues
+- **Single TEE Instance**: Not decentralized in current MVP
+
+### 🚧 Production Path
+When Midnight ecosystem dependencies become available:
+1. Replace mock proofs with real Compact compiler output
+2. Connect to working Midnight node
+3. Deploy to production TEE infrastructure
+4. Implement hardware wallet integration
+
+## 🧹 Cleanup
 
 ```bash
-# Destroy all infrastructure
-cd terraform && terraform destroy
+# Clean local development environment
+make dev-clean
 
-# Clean local resources
+# Destroy cloud deployment
+make cloud-destroy
+
+# Remove all build artifacts
 make clean
 ```

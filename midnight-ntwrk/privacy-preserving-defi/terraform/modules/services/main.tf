@@ -1,3 +1,12 @@
+# GCP Services Module
+# Enables required Google Cloud APIs and services
+
+variable "gcp_project" {
+  description = "GCP project ID"
+  type        = string
+}
+
+# Enable required GCP services
 resource "google_project_service" "compute" {
   project = var.gcp_project
   service = "compute.googleapis.com"

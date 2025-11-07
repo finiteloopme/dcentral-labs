@@ -1,0 +1,79 @@
+pragma language_version >= 0.14.0;
+
+import CompactStandardLibrary;
+
+// Simple DeFi Vault for testing
+export ledger total_value_locked: U64;
+export ledger concentration_limit_percent: U64;
+export ledger transaction_count: U64;
+
+export ledger user_balances: Map<Bytes<32>, U64>;
+export ledger last_proof_hash: Bytes<32>;
+export ledger instance: Counter;
+
+constructor() {
+    total_value_locked = 0;
+    concentration_limit_percent = 10;
+    transaction_count = 0;
+    last_proof_hash = pad(32, "");
+    instance.increment(1);
+}
+
+// Simple concentration check circuit
+export circuit check_concentration_limit(
+    user_pubkey: Bytes<32>,
+    deposit_amount: U64,
+    current_tvl: U64
+): [] {
+    const current_balance = get_user_balance_internal(user_pubkey);
+    const new_balance = current_balance + deposit_amount;
+    
+    // Simple limit calculation (fixed 1000 for testing)
+    const limit = 1000;
+    
+    assert(new_balance < limit, "Concentration limit exceeded");
+}
+
+// Balance update circuit
+export circuit update_balance(
+    user_pubkey: Bytes<32>,
+    deposit_amount: U64,
+    new_tvl: U64
+): [] {
+    check_concentration_limit(user_pubkey, deposit_amount, new_tvl);
+    
+    const current_balance = get_user_balance_internal(user_pubkey);
+    const new_balance = current_balance + deposit_amount;
+    
+    user_balances[user_pubkey] = new_balance;
+    total_value_locked = new_tvl;
+    transaction_count = transaction_count + 1;
+    instance.increment(1);
+    
+    last_proof_hash = create_balance_proof_hash(user_pubkey, current_balance, new_balance, new_tvl);
+}
+
+witness local_secret_key(): Bytes<32>;
+
+private circuit get_user_balance_internal(user_pubkey: Bytes<32>): U64 {
+    match user_balances.get(user_pubkey) {
+        Some(balance) => balance,
+        None => 0
+    }
+}
+
+private circuit create_balance_proof_hash(
+    user_pubkey: Bytes<32>,
+    old_balance: U64,
+    new_balance: U64,
+    tvl: U64
+): Bytes<32> {
+    const data = concat([
+        pad(32, "balance_update:"),
+        user_pubkey,
+        to_le_bytes(old_balance),
+        to_le_bytes(new_balance),
+        to_le_bytes(tvl)
+    ]);
+    blake2b256(data)
+}

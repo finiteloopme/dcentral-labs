@@ -17,6 +17,10 @@ url = "http://localhost:6300"
 timeout_ms = 30000
 mode = "Mock"
 
+[midnight_integration]
+url = "http://localhost:3001"
+timeout_ms = 45000
+
 [tee]
 private_key_env = "TEE_PRIVATE_KEY"
 attestation_enabled = true

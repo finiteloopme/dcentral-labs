@@ -58,3 +58,4 @@ anvil.log
 frontend.log
 service.log
 contracts/lib
+compactc

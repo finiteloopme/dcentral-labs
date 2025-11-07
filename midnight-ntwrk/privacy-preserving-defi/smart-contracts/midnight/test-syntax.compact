@@ -1,0 +1,20 @@
+pragma language_version >= 0.14.0;
+
+import CompactStandardLibrary;
+
+// Test basic types and syntax
+export ledger total_value_locked: u64;
+export ledger instance: Counter;
+
+constructor() {
+    total_value_locked = 0;
+    instance.increment(1);
+}
+
+export circuit simple_test(
+    amount: u64
+): [] {
+    const new_balance = total_value_locked + amount;
+    assert(new_balance < 10000, "Balance too high");
+    total_value_locked = new_balance;
+}

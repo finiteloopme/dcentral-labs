@@ -1,0 +1,16 @@
+pragma language_version >= 0.14.0;
+
+// Basic working Compact contract
+export ledger total_value_locked: U64;
+
+constructor() {
+    total_value_locked = 0;
+}
+
+export circuit deposit(
+    amount
+): [] {
+    const new_balance = total_value_locked + amount;
+    assert(new_balance < 10000, "Balance too high");
+    total_value_locked = new_balance;
+}

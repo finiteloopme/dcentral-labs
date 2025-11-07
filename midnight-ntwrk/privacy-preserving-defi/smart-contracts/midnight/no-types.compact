@@ -1,0 +1,11 @@
+pragma language_version >= 0.14.0;
+
+export ledger total_value_locked;
+
+constructor() {
+    total_value_locked = 0;
+}
+
+export circuit deposit(amount): [] {
+    total_value_locked = total_value_locked + amount;
+}

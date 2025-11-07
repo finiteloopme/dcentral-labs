@@ -13,10 +13,12 @@ use std::net::{IpAddr, Ipv4Addr};
 mod api;
 mod blockchain;
 mod zk_proofs;
+mod midnight_zk;
 mod config;
 
 use blockchain::{ArcClient, ArcContracts};
 use zk_proofs::ZkProofService;
+use midnight_zk::MidnightZkService;
 use config::Config;
 
 #[derive(Debug)]
@@ -47,6 +49,7 @@ pub struct AppState {
     pub sessions: Arc<RwLock<HashMap<String, UserSession>>>,
     pub arc_client: Arc<ArcClient>,
     pub zk_service: Arc<Mutex<ZkProofService>>,
+    pub midnight_zk_service: Arc<MidnightZkService>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,11 +107,18 @@ async fn main() -> Result<()> {
     
     let zk_service = Arc::new(Mutex::new(ZkProofService::new(&config.proof_server.url, config.proof_server.mode.clone())));
     
+    // Initialize Midnight ZK service
+    let midnight_zk_service = Arc::new(MidnightZkService::new(
+        config.proof_server.mode.clone(), 
+        config.midnight_integration.url.clone()
+    ));
+    
     // Initialize application state
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         arc_client,
         zk_service,
+        midnight_zk_service,
     };
     
     // Build API routes
@@ -237,51 +247,57 @@ async fn process_deposit(
     
     info!("Current TVL: {} USDC", tvl);
     
-    // Step 3: Generate ZK proof for concentration limit check
-    info!("Generating ZK proof for concentration limit check");
-    let concentration_proof = {
-        let mut zk_service = state.zk_service.lock().await;
-        zk_service.generate_concentration_proof(
-            0, // user_balance (simplified - would fetch from Midnight)
-            amount,
-            tvl,
-        ).await.map_err(|e| warp::reject::custom(ApiError { 
-            message: format!("ZK proof generation failed: {}", e) 
-        }))?
+    // Step 3: Generate ZK proofs using Midnight integration
+    info!("Generating ZK proofs using Midnight Compact contract");
+    let midnight_request = midnight_zk::MidnightDepositRequest {
+        user_address,
+        user_pubkey: request.user_pubkey.clone(),
+        amount,
+        current_tvl: tvl,
     };
     
-    // Step 4: Verify ZK proof locally
-    let is_valid = {
-        let zk_service = state.zk_service.lock().await;
-        zk_service.verify_proof(&concentration_proof).await
-            .map_err(|e| warp::reject::custom(ApiError { 
-                message: format!("ZK proof verification failed: {}", e) 
-            }))?
-    };
+    let (concentration_proof, balance_proof) = state.midnight_zk_service
+        .process_deposit(midnight_request)
+        .await
+        .map_err(|e| warp::reject::custom(ApiError { 
+            message: format!("Midnight ZK proof generation failed: {}", e) 
+        }))?;
     
-    if !is_valid {
-        error!("ZK proof verification failed");
+    // Step 4: Verify concentration proof
+    let is_concentration_valid = state.midnight_zk_service
+        .verify_proof(&concentration_proof)
+        .await
+        .map_err(|e| warp::reject::custom(ApiError { 
+            message: format!("Concentration proof verification failed: {}", e) 
+        }))?;
+    
+    if !is_concentration_valid {
+        error!("Concentration proof verification failed");
         return Ok(warp::reply::json(&DepositResponse {
             success: false,
             transaction_hash: None,
             midnight_tx: None,
-            error: Some("ZK proof verification failed".to_string()),
+            error: Some("Concentration limit check failed".to_string()),
         }));
     }
     
-    // Step 5: Generate balance update proof for Midnight
-    info!("Generating balance update proof for Midnight");
-    let balance_proof = {
-        let mut zk_service = state.zk_service.lock().await;
-        zk_service.generate_balance_update_proof(
-            0, // old_balance (simplified)
-            amount,
-            amount, // new_balance (old_balance + amount)
-            &request.user_pubkey,
-        ).await.map_err(|e| warp::reject::custom(ApiError { 
-            message: format!("Balance proof generation failed: {}", e) 
-        }))?
-    };
+    // Step 5: Verify balance update proof
+    let is_balance_valid = state.midnight_zk_service
+        .verify_proof(&balance_proof)
+        .await
+        .map_err(|e| warp::reject::custom(ApiError { 
+            message: format!("Balance proof verification failed: {}", e) 
+        }))?;
+    
+    if !is_balance_valid {
+        error!("Balance proof verification failed");
+        return Ok(warp::reply::json(&DepositResponse {
+            success: false,
+            transaction_hash: None,
+            midnight_tx: None,
+            error: Some("Balance proof verification failed".to_string()),
+        }));
+    }
     
     // Step 6: Execute deposit on Arc with ZK proof
     info!("Executing deposit on Arc with ZK proof");
@@ -296,7 +312,23 @@ async fn process_deposit(
     // Step 7: Create Midnight transaction reference
     let midnight_tx = format!("midnight_proof_{}", hex::encode(&balance_proof.proof_bytes[..16]));
     
-    info!("Deposit completed successfully. Arc TX: {}, Midnight TX: {}", arc_tx, midnight_tx);
+    // Step 8: Update TVL mirror on Midnight
+    info!("Updating TVL mirror on Midnight");
+    let new_tvl = tvl + amount;
+    let tee_signature = state.midnight_zk_service
+        .create_tee_signature(&new_tvl.to_le_bytes())
+        .map_err(|e| warp::reject::custom(ApiError { 
+            message: format!("TEE signature creation failed: {}", e) 
+        }))?;
+    
+    let _tvl_proof = state.midnight_zk_service
+        .update_tvl_mirror(new_tvl, &tee_signature)
+        .await
+        .map_err(|e| warp::reject::custom(ApiError { 
+            message: format!("TVL mirror update failed: {}", e) 
+        }))?;
+    
+    info!("Deposit completed successfully. Arc TX: {}, Midnight TX: {}, New TVL: {}", arc_tx, midnight_tx, new_tvl);
     
     Ok(warp::reply::json(&DepositResponse {
         success: true,

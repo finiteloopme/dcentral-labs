@@ -8,6 +8,7 @@ pub struct Config {
     pub blockchain: BlockchainConfig,
     pub contracts: ContractsConfig,
     pub proof_server: ProofServerConfig,
+    pub midnight_integration: MidnightIntegrationConfig,
     pub tee: TeeConfig,
     pub compliance: ComplianceConfig,
     pub logging: LoggingConfig,
@@ -38,6 +39,12 @@ pub struct ProofServerConfig {
     pub url: String,
     pub timeout_ms: u64,
     pub mode: ProofMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MidnightIntegrationConfig {
+    pub url: Option<String>,
+    pub timeout_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +121,13 @@ impl Config {
                     "production" => ProofMode::Production,
                     _ => ProofMode::Mock,
                 },
+            },
+            midnight_integration: MidnightIntegrationConfig {
+                url: env::var("MIDNIGHT_INTEGRATION_URL").ok(),
+                timeout_ms: env::var("MIDNIGHT_INTEGRATION_TIMEOUT_MS")
+                    .unwrap_or_else(|_| "45000".to_string())
+                    .parse()
+                    .unwrap_or(45000),
             },
             tee: TeeConfig {
                 private_key_env: env::var("TEE_PRIVATE_KEY_ENV")

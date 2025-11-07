@@ -1,3 +1,27 @@
+# IAM Module
+# Creates service accounts, workload identity, and permissions
+
+variable "gcp_project" {
+  description = "GCP project ID"
+  type        = string
+}
+
+variable "gcp_region" {
+  description = "GCP region"
+  type        = string
+}
+
+variable "project_name" {
+  description = "Project name for tagging"
+  type        = string
+}
+
+variable "tee_image_digest" {
+  description = "TEE container image digest"
+  type        = string
+  default     = ""
+}
+
 resource "google_artifact_registry_repository" "tee_images" {
   location      = var.gcp_region
   repository_id = "${var.project_name}-tee-images"
@@ -57,4 +81,20 @@ resource "google_project_iam_member" "tee_logging" {
   depends_on = [
     google_project_service.logging
   ]
+}
+
+# Outputs
+output "artifact_registry_repository" {
+  description = "Artifact Registry repository URL"
+  value       = "${google_artifact_registry_repository.tee_images.location}-docker.pkg.dev/${var.gcp_project}/${google_artifact_registry_repository.tee_images.repository_id}"
+}
+
+output "tee_service_account_email" {
+  description = "Email of the TEE service account"
+  value       = google_service_account.tee_service_account.email
+}
+
+output "tee_service_account_name" {
+  description = "Name of the TEE service account"
+  value       = google_service_account.tee_service_account.name
 }

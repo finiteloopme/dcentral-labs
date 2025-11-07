@@ -80,6 +80,30 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # Midnight Integration Service
+  midnight-integration:
+    build:
+      context: ../midnight-integration
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MIDNIGHT_RPC_URL=http://midnight-node:9944
+      - COMPACT_CONTRACT_ADDRESS=0x0000000000000000000000000000000000000000
+      - TEE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    depends_on:
+      midnight-node:
+        condition: service_healthy
+    networks:
+      - privacy-defi
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   # TEE Service (Core Application)
   tee-service:
     build:
@@ -91,6 +115,7 @@ services:
       - ARC_RPC=http://anvil:8545
       - MIDNIGHT_RPC=http://midnight-node:9944
       - PROOF_SERVER_URL=http://proof-server:6300
+      - MIDNIGHT_INTEGRATION_URL=http://midnight-integration:3000
       - PROOF_MODE=mock
       - RUST_LOG=info
       - TEE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -100,6 +125,8 @@ services:
       - tee-logs:/app/logs
     depends_on:
       anvil:
+        condition: service_healthy
+      midnight-integration:
         condition: service_healthy
     networks:
       - privacy-defi

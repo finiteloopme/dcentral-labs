@@ -1,0 +1,44 @@
+pragma language_version >= 0.14.0;
+
+import CompactStandardLibrary;
+
+// Minimal DeFi Vault for testing compilation
+export ledger total_value_locked: U64;
+export ledger instance: Counter;
+
+constructor() {
+    total_value_locked = 0;
+    instance.increment(1);
+}
+
+// Simple concentration check circuit
+export circuit check_concentration_limit(
+    user_pubkey: Bytes<32>,
+    deposit_amount: U64,
+    current_tvl: U64
+): [] {
+    const current_balance = 0;
+    const new_balance = current_balance + deposit_amount;
+    
+    // Fixed limit for testing
+    const limit = 1000;
+    
+    assert(new_balance < limit, "Concentration limit exceeded");
+}
+
+// Balance update circuit
+export circuit update_balance(
+    user_pubkey: Bytes<32>,
+    deposit_amount: U64,
+    new_tvl: U64
+): [] {
+    check_concentration_limit(user_pubkey, deposit_amount, new_tvl);
+    
+    const current_balance = 0;
+    const new_balance = current_balance + deposit_amount;
+    
+    total_value_locked = new_tvl;
+    instance.increment(1);
+}
+
+witness local_secret_key(): Bytes<32>;

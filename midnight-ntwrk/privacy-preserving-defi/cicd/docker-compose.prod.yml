@@ -81,35 +81,44 @@ services:
     restart: unless-stopped
 
   # TEE Service (Core Application) - Production Mode
+  midnight-integration:
+    build:
+      context: ../midnight-integration
+      dockerfile: Dockerfile
+    environment:
+      - PORT=3000
+      - MIDNIGHT_RPC_URL=${MIDNIGHT_RPC_URL}
+      - COMPACT_CONTRACT_ADDRESS=${COMPACT_CONTRACT_ADDRESS}
+      - TEE_PRIVATE_KEY=${TEE_PRIVATE_KEY}
+    depends_on:
+      - midnight-node
+    networks:
+      - privacy-defi
+    restart: unless-stopped
+
   tee-service:
     build:
       context: ..
       dockerfile: cicd/Dockerfile
-    ports:
-      - "8080:8080"
     environment:
-      - ARC_RPC=http://anvil:8545
-      - MIDNIGHT_RPC=http://midnight-node:9944
+      - ARC_RPC=${ARC_RPC_URL}
+      - MIDNIGHT_RPC=${MIDNIGHT_RPC_URL}
       - PROOF_SERVER_URL=http://proof-server:6300
+      - MIDNIGHT_INTEGRATION_URL=http://midnight-integration:3000
       - PROOF_MODE=production
       - RUST_LOG=info
-      - TEE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - TEE_PRIVATE_KEY=${TEE_PRIVATE_KEY}
       - CONTRACT_ADDRESSES_FILE=/app/contracts/addresses.json
     volumes:
       - ../contracts:/app/contracts:ro
       - tee-logs:/app/logs
     depends_on:
-      anvil:
-        condition: service_healthy
-      proof-server:
-        condition: service_healthy
+      - anvil
+      - midnight-node
+      - proof-server
+      - midnight-integration
     networks:
       - privacy-defi
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     restart: unless-stopped
 
   # Frontend Development Server
