@@ -34,51 +34,77 @@ check_podman() {
 
 # Build the container image
 build_image() {
+    # update_perms
     print_status "Building Midnight Vibe Platform..."
     podman build -t $IMAGE_NAME .
     print_status "Build completed successfully!"
 }
 
+# change permissions to make podman work as sudo
+update_perms() {
+    print_status "Updating permissions..."
+    sudo chown -R kunall:primarygroup /run/user/628449/containers/
+    sudo chown -R kunall:primarygroup /home/kunall/.local/share/containers/storage/
+}
+
 # Run the container locally
 run_container() {
+    
     print_status "Running Midnight Vibe Platform locally..."
     
     # Stop existing container if running
     stop_container
+
+    
+    # Mount Google Cloud application default credentials if they exist
+    GCREDS_FILE="$HOME/.config/gcloud/application_default_credentials.json"
+    if [ -f "$GCREDS_FILE" ]; then
+        print_status "Mounting Google Cloud credentials..."
+        GCREDS_MOUNT="-v $GCREDS_FILE:/tmp/gcloud-creds.json:ro"
+    else
+        print_warning "Google Cloud credentials not found at $GCREDS_FILE"
+        print_warning "You'll need to run 'gcloud auth application-default login' in the container"
+        GCREDS_MOUNT=""
+    fi
     
     # Run the container
     podman run -d \
-        --name $CONTAINER_NAME \
+        --name ${CONTAINER_NAME} \
+        --rm \
         --privileged \
-        --entrypoint /usr/bin/supervisord \
-        -p 9944:9944 \
-        -p 9933:9933 \
-        -p 5432:5432 \
         -p 8080:8080 \
-        $IMAGE_NAME \
-        -c /etc/supervisor/supervisord.conf
-    
+        -p 5433:5432 \
+        -p 8081:8081 \
+        -p 9933:9933 \
+        -e GOOGLE_VERTEX_PROJECT=${GOOGLE_VERTEX_PROJECT:-} \
+        -e GOOGLE_VERTEX_REGION=${GOOGLE_VERTEX_REGION:-us-central1} \
+        ${GCREDS_MOUNT} \
+        ${IMAGE_NAME}
+
     print_status "Container started successfully!"
     echo ""
     echo "Services:"
-    echo "  - Midnight Node RPC: http://localhost:9933"
-    echo "  - Midnight Node WS: ws://localhost:9944"
-    echo "  - PostgreSQL: localhost:5432"
-    echo "  - Proof Server: http://localhost:8080"
+    echo "  - Code OSS (VS Code): http://127.0.0.1:8080"
+    echo "  - Midnight Node RPC: http://127.0.0.1:9933"
+    echo "  - Midnight Node WS: ws://127.0.0.1:9944"
+    echo "  - PostgreSQL: 127.0.0.1:5433"
+    echo "  - Proof Server: http://127.0.0.1:8081"
     echo ""
     echo "To view logs:"
     echo "  $0 logs"
     echo ""
     echo "To stop:"
     echo "  $0 stop"
+    echo ""
+    echo "Note: Container running with Cloud Workstations configuration"
 }
 
 # Stop and remove container
 stop_container() {
     print_status "Stopping Midnight Vibe Platform..."
-    
+
     if podman ps -aq -f name=$CONTAINER_NAME | grep -q .; then
-        podman stop $CONTAINER_NAME
+        podman stop $CONTAINER_NAME || true
         podman rm $CONTAINER_NAME
         print_status "Container stopped and removed."
     else
@@ -89,9 +115,9 @@ stop_container() {
 # Clean up images and containers
 clean_resources() {
     print_status "Cleaning up Midnight Vibe Platform resources..."
-    podman stop $CONTAINER_NAME 2>/dev/null || true
-    podman rm $CONTAINER_NAME 2>/dev/null || true
-    podman rmi $IMAGE_NAME 2>/dev/null || true
+    podman stop --time 15 $CONTAINER_NAME 2>/dev/null || true
+    podman rm -f $CONTAINER_NAME 2>/dev/null || true
+    podman rmi -f $IMAGE_NAME 2>/dev/null || true
     print_status "Cleanup completed."
 }
 
@@ -123,11 +149,19 @@ create_database() {
 
 # Restart services
 restart_services() {
-    print_status "Restarting services..."
+    print_status "Restarting container (Cloud Workstations manages services automatically)..."
     if podman ps -q -f name=$CONTAINER_NAME | grep -q .; then
-        podman exec $CONTAINER_NAME supervisorctl restart midnight-node
-        podman exec $CONTAINER_NAME supervisorctl restart midnight-pubsub-indexer
-        print_status "Services restarted."
+        podman restart $CONTAINER_NAME
+        print_status "Container restarted."
+    else
+        print_error "Container is not running. Start it with: $0 run"
+    fi
+}
+
+# Execute command in container
+exec_command() {
+    if podman ps -q -f name=$CONTAINER_NAME | grep -q .; then
+        podman exec $CONTAINER_NAME "$@"
     else
         print_error "Container is not running. Start it with: $0 run"
     fi
@@ -148,12 +182,14 @@ show_help() {
     echo "  logs        View container logs"
     echo "  db          Create midnight database"
     echo "  restart     Restart services"
+    echo "  exec        Execute command in container"
     echo "  help        Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 build    # Build the image"
     echo "  $0 run      # Run the container"
     echo "  $0 logs     # View logs"
+    echo "  $0 exec \"supervisorctl status\"  # Execute command in container"
 }
 
 # Main script logic
@@ -191,6 +227,11 @@ case "${1:-help}" in
     restart)
         check_podman
         restart_services
+        ;;
+    exec)
+        check_podman
+        shift
+        exec_command "$@"
         ;;
     help|--help|-h)
         show_help

@@ -1,0 +1,2 @@
+use_main_chain_follower_mock = true
+main_chain_follower_mock_registrations_file = "/tmp/midnight-mock/registrations.json"

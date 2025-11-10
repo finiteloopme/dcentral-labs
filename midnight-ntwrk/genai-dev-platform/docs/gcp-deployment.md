@@ -57,6 +57,13 @@ Once deployed, services will be available at:
 - **PostgreSQL**: `workstation-ip:5432`
 - **Proof Server**: `http://workstation-ip:8080`
 
+### IDE Access
+Google Cloud Workstations provide built-in VS Code interface:
+- **Access**: Workstation URL in browser
+- **Authentication**: Google account login
+- **Features**: Full VS Code experience with terminal
+- **OpenCode TUI**: Not needed (built-in IDE preferred)
+
 ## Security Considerations
 - The base image includes SSH and Code OSS server
 - PostgreSQL uses trust authentication for local development

@@ -144,9 +144,6 @@ yarn-error.log*
 
 # Podman / Docker
 .dockerignore
-Dockerfile*
-docker-compose*.yml
-docker-compose*.yaml
 
 # IDE
 .vscode/
