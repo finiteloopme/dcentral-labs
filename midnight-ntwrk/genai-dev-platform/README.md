@@ -32,6 +32,7 @@ genai-dev-platform/
 │   ├── container-customization.md      # Container setup guide
 │   ├── gcp-deployment.md               # GCP deployment guide
 │   ├── gcp-terraform-deployment.md     # Terraform deployment
+│   ├── midnight-development-stack.md  # Midnight development guide
 │   ├── opencode-access.md              # OpenCode access guide
 │   └── terraform-modules.md            # Terraform modules guide
 ├── scripts/                      # Automation scripts
@@ -177,6 +178,55 @@ make run
 # - Local development services
 ```
 
+### 🌙 Midnight Development Stack
+
+The platform includes a complete Midnight Network development environment that runs automatically in each workstation:
+
+**In Google Cloud Workstation:**
+```bash
+# Services start automatically on workstation access
+# Management commands available:
+
+midnight-dev status    # Show service status
+midnight-dev logs      # View logs (node/proof/indexer/all)
+midnight-dev restart    # Restart all services
+```
+
+**Available Services:**
+- **Midnight Node**: http://localhost:9944 (WebSocket: ws://localhost:9944)
+- **Proof Server**: http://localhost:8081 (ZK proof generation)
+- **Indexer API**: http://localhost:8088 (Data indexing)
+- **PostgreSQL**: localhost:5432 (Database)
+
+**Database Connection:**
+- Host: localhost
+- Port: 5432
+- User: postgres
+- Password: (no password required)
+- Database: midnight_dev, midnight_test, indexer_db
+
+**Management Commands:**
+```bash
+# Show service status and logs
+midnight-dev status
+
+# Follow logs for specific service
+midnight-dev logs node          # Node logs
+midnight-dev logs proof         # Proof server logs
+midnight-dev logs indexer       # Indexer logs
+midnight-dev logs all          # All logs
+
+# Restart all services
+midnight-dev restart
+```
+
+This setup allows developers to:
+- Test smart contracts before deployment
+- Develop DApps with full Midnight Network stack
+- Use ZK proofs for confidential transactions
+- Index and query blockchain data
+- Iterate quickly with local feedback
+
 ## 🔧 Configuration
 
 ### Workstation Configuration
@@ -218,10 +268,13 @@ The container image (`Dockerfile`) includes:
 - **AI-Powered Development**: Vertex AI integration for intelligent coding assistance
 - **Cloud-Based Workstations**: Managed development environments with Google Cloud Workstations
 - **Terminal-Based Editor**: OpenCode TUI for efficient coding
+- **Complete Midnight Stack**: Integrated proof server, node, indexer, and PostgreSQL
 - **Blockchain Development**: Specialized tools for Midnight Network development
-- **Local Development**: Full local development environment with Podman
+- **Local Development**: Full local development environment with Docker/Podman
 - **Infrastructure as Code**: Complete Terraform-based deployment
 - **CI/CD Integration**: Automated builds and deployments with Cloud Build
+- **ZK Proof Support**: Built-in zero-knowledge proof generation and verification
+- **Data Indexing**: Real-time blockchain data indexing and query API
 
 ## 🤝 Contributing
 

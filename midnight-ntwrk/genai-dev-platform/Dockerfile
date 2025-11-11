@@ -8,8 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install Midnight Platform Dependencies
 RUN sudo apt-get update && sudo apt-get install -y \
     curl git build-essential pkg-config libssl-dev jq unzip \
-    postgresql postgresql-contrib \
-    supervisor \
+    netcat-openbsd procps \
     && sudo apt-get clean
 
 # Install Rust Toolchain
@@ -18,18 +17,36 @@ RUN sudo mkdir -p $RUSTUP_HOME $CARGO_HOME && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sudo sh -s -- -y --no-modify-path && \
     sudo chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
-# Install Node.js
+# Install Node.js and Java 22
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && \
-    sudo apt-get install -y nodejs
+    sudo apt-get install -y nodejs && \
+    sudo wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo apt-key add - && \
+    sudo echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list && \
+    sudo apt-get update && sudo apt-get install -y temurin-22-jdk && \
+    sudo update-alternatives --set java /usr/lib/jvm/temurin-22-jdk-amd64/bin/java
 
-# Install Midnight Binaries
-COPY --from=midnightnetwork/proof-server:latest /nix/store/ahrfxbazglq2rh6vvyl3ffkcm230kxh1-ledger-4.0.0/bin/midnight-proof-server /usr/local/bin/
-COPY --from=midnightnetwork/midnight-node:latest /midnight-node /usr/local/bin/
-COPY --from=midnightntwrk/indexer-standalone:latest /usr/local/bin/indexer-standalone /usr/local/bin/midnight-indexer-standalone
+# Install Midnight Binaries (stable versions from example)
+# Copy proof-server with Nix dependencies (try newer 4.0.0 version)
+COPY --from=midnightnetwork/proof-server:4.0.0 /nix/store/ /usr/local/nix/store/
+COPY --from=midnightnetwork/midnight-node:0.8.0 /midnight-node /usr/local/bin/
+COPY --from=midnightnetwork/midnight-node:0.8.0 /res/ /usr/local/bin/res/
+COPY --from=midnightnetwork/midnight-pubsub-indexer:2.3.0 /midnight-indexer/ /usr/local/bin/midnight-indexer/
 
-RUN sudo chmod +x /usr/local/bin/midnight-proof-server \
-                  /usr/local/bin/midnight-node \
-                  /usr/local/bin/midnight-indexer-standalone
+# Find and move proof-server binary to correct location
+RUN sudo find /usr/local/nix/store -name "*proof-server*" -type f -executable | head -1 | xargs -I {} sudo cp {} /usr/local/bin/midnight-proof-server && \
+    sudo chmod +x /usr/local/bin/midnight-proof-server \
+                   /usr/local/bin/midnight-node \
+                   /usr/local/bin/midnight-indexer/bin/midnight-pubsub-indexer-server && \
+    sudo ln -sf /usr/local/bin/midnight-indexer/opentelemetry-javaagent /usr/local/opentelemetry-javaagent && \
+    sudo ln -sf /usr/local/bin/midnight-indexer/bin/midnight-pubsub-indexer-server /usr/local/bin/midnight-pubsub-indexer
+
+# Install Midnight development tools and utilities
+RUN sudo apt-get update && sudo apt-get install -y \
+    netcat-openbsd \
+    procps \
+    curl \
+    jq \
+    && sudo apt-get clean
 
 # Install Midnight Compact Tool
 RUN curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh || true
@@ -45,12 +62,9 @@ RUN mkdir -p /usr/local/opencode && \
     rm /tmp/opencode.zip
 ENV PATH="/usr/local/opencode:${PATH}"
 
-# Setup PostgreSQL
-RUN sudo mkdir -p /var/lib/postgresql/data && \
-    sudo chown -R postgres:postgres /var/lib/postgresql && \
-    sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D /var/lib/postgresql/data && \
-    echo "host all  all    127.0.0.1/32  trust" | sudo tee -a /var/lib/postgresql/data/pg_hba.conf && \
-    echo "listen_addresses='*'" | sudo tee -a /var/lib/postgresql/data/postgresql.conf
+# Create Midnight development directories
+RUN sudo mkdir -p /opt/midnight-dev/{logs,data,config} && \
+    sudo chmod -R 755 /opt/midnight-dev
 
 # Create Midnight Services Startup Script
 COPY config/110_start-code-oss-custom.sh /etc/workstation-startup.d/110_start-code-oss-custom.sh
@@ -63,16 +77,15 @@ COPY config/200_midnight-services.sh /etc/workstation-startup.d/200_midnight-ser
 RUN sudo chmod +x /etc/workstation-startup.d/200_midnight-services.sh
 
 # Create Default Code OSS Settings for Midnight Development
-COPY config/210_default-ide-settings.sh /etc/workstation-startup.d/210_default-ide-settings.sh
-RUN sudo chmod +x /etc/workstation-startup.d/210_default-ide-settings.sh
+
 
 # Configure Vertex AI and IDE environment
 COPY config/220_vertex-ide-config.sh /etc/workstation-startup.d/220_vertex-ide-config.sh
 RUN sudo chmod +x /etc/workstation-startup.d/220_vertex-ide-config.sh
 
 # Copy Indexer Config
-COPY config/indexer-config.yaml /tmp/indexer-config.yaml
-COPY config/midnight-node-config.toml /tmp/midnight-node-config.toml
+COPY config/indexer-simple.yaml /opt/midnight-dev/config/indexer-simple.yaml
+COPY config/midnight-node-config.toml /opt/midnight-dev/config/midnight-node-config.toml
 
 # Use Cloud Workstations entrypoint
 ENTRYPOINT ["/google/scripts/entrypoint.sh"]

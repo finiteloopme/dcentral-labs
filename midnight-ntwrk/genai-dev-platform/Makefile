@@ -10,6 +10,8 @@
 build run stop clean status logs db restart exec:
 	@./scripts/local.sh $(firstword $(MAKECMDGOALS)) $(filter-out $@,$(MAKECMDGOALS))
 
+
+
 # Deploy to Google Cloud using configured environment variables
 deploy:
 	@./scripts/gcloud-commands.sh deploy
@@ -54,6 +56,8 @@ help:
 	@echo "  $(GREEN)deploy$(NC)        - Deploy to Google Cloud"
 	@echo "  $(GREEN)undeploy$(NC)      - Destroy all cloud resources"
 	@echo "  $(GREEN)run-local$(NC)     - Run locally (secure mode)"
+	@echo ""
+
 	@echo ""
 	@echo "$(YELLOW)Workstation:$(NC)"
 	@echo "  $(GREEN)ws-start$(NC)      - Start workstation (WORKSTATION_ID=name)"

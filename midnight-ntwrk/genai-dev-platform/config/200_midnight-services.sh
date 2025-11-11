@@ -1,125 +1,229 @@
 #!/bin/bash
-# Midnight Vibe Platform - Startup Script
-# This script runs as root during workstation startup
+# Midnight Vibe Platform - Workstation Services Script
+# Simplified version using dev preset (no PostgreSQL required)
 
-echo "🌙 Initializing Midnight Vibe Platform..."
+echo "🌙 Initializing Midnight Development Stack (Dev Mode)..."
 
-# Start PostgreSQL
-echo "📡 Starting PostgreSQL..."
-# Fix permissions and start PostgreSQL
-mkdir -p /var/run/postgresql
-chown postgres:postgres /var/run/postgresql
-sudo -u postgres /usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/data -l /var/log/postgresql.log start &
+# Create Midnight development directories
+mkdir -p /opt/midnight-dev/{logs,data,config,bin}
+chown -R user:user /opt/midnight-dev
 
-# Start Midnight Node (with mock to avoid DB connection issues)
-echo "🔗 Starting Midnight Node..."
-# Create mock registrations file for midnight node
-mkdir -p /tmp/midnight-mock
-cat > /tmp/midnight-mock/registrations.json << 'EOF'
-{
-  "registrations": []
+# Create service management scripts
+cat > /opt/midnight-dev/bin/manage-services.sh << 'EOF'
+#!/bin/bash
+# Midnight Services Management Script - Dev Preset
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Configuration
+MIDNIGHT_DEV_DIR="/opt/midnight-dev"
+LOG_DIR="$MIDNIGHT_DEV_DIR/logs"
+DATA_DIR="$MIDNIGHT_DEV_DIR/data"
+
+# Service status check
+check_service() {
+    local service=$1
+    local port=$2
+    
+    if nc -z localhost $port 2>/dev/null; then
+        echo -e "${GREEN}✅ $service${NC} (port $port)"
+        return 0
+    else
+        echo -e "${RED}❌ $service${NC} (port $port)"
+        return 1
+    fi
 }
+
+# Start Midnight Node function
+start_node() {
+    echo "🔗 Starting Midnight Node (v0.8.0 dev mode)..."
+    cd /usr/local/bin
+    
+    # Use simple dev preset like the example
+    export CFG_PRESET=dev
+    export RUST_BACKTRACE=full
+    
+    nohup midnight-node --rpc-port 9944 \
+        > /opt/midnight-dev/logs/midnight-node.log 2>&1 &
+    echo $! > /opt/midnight-dev/data/midnight-node.pid
+    sleep 10  # Give node time to initialize
+}
+
+# Start Proof Server function
+start_proof() {
+    echo "🔐 Starting Proof Server..."
+    cd /opt/midnight-dev
+    
+    # Use environment variable from the example
+    export RUST_BACKTRACE=full
+    
+    nohup midnight-proof-server --port 8081 \
+        > logs/proof-server.log 2>&1 &
+    echo $! > data/proof-server.pid
+    sleep 3
+}
+
+# Start Indexer function
+start_indexer() {
+    echo "📊 Starting Indexer..."
+    cd /opt/midnight-dev
+    
+    # Use config file and environment variables
+    export LOG_LEVEL=INFO
+    export LEDGER_NETWORK_ID=TestNet
+    export SUBSTRATE_NODE_WS_URL=ws://localhost:9944
+    export OTEL_JAVAAGENT_ENABLED=false
+    
+    nohup midnight-pubsub-indexer --config config/indexer-simple.yaml \
+        > logs/indexer.log 2>&1 &
+    echo $! > data/indexer.pid
+    sleep 5
+}
+
+# Start all services
+start_all() {
+    start_node
+    start_proof
+    start_indexer
+    
+    echo ""
+    echo -e "${GREEN}✅ Midnight Development Stack started successfully!${NC}"
+    echo ""
+    echo -e "${BLUE}🌐 Available Services:${NC}"
+    echo -e "  🔗 Midnight Node: http://localhost:9944"
+    echo -e "  🔐 Proof Server: http://localhost:8081"
+    echo -e "  📊 Indexer API: http://localhost:8088"
+    echo ""
+    echo -e "${BLUE}🔧 Management Commands:${NC}"
+    echo -e "  midnight-dev status    # Show service status"
+    echo -e "  midnight-dev logs     # Show logs (node/proof/indexer/all)"
+    echo -e "  midnight-dev restart  # Restart all services"
+}
+
+# Stop all services
+stop_all() {
+    echo "🛑 Stopping Midnight services..."
+    
+    # Stop Midnight Node
+    if [ -f /opt/midnight-dev/data/midnight-node.pid ]; then
+        kill $(cat /opt/midnight-dev/data/midnight-node.pid) 2>/dev/null || true
+        rm -f /opt/midnight-dev/data/midnight-node.pid
+    fi
+    
+    # Stop Proof Server
+    if [ -f /opt/midnight-dev/data/proof-server.pid ]; then
+        kill $(cat /opt/midnight-dev/data/proof-server.pid) 2>/dev/null || true
+        rm -f /opt/midnight-dev/data/proof-server.pid
+    fi
+    
+    # Stop Indexer
+    if [ -f /opt/midnight-dev/data/indexer.pid ]; then
+        kill $(cat /opt/midnight-dev/data/indexer.pid) 2>/dev/null || true
+        rm -f /opt/midnight-dev/data/indexer.pid
+    fi
+    
+    echo -e "${GREEN}✅ Midnight services stopped${NC}"
+}
+
+# Restart all services
+restart_all() {
+    stop_all
+    sleep 2
+    start_all
+}
+
+# Show service status
+show_status() {
+    echo -e "${BLUE}🌙 Midnight Development Stack Status (Dev Mode)${NC}"
+    echo ""
+    check_service "Midnight Node" 9944
+    check_service "Proof Server" 8081
+    check_service "Indexer API" 8088
+    echo ""
+}
+
+# Show logs
+show_logs() {
+    local service=${1:-all}
+    
+    case $service in
+        node)
+            echo -e "${BLUE}🔗 Midnight Node Logs:${NC}"
+            tail -f /opt/midnight-dev/logs/midnight-node.log 2>/dev/null || echo "No logs found"
+            ;;
+        proof)
+            echo -e "${BLUE}🔐 Proof Server Logs:${NC}"
+            tail -f /opt/midnight-dev/logs/proof-server.log 2>/dev/null || echo "No logs found"
+            ;;
+        indexer)
+            echo -e "${BLUE}📊 Indexer Logs:${NC}"
+            tail -f /opt/midnight-dev/logs/indexer.log 2>/dev/null || echo "No logs found"
+            ;;
+        all)
+            echo -e "${BLUE}🌙 All Midnight Services Logs:${NC}"
+            tail -f /opt/midnight-dev/logs/*.log 2>/dev/null || echo "No logs found"
+            ;;
+        *)
+            echo "Usage: midnight-dev logs [node|proof|indexer|all]"
+            exit 1
+            ;;
+    esac
+}
+
+# Main logic
+case "${1:-start}" in
+    start)
+        start_all
+        ;;
+    stop)
+        stop_all
+        ;;
+    restart)
+        restart_all
+        ;;
+    status)
+        show_status
+        ;;
+    logs)
+        show_logs "$2"
+        ;;
+    *)
+        echo "Usage: manage-services.sh [start|stop|restart|status|logs] [service]"
+        echo "Services: node, proof, indexer, all"
+        exit 1
+        ;;
+esac
 EOF
 
-# Set environment variables for mock mode
-export MIDNIGHT_USE_MAIN_CHAIN_FOLLOWER_MOCK=true
+chmod +x /opt/midnight-dev/bin/manage-services.sh
 
-/usr/local/bin/midnight-node \
-  --dev \
-  --rpc-external \
-  --ws-external \
-  --use-main-chain-follower-mock \
-  --main-chain-follower-mock-registrations-file=/tmp/midnight-mock/registrations.json \
-  --rpc-cors=all &
+# Create midnight-dev symlink
+ln -sf /opt/midnight-dev/bin/manage-services.sh /usr/local/bin/midnight-dev
 
-# Start Proof Server
-echo "🔐 Starting Proof Server..."
-/usr/local/bin/midnight-proof-server --network testnet --port 8081 &
+# Start services automatically
+echo "🚀 Starting Midnight services..."
+sudo -u user /opt/midnight-dev/bin/manage-services.sh start &
 
-# Start Indexer (with config fix)
-echo "📊 Starting Indexer..."
-cd /tmp
-cp /tmp/indexer-config.yaml /tmp/config.yaml
-/usr/local/bin/midnight-indexer-standalone &
+# Set proper permissions
+chown -R user:user /opt/midnight-dev
 
-# Code OSS port is now configured to use 8080 in custom startup script
-
-# Start OpenCode AI Assistant setup
-echo "🤖 Setting up OpenCode AI Assistant..."
-if [ ! -f "/usr/local/opencode/opencode" ]; then
-    mkdir -p /usr/local/opencode
-    ARCH=$(uname -m)
-    if [ "$ARCH" = "x86_64" ]; then ARCH="x64"; fi
-    curl -L "https://github.com/sst/opencode/releases/latest/download/opencode-linux-${ARCH}.zip" -o /tmp/opencode.zip
-    unzip -p /tmp/opencode.zip opencode > /usr/local/opencode/opencode
-    chmod +x /usr/local/opencode/opencode
-    rm /tmp/opencode.zip
-fi
-
-# Set proper permissions for all users
-chmod -R 755 /usr/local/opencode
-
-# Add OpenCode to system PATH for all users
-echo 'export PATH="/usr/local/opencode:$PATH"' >> /etc/bash.bashrc
-echo 'export PATH="/usr/local/opencode:$PATH"' >> /etc/profile
-
-# Create global OpenCode config directory and config file for user
-mkdir -p /home/user/.config/opencode
-cat > /home/user/.config/opencode/opencode.json << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "google-vertex-anthropic": {
-      "name": "Google Vertex AI Anthropic",
-      "options": {
-        "project": "{env:GOOGLE_VERTEX_PROJECT}",
-        "region": "{env:GOOGLE_VERTEX_REGION}"
-      }
-    },
-    "google-vertex": {
-      "name": "Google Vertex AI",
-      "options": {
-        "project": "{env:GOOGLE_VERTEX_PROJECT}",
-        "region": "{env:GOOGLE_VERTEX_LOCATION}"
-      }
-    }
-  }
-}
-EOF
-
-# Set proper permissions for the user config
-chown -R user:user /home/user/.config/opencode
-chmod -R 755 /home/user/.config/opencode
-
-# Set up Google Vertex environment variables for all users
-echo '# Google Vertex AI environment variables for OpenCode' >> /etc/bash.bashrc
-echo 'export GOOGLE_VERTEX_PROJECT="${GOOGLE_VERTEX_PROJECT:-}"' >> /etc/bash.bashrc
-echo 'export GOOGLE_VERTEX_LOCATION="${GOOGLE_VERTEX_LOCATION:-global}"' >> /etc/bash.bashrc
-echo '' >> /etc/bash.bashrc
-
-# Also add to /etc/profile for non-interactive shells
-echo '# Google Vertex AI environment variables for OpenCode' >> /etc/profile
-echo 'export GOOGLE_VERTEX_PROJECT="${GOOGLE_VERTEX_PROJECT:-}"' >> /etc/profile
-echo 'export GOOGLE_VERTEX_LOCATION="${GOOGLE_VERTEX_LOCATION:-global}"' >> /etc/profile
-echo '' >> /etc/profile
-
-# Copy mounted credentials to user's gcloud config if they exist
-if [ -f "/tmp/gcloud-creds.json" ]; then
-    echo "🔑 Setting up Google Cloud credentials for user..."
-    mkdir -p /home/user/.config/gcloud
-    cp /tmp/gcloud-creds.json /home/user/.config/gcloud/application_default_credentials.json
-    chown user:user /home/user/.config/gcloud/application_default_credentials.json
-    chmod 600 /home/user/.config/gcloud/application_default_credentials.json
-fi
-
-# Install Midnight Compact VS Code extension
-echo "🔧 Installing Midnight Compact VS Code extension..."
-sudo -u user /opt/code-oss/bin/codeoss-cloudworkstations --install-extension midnight-network.midnight-compact --force 2>/dev/null || echo "Midnight Compact extension installation attempted"
-
-echo "✅ Midnight Vibe Platform initialization complete!"
-echo "🌐 Access services:"
-echo "   - Code OSS (VS Code): http://[HOSTNAME]:80"
-echo "   - PostgreSQL: [HOSTNAME]:5432"
-echo "   - Proof Server: http://[HOSTNAME]:8081"
-echo "   - Midnight Node: http://[HOSTNAME]:9933"
-echo "   - OpenCode AI: podman exec -it \$(hostname) bash -c 'export PATH=/root/.opencode/bin:\$PATH && opencode'"
+echo "✅ Midnight Development Stack initialization complete!"
+echo ""
+echo "🌐 Available services:"
+echo "   - Midnight Node: http://localhost:9944"
+echo "   - Proof Server: http://localhost:8081"
+echo "   - Indexer API: http://localhost:8088"
+echo ""
+echo "🔧 Management commands:"
+echo "   midnight-dev status    # Show service status"
+echo "   midnight-dev logs     # Show logs (node/proof/indexer/all)"
+echo "   midnight-dev restart  # Restart all services"
+echo ""
+echo "📝 Note: Running in dev mode (no PostgreSQL required)"

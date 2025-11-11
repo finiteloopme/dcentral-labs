@@ -2,8 +2,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONTAINER_NAME="midnight-vibe-platform"
-IMAGE_NAME="midnight-vibe-platform"
+CONTAINER_NAME="midnight-dev-platform"
+IMAGE_NAME="midnight-dev-local"
 
 # Colors for output
 RED='\033[0;31m'
@@ -73,9 +73,11 @@ run_container() {
         --rm \
         --privileged \
         -p 8080:8080 \
-        -p 5433:5432 \
         -p 8081:8081 \
+        -p 8088:8088 \
         -p 9933:9933 \
+        -p 9944:9944 \
+        -e MIDNIGHT_CFG_PRESET=dev \
         -e GOOGLE_VERTEX_PROJECT=${GOOGLE_VERTEX_PROJECT:-} \
         -e GOOGLE_VERTEX_REGION=${GOOGLE_VERTEX_REGION:-us-central1} \
         ${GCREDS_MOUNT} \
@@ -87,8 +89,8 @@ run_container() {
     echo "  - Code OSS (VS Code): http://127.0.0.1:8080"
     echo "  - Midnight Node RPC: http://127.0.0.1:9933"
     echo "  - Midnight Node WS: ws://127.0.0.1:9944"
-    echo "  - PostgreSQL: 127.0.0.1:5433"
     echo "  - Proof Server: http://127.0.0.1:8081"
+    echo "  - Indexer API: http://127.0.0.1:8088"
     echo ""
     echo "To view logs:"
     echo "  $0 logs"
@@ -136,16 +138,8 @@ show_logs() {
     fi
 }
 
-# Create midnight database (helper function)
-create_database() {
-    print_status "Creating midnight database..."
-    if podman ps -q -f name=$CONTAINER_NAME | grep -q .; then
-        podman exec $CONTAINER_NAME bash -c "sudo -u postgres /usr/lib/postgresql/16/bin/createdb midnight 2>/dev/null || true"
-        print_status "Database created (or already exists)."
-    else
-        print_error "Container is not running. Start it with: $0 run"
-    fi
-}
+# Database not needed for dev preset
+# Midnight services run in standalone mode
 
 # Restart services
 restart_services() {
@@ -180,7 +174,7 @@ show_help() {
     echo "  clean       Clean up images and containers"
     echo "  status      Show container status"
     echo "  logs        View container logs"
-    echo "  db          Create midnight database"
+
     echo "  restart     Restart services"
     echo "  exec        Execute command in container"
     echo "  help        Show this help message"
@@ -201,8 +195,6 @@ case "${1:-help}" in
     run)
         check_podman
         run_container
-        sleep 5
-        create_database
         ;;
     stop)
         check_podman
@@ -220,10 +212,7 @@ case "${1:-help}" in
         check_podman
         show_logs
         ;;
-    db)
-        check_podman
-        create_database
-        ;;
+
     restart)
         check_podman
         restart_services
