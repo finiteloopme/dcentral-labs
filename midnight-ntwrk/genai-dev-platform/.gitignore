@@ -174,3 +174,16 @@ Thumbs.db
 midnight-data/
 keystore/
 chainspec.json
+
+# Terraform configuration files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Terraform variables files with sensitive data
+terraform.tfvars
+terraform.tfvars.json
+
+# Cloud Build and deployment logs
+cloudbuild-*.json

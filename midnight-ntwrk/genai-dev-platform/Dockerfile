@@ -66,6 +66,10 @@ RUN sudo chmod +x /etc/workstation-startup.d/200_midnight-services.sh
 COPY config/210_default-ide-settings.sh /etc/workstation-startup.d/210_default-ide-settings.sh
 RUN sudo chmod +x /etc/workstation-startup.d/210_default-ide-settings.sh
 
+# Configure Vertex AI and IDE environment
+COPY config/220_vertex-ide-config.sh /etc/workstation-startup.d/220_vertex-ide-config.sh
+RUN sudo chmod +x /etc/workstation-startup.d/220_vertex-ide-config.sh
+
 # Copy Indexer Config
 COPY config/indexer-config.yaml /tmp/indexer-config.yaml
 COPY config/midnight-node-config.toml /tmp/midnight-node-config.toml

@@ -80,7 +80,7 @@ cat > /home/user/.config/opencode/opencode.json << 'EOF'
       "name": "Google Vertex AI",
       "options": {
         "project": "{env:GOOGLE_VERTEX_PROJECT}",
-        "region": "{env:GOOGLE_VERTEX_REGION}"
+        "region": "{env:GOOGLE_VERTEX_LOCATION}"
       }
     }
   }
@@ -94,13 +94,13 @@ chmod -R 755 /home/user/.config/opencode
 # Set up Google Vertex environment variables for all users
 echo '# Google Vertex AI environment variables for OpenCode' >> /etc/bash.bashrc
 echo 'export GOOGLE_VERTEX_PROJECT="${GOOGLE_VERTEX_PROJECT:-}"' >> /etc/bash.bashrc
-echo 'export GOOGLE_VERTEX_REGION="${GOOGLE_VERTEX_REGION:-us-central1}"' >> /etc/bash.bashrc
+echo 'export GOOGLE_VERTEX_LOCATION="${GOOGLE_VERTEX_LOCATION:-global}"' >> /etc/bash.bashrc
 echo '' >> /etc/bash.bashrc
 
 # Also add to /etc/profile for non-interactive shells
 echo '# Google Vertex AI environment variables for OpenCode' >> /etc/profile
 echo 'export GOOGLE_VERTEX_PROJECT="${GOOGLE_VERTEX_PROJECT:-}"' >> /etc/profile
-echo 'export GOOGLE_VERTEX_REGION="${GOOGLE_VERTEX_REGION:-us-central1}"' >> /etc/profile
+echo 'export GOOGLE_VERTEX_LOCATION="${GOOGLE_VERTEX_LOCATION:-global}"' >> /etc/profile
 echo '' >> /etc/profile
 
 # Copy mounted credentials to user's gcloud config if they exist
