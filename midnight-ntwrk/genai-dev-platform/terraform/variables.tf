@@ -80,6 +80,14 @@ variable "additional_dns_records" {
   default = []
 }
 
+variable "workstations" {
+  description = "Map of workstations to create with their associated users"
+  type        = map(object({
+    user = string
+  }))
+  default     = {}
+}
+
 variable "cloudbuild_service_account" {
   description = "Cloud Build service account email"
   type        = string

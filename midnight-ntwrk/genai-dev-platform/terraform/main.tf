@@ -66,6 +66,7 @@ module "workstations" {
   registry_url = module.registry.registry_url
 
   workstation_config = var.workstation_config
+  workstations       = var.workstations
 
   depends_on = [
     google_project_service.apis,
