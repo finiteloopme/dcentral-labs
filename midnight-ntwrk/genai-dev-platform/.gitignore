@@ -182,8 +182,8 @@ chainspec.json
 .terraform.lock.hcl
 
 # Terraform variables files with sensitive data
-terraform.tfvars
-terraform.tfvars.json
+# terraform.tfvars
+# terraform.tfvars.json
 
 # Cloud Build and deployment logs
 cloudbuild-*.json
