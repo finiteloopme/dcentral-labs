@@ -19,7 +19,7 @@ resource "google_dns_managed_zone" "workstation_zone" {
 
 # A record for workstation access
 resource "google_dns_record_set" "workstation_a_record" {
-  count = var.enable_dns && var.workstation_ip != "" ? 1 : 0
+  count = var.enable_dns ? 1 : 0
 
   name         = google_dns_managed_zone.workstation_zone[0].dns_name
   type         = "A"
@@ -31,7 +31,7 @@ resource "google_dns_record_set" "workstation_a_record" {
 
 # Wildcard record for subdomain access (e.g., *.midnight-dev.example.com)
 resource "google_dns_record_set" "workstation_wildcard_record" {
-  count = var.enable_dns && var.workstation_ip != "" ? 1 : 0
+  count = var.enable_dns ? 1 : 0
 
   name         = "*.${google_dns_managed_zone.workstation_zone[0].dns_name}"
   type         = "A"

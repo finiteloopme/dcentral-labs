@@ -34,3 +34,6 @@
 [submodule "midnight-ntwrk/proof-of-ownership/foundry/lib/openzeppelin-contracts"]
 	path = midnight-ntwrk/proof-of-ownership/foundry/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "midnight-ntwrk/privacy-preserving-defi/contracts/lib/openzeppelin-contracts"]
+	path = midnight-ntwrk/privacy-preserving-defi/contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
