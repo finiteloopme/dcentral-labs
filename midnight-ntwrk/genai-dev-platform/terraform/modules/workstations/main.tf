@@ -113,7 +113,7 @@ resource "google_workstations_workstation_config" "config" {
 
   container {
     # Use our custom Midnight workstation image
-    image = "${var.registry_url}/workstation:latest"
+    image = "${var.region}-docker.pkg.dev/${var.project_id}/midnight-${var.environment}-workstation-images/midnight-workstation:latest"
 
     env = {
       MIDNIGHT_ENV             = var.environment
@@ -145,26 +145,24 @@ resource "google_workstations_workstation_config" "config" {
   }
 }
 
-# Create a sample workstation (optional for MVP)
-resource "google_workstations_workstation" "developer" {
+# Create workstations
+resource "google_workstations_workstation" "workstations" {
+  for_each = var.workstations
+  
   provider               = google-beta
-  workstation_id         = "midnight-developer-1"
+  workstation_id         = "midnight-${each.key}"
   workstation_config_id  = google_workstations_workstation_config.config.workstation_config_id
   workstation_cluster_id = google_workstations_workstation_cluster.cluster.workstation_cluster_id
   location               = var.region
   project                = var.project_id
 
-  display_name = "Midnight Developer Workstation 1"
+  display_name = "Midnight Workstation - ${each.value.user}"
 
   labels = {
     environment = var.environment
     project     = "midnight"
+    user        = replace(each.value.user, "@", "_")
     type        = "developer"
-  }
-
-  annotations = {
-    created_by = "terraform"
-    purpose    = "mvp-demo"
   }
 
   lifecycle {
