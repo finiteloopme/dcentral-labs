@@ -161,7 +161,7 @@ resource "google_workstations_workstation" "workstations" {
   labels = {
     environment = var.environment
     project     = "midnight"
-    user        = replace(replace(each.value.user, "@", "_"), ".", "_")
+    user        = replace(each.value.user, "/[^a-zA-Z0-9_-]/", "_")
     type        = "developer"
   }
 
