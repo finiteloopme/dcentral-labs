@@ -1,0 +1,28 @@
+steps:
+# 1. Terraform Init
+- id: 'tf-init'
+  name: 'hashicorp/terraform:1.9'
+  entrypoint: 'sh'
+  args: 
+  - '-c'
+  - |
+    cd terraform
+    terraform init -backend-config="bucket=${_TF_STATE_BUCKET}"
+
+# 2. Terraform Apply
+- id: 'tf-apply'
+  name: 'hashicorp/terraform:1.9'
+  entrypoint: 'sh'
+  args: 
+  - '-c'
+  - |
+    cd terraform
+    terraform apply -auto-approve \
+      -var="project_id=${PROJECT_ID}" \
+      -var="region=${_REGION}"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _REGION: "us-east4"

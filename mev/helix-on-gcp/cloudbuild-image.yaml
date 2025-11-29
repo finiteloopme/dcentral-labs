@@ -1,0 +1,19 @@
+steps:
+# 1. Build Helix from Source (Ensure we have the latest binary)
+- id: 'build-helix'
+  name: 'gcr.io/cloud-builders/docker'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    # Check if directory exists to avoid error on re-run
+    if [ ! -d "helix" ]; then
+      git clone https://github.com/gattaca-com/helix.git
+    fi
+    cd helix
+    # Use the relay dockerfile provided by the repo
+    docker build -f relay.Dockerfile -t gcr.io/${PROJECT_ID}/helix:benchmark .
+    docker push gcr.io/${PROJECT_ID}/helix:benchmark
+
+options:
+  logging: CLOUD_LOGGING_ONLY
