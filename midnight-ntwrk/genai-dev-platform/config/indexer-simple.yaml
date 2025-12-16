@@ -1,8 +1,0 @@
-logLevel: INFO
-server:
-  port: 8088
-  host: "0.0.0.0"
-database:
-  url: "/home/user/midnight-dev/data/pubsub-indexer.sqlite"
-  vendor: sqlite
-network_id: "TestNet"

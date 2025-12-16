@@ -1,0 +1,27 @@
+version: '3'
+services:
+  proof-server:
+    image: midnightnetwork/proof-server:latest
+    command: "midnight-proof-server --network standalone"
+    ports: ["6300:6300"]
+    network_mode: host # Easiest for Podman to share localhost
+
+  node:
+    image: midnightnetwork/node:latest
+    command: ["--chain=standalone", "--alice", "--tmp", "--ws-external", "--rpc-cors=all"]
+    ports: ["9944:9944"]
+    network_mode: host
+
+  indexer:
+    image: midnightnetwork/indexer:latest
+    command: "--node-ws ws://localhost:9944 --postgres postgres://postgres:password@localhost:5432/midnight"
+    network_mode: host
+    depends_on: [node, db]
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: midnight
+    ports: ["5432:5432"]
+    network_mode: host

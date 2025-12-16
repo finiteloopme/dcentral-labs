@@ -1,0 +1,8 @@
+version: '3'
+services:
+  proof-server:
+    image: midnightnetwork/proof-server:latest
+    # The command is injected via environment variable in the startup script
+    command: "midnight-proof-server --network ${MIDNIGHT_NETWORK_FLAG}" 
+    ports: ["6300:6300"]
+    network_mode: host
