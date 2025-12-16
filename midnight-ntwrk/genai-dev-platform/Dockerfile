@@ -22,7 +22,8 @@ RUN /tmp/container-scripts/install/podman.sh && \
     /tmp/container-scripts/install/compact.sh && \
     /tmp/container-scripts/configure/codeoss.sh && \
     cp /tmp/container-scripts/profile.d/* /etc/profile.d/ && \
-    chmod +x /etc/profile.d/compact.sh && \
+    cp /tmp/container-scripts/bin/* /usr/local/bin/ && \
+    chmod +x /etc/profile.d/*.sh /usr/local/bin/welcome && \
     rm -rf /tmp/container-scripts
 
 # Fix home directory ownership (ubuntu user exists in base image)
