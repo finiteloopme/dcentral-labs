@@ -8,9 +8,11 @@ output "config_id" {
   value       = google_workstations_workstation_config.config.id
 }
 
-output "workstation_url" {
-  description = "URL to access the workstation"
-  value       = google_workstations_workstation.developer.host
+output "workstation_urls" {
+  description = "URLs to access the workstations"
+  value       = {
+    for k, v in google_workstations_workstation.workstations : k => v.host
+  }
 }
 
 output "cluster_name" {

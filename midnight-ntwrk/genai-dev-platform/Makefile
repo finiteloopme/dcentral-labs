@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: build run stop clean status logs help db restart exec deploy undeploy ws-start ws-stop ws-open ws-tunnel
+.PHONY: build run stop clean status logs help db restart exec deploy undeploy ws-start ws-stop ws-open ws-tunnel build-image
 
 # ============================================================================
 # MAIN COMMANDS
@@ -10,8 +10,6 @@
 build run stop clean status logs db restart exec:
 	@./scripts/local.sh $(firstword $(MAKECMDGOALS)) $(filter-out $@,$(MAKECMDGOALS))
 
-
-
 # Deploy to Google Cloud using configured environment variables
 deploy:
 	@./scripts/gcloud-commands.sh deploy
@@ -20,6 +18,10 @@ deploy:
 undeploy:
 	@./scripts/gcloud-commands.sh undeploy
 
+# Build and push workstation container image
+build-image:
+	@./scripts/gcloud-commands.sh build-image $(WORKSTATION_ID)
+
 # ============================================================================
 # WORKSTATION COMMANDS
 # ============================================================================
@@ -27,6 +29,10 @@ undeploy:
 # Start workstation
 ws-start:
 	@./scripts/gcloud-commands.sh ws-start $(WORKSTATION_ID)
+
+# Restart workstation
+ws-restart:
+	@./scripts/gcloud-commands.sh ws-restart $(WORKSTATION_ID)
 
 # Stop workstation
 ws-stop:
@@ -55,6 +61,7 @@ help:
 	@echo "$(YELLOW)Quick Start:$(NC)"
 	@echo "  $(GREEN)deploy$(NC)        - Deploy to Google Cloud"
 	@echo "  $(GREEN)undeploy$(NC)      - Destroy all cloud resources"
+	@echo "  $(GREEN)build-image$(NC)   - Build and push workstation image"
 	@echo "  $(GREEN)run-local$(NC)     - Run locally (secure mode)"
 	@echo ""
 

@@ -23,6 +23,53 @@ check_project() {
     fi
 }
 
+# Build and push container image
+build_image() {
+    check_project
+    local WORKSTATION_ID="${2:-}"
+    local IMAGE_NAME="${3:-midnight-workstation}"
+    
+    echo -e "${GREEN}Building and pushing container image...${NC}"
+    echo "  Project: $PROJECT_ID"
+    echo "  Region: $REGION"
+    echo "  Environment: $ENV"
+    echo "  Image: $IMAGE_NAME"
+    
+    if [ -n "$WORKSTATION_ID" ]; then
+        echo "  Workstation to update: $WORKSTATION_ID"
+    fi
+    echo ""
+    
+    # Prepare substitutions
+    SUBSTITUTIONS="_PROJECT_ID=$PROJECT_ID,_REGION=$REGION,_ENVIRONMENT=$ENV,_IMAGE_NAME=$IMAGE_NAME"
+    
+    if [ -n "$WORKSTATION_ID" ]; then
+        SUBSTITUTIONS="$SUBSTITUTIONS,_WORKSTATION_ID=$WORKSTATION_ID"
+    fi
+    
+# Submit build
+    gcloud builds submit \
+        --config=cicd/cloudbuild/cloudbuild-image.yaml \
+        --substitutions="$SUBSTITUTIONS" \
+        --project="$PROJECT_ID" \
+        --region="$REGION" \
+        --timeout=1200
+    
+    echo -e "${GREEN}Container build and push completed!${NC}"
+    
+    if [ -n "$WORKSTATION_ID" ]; then
+        echo -e "${GREEN}Workstation $WORKSTATION_ID updated with new image${NC}"
+    else
+        echo -e "${GREEN}Next steps:${NC}"
+        echo "  1. Restart workstations to pick up latest image:"
+        echo "     $0 ws-stop [workstation-id]"
+        echo "     $0 ws-start [workstation-id]"
+        echo ""
+        echo "  2. Or update specific workstation during build:"
+        echo "     $0 build-image [workstation-id]"
+    fi
+}
+
 # Deploy to Google Cloud
 deploy() {
     check_project
@@ -82,6 +129,12 @@ workstation_stop() {
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --quiet
+}
+
+# Restart workstation
+workstation_restart(){
+    workstation_stop
+    workstation_start
 }
 
 # Create tunnel to workstation
@@ -155,6 +208,9 @@ case "$1" in
     undeploy)
         undeploy
         ;;
+    build-image)
+        build_image "$@"
+        ;;
     ws-start)
         workstation_start "$@"
         ;;
@@ -167,15 +223,19 @@ case "$1" in
     ws-open)
         workstation_open "$@"
         ;;
+    ws-restart)
+        workstation_restart "$@"
+        ;;
     status)
         workstation_status "$@"
         ;;
     *)
-        echo "Usage: $0 {deploy|undeploy|ws-start|ws-stop|ws-tunnel|ws-open|status} [workstation-id]"
+        echo "Usage: $0 {deploy|undeploy|build-image|ws-start|ws-stop|ws-tunnel|ws-open|status} [workstation-id]"
         echo ""
         echo "Commands:"
         echo "  deploy                    - Deploy to Google Cloud"
         echo "  undeploy                  - Destroy all cloud resources"
+        echo "  build-image [ws-id]       - Build and push container image (optional: update workstation)"
         echo "  ws-start [workstation-id] - Start workstation (default: midnight-developer-1)"
         echo "  ws-stop [workstation-id]  - Stop workstation (default: midnight-developer-1)"
         echo "  ws-tunnel [workstation-id] - Create tunnel to Code OSS (default: midnight-developer-1)"
@@ -183,11 +243,13 @@ case "$1" in
         echo "  status [workstation-id]   - Show deployment status (default: midnight-developer-1)"
         echo ""
         echo "Examples:"
-        echo "  $0 ws-start                    # Start default workstation"
-        echo "  $0 ws-start developer-2        # Start specific workstation"
-        echo "  $0 ws-stop developer-3         # Stop specific workstation"
-        echo "  $0 ws-open                     # Open default workstation in browser"
-        echo "  $0 ws-open developer-2         # Open specific workstation in browser"
+        echo "  $0 build-image                    # Build and push image only"
+        echo "  $0 build-image developer-2         # Build and update specific workstation"
+        echo "  $0 ws-start                       # Start default workstation"
+        echo "  $0 ws-start developer-2            # Start specific workstation"
+        echo "  $0 ws-stop developer-3             # Stop specific workstation"
+        echo "  $0 ws-open                        # Open default workstation in browser"
+        echo "  $0 ws-open developer-2             # Open specific workstation in browser"
         exit 1
         ;;
 esac

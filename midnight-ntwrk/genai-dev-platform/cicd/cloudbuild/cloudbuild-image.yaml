@@ -1,0 +1,77 @@
+# Cloud Build configuration for container image only
+# This file builds and pushes the workstation container image to Artifact Registry
+
+# Substitutions can be provided via triggers or command line
+substitutions:
+  _ENVIRONMENT: 'dev'
+  _REGION: 'us-central1'
+  _IMAGE_NAME: 'midnight-workstation'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'
+  machineType: 'E2_HIGHCPU_32'
+
+# Use user-managed service account for Cloud Build
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Build steps
+steps:
+  # Step 1: Build container image
+  - id: 'build-image'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/${_IMAGE_NAME}:latest'
+      - '.'
+    waitFor: ['-']
+
+  # Step 2: Push container with BUILD_ID tag
+  # - id: 'push-versioned'
+  #   name: 'gcr.io/cloud-builders/docker'
+  #   args:
+  #     - 'push'
+  #     - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/${_IMAGE_NAME}:${BUILD_ID}'
+  #   waitFor: ['build-image']
+
+  # Step 3: Push container with latest tag
+  - id: 'push-latest'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/${_IMAGE_NAME}:latest'
+    waitFor: ['build-image']
+
+  # Step 4: Update workstation image tag (optional - requires gcloud)
+  - id: 'update-workstation'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        # Only update if WORKSTATION_ID is provided
+        if [ -n "${_WORKSTATION_ID}" ]; then
+          echo "Updating workstation ${_WORKSTATION_ID} to use new image..."
+          gcloud workstations update ${_WORKSTATION_ID} \
+            --cluster=${_WORKSTATION_CLUSTER:-midnight-cluster} \
+            --region=${_REGION} \
+            --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/midnight-${_ENVIRONMENT}-workstation-images/${_IMAGE_NAME}:latest \
+            --quiet
+          echo "Workstation updated successfully!"
+        else
+          echo "No workstation ID provided. To update a workstation, set _WORKSTATION_ID"
+          echo "Example: gcloud builds submit --config=cloudbuild-image.yaml --substitutions=_WORKSTATION_ID=my-workstation"
+        fi
+    waitFor: ['push-latest']
+    # waitFor: ['push-versioned', 'push-latest']
+
+# Set timeout for entire build
+timeout: '1200s'
+
+# Tags for organizing builds
+tags:
+  - 'container'
+  - 'workstation'
+  - 'midnight-platform'
+  - '${_ENVIRONMENT}'

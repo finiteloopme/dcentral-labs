@@ -44,4 +44,12 @@ variable "workstation_config" {
   })
 }
 
+variable "workstations" {
+  description = "Map of workstations with their associated user"
+  type = map(object({
+    user = string
+  }))
+  default = {}
+}
+
 

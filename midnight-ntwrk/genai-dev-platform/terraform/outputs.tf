@@ -8,9 +8,9 @@ output "workstation_config_id" {
   value       = module.workstations.config_id
 }
 
-output "workstation_url" {
-  description = "URL to access the workstation"
-  value       = module.workstations.workstation_url
+output "workstation_urls" {
+  description = "URLs to access the workstations"
+  value       = module.workstations.workstation_urls
 }
 
 output "registry_url" {

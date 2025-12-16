@@ -10,7 +10,7 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'
+  machineType: 'E2_HIGHCPU_32'
 
 # Use user-managed service account for Cloud Build
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com'

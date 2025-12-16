@@ -40,6 +40,92 @@ git config --global user.email "developer@midnight.dev"
 echo 'alias ll="ls -la"' >> ~/.bashrc
 echo 'alias midnight-status="gcloud workstations list --region=$GOOGLE_VERTEX_LOCATION"' >> ~/.bashrc
 
+# Configure OpenCode for all users
+echo "🔧 Configuring OpenCode for Midnight development..."
+
+# Create OpenCode config directory
+mkdir -p ~/.config/opencode
+
+# Copy OpenCode configuration template
+if [ -f "/tmp/midnight-config/opencode-config-template.json" ]; then
+    cp /tmp/midnight-config/opencode-config-template.json ~/.config/opencode/config.json
+    echo "✅ OpenCode configuration installed"
+else
+    echo "⚠️  OpenCode configuration template not found, creating default..."
+    # Create default configuration if template not available
+    cat > ~/.config/opencode/config.json << 'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "opencode",
+  "autoupdate": true,
+  "provider": {
+    "google-vertex-anthropic": {
+      "options": {
+        "project": "{env:GOOGLE_VERTEX_PROJECT}",
+        "location": "global"
+      }
+    },
+    "google-vertex": {
+      "options": {
+        "project": "{env:GOOGLE_VERTEX_PROJECT}",
+        "location": "global"
+      }
+    }
+  },
+  "instructions": [
+    "You are an expert Web3, blockchain security, and Midnight Network developer with deep knowledge of:",
+    "- Smart contract development and security best practices",
+    "- Zero-knowledge proofs and privacy-preserving technologies",
+    "- Midnight's Compact language and circuit development",
+    "- DApp architecture and decentralized systems",
+    "- Cryptographic protocols and implementations",
+    "",
+    "When working with Midnight projects:",
+    "- Prioritize security and privacy in all implementations",
+    "- Follow Midnight's best practices for circuit design",
+    "- Ensure proper use of @shielded decorators for private state",
+    "- Implement comprehensive tests for circuits and proofs",
+    "- Consider gas optimization and proof generation efficiency"
+  ]
+}
+EOF
+fi
+
+# Verify OpenCode is available and configured
+if command -v opencode &> /dev/null; then
+    echo "✅ OpenCode is available at: $(which opencode)"
+    echo "✅ OpenCode version: $(opencode --version 2>/dev/null || echo 'unknown')"
+    
+    # Test OpenCode configuration
+    if [ -f "$HOME/.config/opencode/config.json" ]; then
+        echo "✅ OpenCode configuration found at: $HOME/.config/opencode/config.json"
+        
+        # Validate configuration syntax
+        if python3 -m json.tool "$HOME/.config/opencode/config.json" > /dev/null 2>&1; then
+            echo "✅ OpenCode configuration is valid JSON"
+        else
+            echo "⚠️  OpenCode configuration has JSON syntax errors"
+        fi
+    else
+        echo "⚠️  OpenCode configuration not found"
+    fi
+else
+    echo "⚠️  OpenCode not found in PATH"
+fi
+
+# Set OpenCode environment variables for current session
+export OPENCODE_CONFIG_DIR="$HOME/.config/opencode"
+echo "✅ OpenCode configuration directory: $OPENCODE_CONFIG_DIR"
+
+# Add OpenCode to user's bashrc if not already present
+if ! grep -q "opencode" ~/.bashrc; then
+    echo "" >> ~/.bashrc
+    echo "# OpenCode AI Assistant" >> ~/.bashrc
+    echo 'export PATH="/usr/local/opencode:\$PATH"' >> ~/.bashrc
+    echo 'export OPENCODE_CONFIG_DIR="$HOME/.config/opencode"' >> ~/.bashrc
+    echo "✅ OpenCode environment variables added to ~/.bashrc"
+fi
+
 # Display environment summary
 echo ""
 echo "🚀 Midnight Development Environment Ready!"

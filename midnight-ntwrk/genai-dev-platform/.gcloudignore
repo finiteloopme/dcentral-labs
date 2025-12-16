@@ -1,0 +1,16 @@
+# Exclude files that aren't needed for container build
+.git
+.gitignore
+.env
+.env.*
+*.log
+test-*
+.DS_Store
+node_modules
+terraform/.terraform
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfplan
+terraform/terraform.tfplan.*
+*.tar.gz
+*.zip

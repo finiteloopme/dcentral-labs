@@ -6,7 +6,7 @@ A vibe coding platform for Midnight Network that leverages OpenCode TUI, Vertex 
 
 The Midnight Development Platform creates a comprehensive development environment that includes:
 
-- **OpenCode TUI** - Terminal-based code editor with AI integration
+- **OpenCode TUI** - Terminal-based code editor with AI integration (pre-configured)
 - **Vertex AI Integration** - Access to Google's AI models for intelligent code assistance
 - **Google Cloud Workstations** - Managed development environments in the cloud
 - **Local Development** - Full local development setup using Podman
@@ -23,11 +23,13 @@ genai-dev-platform/
 ├── config/                       # Configuration files
 │   ├── 110_start-code-oss-custom.sh    # Code OSS startup
 │   ├── 120_code-oss-port-config.sh     # Port configuration
-│   ├── 200_midnight-services.sh        # Midnight network services
-│   ├── 210_default-ide-settings.sh    # Default IDE settings
+│   ├── 130_vscode-extensions.sh        # VS Code extensions
 │   ├── 220_vertex-ide-config.sh        # Vertex AI integration
-│   ├── indexer-config.yaml             # Indexer configuration
-│   └── midnight-node-config.toml       # Node configuration
+│   ├── 230_opencode-user-config.sh     # OpenCode user configuration
+│   ├── 300_midnight-setup.sh           # Midnight platform setup
+│   ├── 400_midnight-dev-helper.sh      # Midnight Developer Helper
+│   ├── midnight-dev                    # System-wide CLI command
+│   └── indexer-simple.yaml             # Indexer configuration
 ├── docs/                         # Documentation
 │   ├── container-customization.md      # Container setup guide
 │   ├── gcp-deployment.md               # GCP deployment guide
@@ -88,6 +90,55 @@ make ws-open
 make ws-tunnel
 ```
 
+### 🌙 Midnight Developer Helper
+
+The platform includes a comprehensive CLI tool for Midnight development:
+
+```bash
+# Show help and available commands
+midnight-dev help
+
+# Create a new Midnight project from template
+midnight-dev create my-bboard
+
+# Build current project (contract, CLI, UI)
+midnight-dev build
+
+# Deploy contract to testnet
+midnight-dev deploy
+
+# Wallet management
+midnight-dev wallet create
+midnight-dev wallet balance
+midnight-dev wallet address
+
+# Start proof server for current project
+midnight-dev start-proof-server
+
+# Show project and services status
+midnight-dev status
+
+# List all Midnight projects
+midnight-dev list
+
+# Enter interactive mode
+midnight-dev interactive
+
+# Check prerequisites
+midnight-dev check
+```
+
+#### Project Structure Created by Helper
+
+```
+~/midnight-projects/
+├── my-project/
+│   ├── contract/          # Compact smart contract
+│   ├── bboard-cli/        # Command-line interface
+│   ├── bboard-ui/         # Web interface
+│   └── .midnight-config  # Project configuration
+```
+
 ### 🏠 Local Development
 
 ```bash
@@ -126,6 +177,7 @@ make exec <command>
 - Google Cloud SDK installed and configured
 - Podman for local development
 - Appropriate GCP permissions for workstation creation
+- Node.js LTS, Docker, and Compact compiler (for Midnight development)
 
 ### 2. Environment Setup
 
@@ -142,10 +194,20 @@ Required environment variables:
 - `REGION` - GCP region (default: us-central1)
 - `ENVIRONMENT` - Environment label (default: dev)
 
-### 3. Deploy to Google Cloud
+### 3. Build Container Image (Optional)
 
 ```bash
-# Deploy the entire platform
+# Build and push workstation container image
+make build-image
+
+# Build and update specific workstation
+make build-image WORKSTATION_ID=midnight-developer-1
+```
+
+### 4. Deploy to Google Cloud
+
+```bash
+# Deploy entire platform
 make deploy
 
 # This will:
@@ -155,7 +217,7 @@ make deploy
 # - Set up Vertex AI integration
 ```
 
-### 4. Access Your Workstation
+### 5. Access Your Workstation
 
 After deployment, access your workstation at:
 ```
@@ -176,6 +238,33 @@ make run
 # - Midnight Network development tools
 # - Vertex AI model access
 # - Local development services
+```
+
+### Midnight Development Workflow
+
+```bash
+# Once inside the workstation:
+
+# 1. Create a new Midnight project
+midnight-dev create my-dapp
+
+# 2. Navigate to project
+cd ~/midnight-projects/my-dapp
+
+# 3. Start proof server (required for deployment)
+midnight-dev start-proof-server
+
+# 4. Create wallet
+midnight-dev wallet create
+
+# 5. Build project
+midnight-dev build
+
+# 6. Deploy contract
+midnight-dev deploy
+
+# 7. Check status
+midnight-dev status
 ```
 
 ### 🌙 Midnight Development Stack
@@ -200,6 +289,33 @@ midnight-dev restart    # Restart all services
 
 **Database Connection:**
 - Host: localhost
+
+### 🛠️ Development Tools
+
+**OpenCode AI Assistant:**
+- Pre-configured with Vertex AI integration
+- Midnight Network expert instructions
+- Automatic configuration for all users
+- Available at `/usr/local/opencode/opencode`
+
+**VS Code Extensions:**
+- Midnight Compact v0.2.13 - Smart contract development
+- TypeScript Next JS - Enhanced TypeScript support
+- Rust Analyzer - Rust development
+- C++ Extension Pack - C/C++ development
+
+**Midnight Developer Helper:**
+- Project creation from templates
+- Automated build and deployment
+- Wallet management
+- Proof server integration
+- Interactive development mode
+
+**OpenCode Configuration:**
+- System-wide configuration at `/etc/opencode/config.json`
+- User-specific configuration at `~/.config/opencode/config.json`
+- Automatic setup on workstation startup
+- Vertex AI providers pre-configured with project variables
 - Port: 5432
 - User: postgres
 - Password: (no password required)
@@ -263,11 +379,48 @@ The container image (`Dockerfile`) includes:
 - [Terraform Modules](docs/terraform-modules.md) - Infrastructure modules
 - [OpenCode Access](docs/opencode-access.md) - Code editor access guide
 
+## 🔄 Improvements
+
+### Architecture Considerations
+
+The current implementation uses a **hybrid approach** that balances development speed with Cloud Workstations best practices:
+
+**Current Approach (Pragmatic Balance):**
+- ✅ **Fast local builds** - System dependencies cached in Docker layers
+- ✅ **Quick workstation startup** - Midnight services pre-installed and ready
+- ✅ **Proper Cloud Workstations integration** - Runtime configuration via startup scripts
+- ❌ **Larger container image** (~2-3GB with all dependencies)
+
+**Alternative (Strict Cloud Workstations Guide):**
+Following the [Google Cloud Workstations customization guide](https://docs.cloud.google.com/workstations/docs/customize-container-images) strictly would involve:
+
+```dockerfile
+# Minimal Dockerfile - just copy setup scripts
+COPY scripts/install-midnight-deps.sh /etc/workstation-startup.d/400_install-midnight-deps.sh
+# All heavy installation (Java, Rust, Midnight binaries) happens at workstation startup
+```
+
+**Trade-offs:**
+- **Build Time**: Current approach (~2-3 minutes) vs. Strict approach (~10-15 minutes every build)
+- **Startup Time**: Current approach (~30 seconds) vs. Strict approach (~5-10 minutes first boot)
+- **Image Size**: Current approach (~2-3GB) vs. Strict approach (~500MB base)
+- **Dependency Freshness**: Current approach (cached) vs. Strict approach (always latest)
+
+**Recommendation:**
+The current hybrid approach is recommended for development workflows where:
+- Fast iteration is required
+- Consistent dependency versions are preferred
+- Quick workstation startup is important
+- Build cache efficiency matters
+
+For production environments where image size and always-latest dependencies are critical, consider moving Midnight dependency installation to a `400_install-midnight-deps.sh` startup script, accepting the longer build and startup times.
+
 ## 🌟 Features
 
 - **AI-Powered Development**: Vertex AI integration for intelligent coding assistance
 - **Cloud-Based Workstations**: Managed development environments with Google Cloud Workstations
 - **Terminal-Based Editor**: OpenCode TUI for efficient coding
+- **VS Code Extensions**: Pre-installed Midnight Compact and development extensions
 - **Complete Midnight Stack**: Integrated proof server, node, indexer, and PostgreSQL
 - **Blockchain Development**: Specialized tools for Midnight Network development
 - **Local Development**: Full local development environment with Docker/Podman

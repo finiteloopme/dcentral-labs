@@ -3,7 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTAINER_NAME="midnight-dev-platform"
-IMAGE_NAME="midnight-dev-local"
+IMAGE_NAME="midnight-vibe-platform:refactored"
 
 # Colors for output
 RED='\033[0;31m'

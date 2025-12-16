@@ -1,1 +1,0 @@
-proof-service-manager.sh
