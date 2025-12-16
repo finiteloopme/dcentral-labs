@@ -1,0 +1,119 @@
+# Cloud Build configuration for Midnight GenAI Development Platform
+#
+# This pipeline:
+# 1. Builds the dev container image
+# 2. Pushes to Artifact Registry
+# 3. Runs Terraform to deploy infrastructure
+#
+# Usage:
+#   gcloud builds submit --config=cloudbuild.yaml \
+#     --substitutions=_PROJECT_ID=$PROJECT_ID,_STATE_BUCKET=$STATE_BUCKET,...
+
+substitutions:
+  _PROJECT_ID: ${PROJECT_ID}
+  _REGION: us-central1
+  _STATE_BUCKET: ${STATE_BUCKET}
+  _CLUSTER_NAME: midnight-dev
+  _IMAGE_NAME: midnight-dev-platform
+  _IMAGE_TAG: latest
+  _ENVIRONMENT: dev
+  _MIN_INSTANCES: "1"
+  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:latest-main
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:latest
+  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:latest
+  _MACHINE_TYPE: e2-standard-4
+  _PERSISTENT_DISK_SIZE_GB: "100"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # Step 1: Build the dev container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${SHORT_SHA}'
+      - '.'
+
+  # Step 2: Push image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}'
+    waitFor: ['build-image']
+
+  # Step 3: Initialize Terraform
+  - name: 'hashicorp/terraform:1.6'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${_STATE_BUCKET}" \
+          -backend-config="prefix=terraform/state"
+    waitFor: ['-']  # Can run in parallel with build
+
+  # Step 4: Terraform Plan
+  - name: 'hashicorp/terraform:1.6'
+    id: 'tf-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform plan \
+          -var="project_id=${_PROJECT_ID}" \
+          -var="region=${_REGION}" \
+          -var="cluster_name=${_CLUSTER_NAME}" \
+          -var="environment=${_ENVIRONMENT}" \
+          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+          -var="min_instances=${_MIN_INSTANCES}" \
+          -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
+          -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
+          -var="indexer_image=${_INDEXER_IMAGE}" \
+          -var="machine_type=${_MACHINE_TYPE}" \
+          -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
+          -out=tfplan
+    waitFor: ['tf-init', 'push-image']
+
+  # Step 5: Terraform Apply
+  - name: 'hashicorp/terraform:1.6'
+    id: 'tf-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform apply -auto-approve tfplan
+    waitFor: ['tf-plan']
+
+  # Step 6: Output service URLs
+  - name: 'hashicorp/terraform:1.6'
+    id: 'tf-output'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        echo "=========================================="
+        echo "Deployment Complete!"
+        echo "=========================================="
+        terraform output -json
+    waitFor: ['tf-apply']
+
+# Build timeout (30 minutes)
+timeout: 1800s
+
+# Images to be pushed
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${SHORT_SHA}'

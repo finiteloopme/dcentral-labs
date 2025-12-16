@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# Welcome script for Midnight Development Environment
+# Displays service URLs and tool versions
+#
+
+# Colors
+BOLD='\033[1m'
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RESET='\033[0m'
+
+# Detect environment
+if curl -s -m 1 metadata.google.internal > /dev/null 2>&1; then
+    ENV_MODE="Google Cloud Workstations"
+    EDITOR_PORT=80
+else
+    ENV_MODE="Local Development"
+    EDITOR_PORT=${EDITOR_PORT:-8080}
+fi
+
+# Get versions (suppress errors for missing tools)
+COMPACT_VERSION=$(compact --version 2>/dev/null | head -1 || echo "not installed")
+NODE_VERSION=$(node --version 2>/dev/null || echo "not installed")
+
+# Get service URLs from environment
+MIDNIGHT_NODE="${MIDNIGHT_NODE_URL:-ws://localhost:9944}"
+PROOF_SERVER="${PROOF_SERVER_URL:-http://localhost:6300}"
+INDEXER="${INDEXER_URL:-http://localhost:8081}"
+NETWORK="${MIDNIGHT_NETWORK:-standalone}"
+
+# Header
+echo ""
+echo -e "${BOLD}================================================================================${RESET}"
+echo -e "${BOLD}${CYAN}                    Midnight Development Environment${RESET}"
+echo -e "${BOLD}================================================================================${RESET}"
+echo ""
+
+# Services
+echo -e "${BOLD}Services (${NETWORK}):${RESET}"
+echo -e "  ${GREEN}Code OSS Editor${RESET}    http://localhost:${EDITOR_PORT}"
+echo -e "  ${GREEN}Midnight Node${RESET}      ${MIDNIGHT_NODE}"
+echo -e "  ${GREEN}Proof Server${RESET}       ${PROOF_SERVER}"
+echo -e "  ${GREEN}Indexer${RESET}            ${INDEXER}"
+echo ""
+
+# Tools
+echo -e "${BOLD}Tools:${RESET}"
+printf "  ${GREEN}%-18s${RESET} %s\n" "compact" "$COMPACT_VERSION"
+printf "  ${GREEN}%-18s${RESET} %s\n" "node" "$NODE_VERSION"
+printf "  ${GREEN}%-18s${RESET} %s\n" "midnightctl" "$(midnightctl --version 2>/dev/null || echo 'installed')"
+echo ""
+
+# Environment
+echo -e "${BOLD}Environment:${RESET}"
+echo -e "  ${YELLOW}Mode${RESET}               $ENV_MODE"
+echo -e "  ${YELLOW}Network${RESET}            $NETWORK"
+echo -e "  ${YELLOW}User${RESET}               $(whoami)"
+echo -e "  ${YELLOW}Workspace${RESET}          ${HOME}"
+echo ""
+
+# Quick commands
+echo -e "${BOLD}Quick Commands:${RESET}"
+echo -e "  ${CYAN}midnightctl init <name>${RESET}     Create a new project"
+echo -e "  ${CYAN}midnightctl compile${RESET}         Compile Compact contracts"
+echo -e "  ${CYAN}midnightctl services status${RESET} Check service health"
+echo ""
+
+# Footer
+echo -e "Run ${CYAN}'welcome'${RESET} anytime to see this message."
+echo -e "${BOLD}================================================================================${RESET}"
+echo ""

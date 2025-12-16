@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# midnightctl - Midnight Development CLI
+#
+# This is a thin wrapper that delegates to the Node.js CLI.
+# It ensures the CLI is available and handles any setup needed.
+#
+
+set -euo pipefail
+
+CLI_DIR="/opt/midnight-cli"
+CLI_ENTRY="${CLI_DIR}/dist/index.js"
+
+# Check if CLI is installed
+if [[ ! -f "$CLI_ENTRY" ]]; then
+    echo "Error: Midnight CLI not found at $CLI_ENTRY" >&2
+    echo "The CLI may not be properly installed in this container." >&2
+    exit 1
+fi
+
+# Execute the Node.js CLI with all arguments
+exec node "$CLI_ENTRY" "$@"

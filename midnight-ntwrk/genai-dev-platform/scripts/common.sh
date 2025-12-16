@@ -1,130 +1,99 @@
 #!/bin/bash
 #
-# Common utilities and configuration for Midnight development scripts.
-# Source this file in other scripts: source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+# Common utilities for local development scripts
 #
 
-# Prevent double-sourcing
-if [[ -n "${_COMMON_SH_LOADED:-}" ]]; then
-    return 0
-fi
-readonly _COMMON_SH_LOADED=1
+set -euo pipefail
 
 # ==============================================================================
-# Configuration
+# Defaults
 # ==============================================================================
 
-# Resolve paths relative to the script that sources this file
-readonly SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}")" && pwd)"
-readonly PROJECT_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
-readonly DOCKERFILE="${PROJECT_ROOT}/Dockerfile"
-
-# Default image configuration
-readonly DEFAULT_IMAGE_NAME="midnight-vibe-platform"
+readonly DEFAULT_IMAGE_NAME="midnight-dev-platform"
 readonly DEFAULT_IMAGE_TAG="latest"
 readonly DEFAULT_CONTAINER_NAME="midnight-dev"
 
 # ==============================================================================
-# Logging Functions
+# Logging
 # ==============================================================================
 
 log_info() {
-    echo "🌙 $1"
+    echo "[INFO] $1"
 }
 
 log_success() {
-    echo "✅ $1"
-}
-
-log_error() {
-    echo "❌ $1" >&2
+    echo "[OK] $1"
 }
 
 log_warning() {
-    echo "⚠️  $1"
+    echo "[WARN] $1"
 }
 
-log_build() {
-    echo "🏗️  $1"
+log_error() {
+    echo "[ERROR] $1" >&2
 }
 
 log_launch() {
-    echo "🚀 $1"
-}
-
-log_cleanup() {
-    echo "🧹 $1"
-}
-
-log_wait() {
-    echo "⏳ $1"
+    echo "[LAUNCH] $1"
 }
 
 # ==============================================================================
-# Environment Loading
+# Environment
 # ==============================================================================
 
 load_env() {
-    local env_file="${PROJECT_ROOT}/.env"
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local env_file="${script_dir}/../.env"
+    
     if [[ -f "$env_file" ]]; then
-        log_info "Loading environment from .env file..."
         # shellcheck source=/dev/null
         source "$env_file"
     fi
 }
 
 # ==============================================================================
-# Validation Functions
+# Image/Container Resolution
+# ==============================================================================
+
+resolve_image_name() {
+    local cli_value="${1:-}"
+    echo "${cli_value:-${IMAGE_NAME:-$DEFAULT_IMAGE_NAME}}"
+}
+
+resolve_image_tag() {
+    local cli_value="${1:-}"
+    echo "${cli_value:-${IMAGE_TAG:-$DEFAULT_IMAGE_TAG}}"
+}
+
+resolve_container_name() {
+    local cli_value="${1:-}"
+    echo "${cli_value:-${CONTAINER_NAME:-$DEFAULT_CONTAINER_NAME}}"
+}
+
+get_full_image() {
+    local name="$1"
+    local tag="$2"
+    echo "${name}:${tag}"
+}
+
+# ==============================================================================
+# Validation
 # ==============================================================================
 
 require_podman() {
-    if ! command -v podman &>/dev/null; then
-        log_error "Podman is not installed. Please install podman first."
-        exit 1
-    fi
-}
-
-require_dockerfile() {
-    if [[ ! -f "$DOCKERFILE" ]]; then
-        log_error "Dockerfile not found at: $DOCKERFILE"
+    if ! command -v podman &> /dev/null; then
+        log_error "podman is required but not installed"
+        log_info "Install podman: https://podman.io/getting-started/installation"
         exit 1
     fi
 }
 
 require_image() {
-    local full_image="$1"
-    if ! podman image exists "$full_image" 2>/dev/null; then
-        log_error "Image not found: $full_image"
-        log_info "Run 'make build' or './scripts/build-local.sh' first."
+    local image="$1"
+    if ! podman image exists "$image" 2>/dev/null; then
+        log_error "Image not found: $image"
+        log_info "Run: make build"
         exit 1
     fi
-}
-
-# ==============================================================================
-# Image Helpers
-# ==============================================================================
-
-# Resolve image name with priority: CLI arg > env var > default
-resolve_image_name() {
-    local cli_arg="${1:-}"
-    echo "${cli_arg:-${IMAGE_NAME:-$DEFAULT_IMAGE_NAME}}"
-}
-
-# Resolve image tag with priority: CLI arg > env var > default
-resolve_image_tag() {
-    local cli_arg="${1:-}"
-    echo "${cli_arg:-${IMAGE_TAG:-$DEFAULT_IMAGE_TAG}}"
-}
-
-# Resolve container name with priority: CLI arg > env var > default
-resolve_container_name() {
-    local cli_arg="${1:-}"
-    echo "${cli_arg:-${CONTAINER_NAME:-$DEFAULT_CONTAINER_NAME}}"
-}
-
-# Get full image reference (name:tag)
-get_full_image() {
-    local name="$1"
-    local tag="$2"
-    echo "${name}:${tag}"
 }
