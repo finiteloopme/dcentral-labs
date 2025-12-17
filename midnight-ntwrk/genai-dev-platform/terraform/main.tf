@@ -13,6 +13,19 @@ locals {
     chain_environment = var.chain_environment
     managed_by        = "terraform"
   }
+
+  # Roles required by Cloud Build service account
+  cloudbuild_sa_roles = var.cloudbuild_sa_email != "" ? toset([
+    "roles/artifactregistry.admin",     # Push/pull container images, manage repository IAM
+    "roles/compute.viewer",             # Read GKE cluster compute resources (instance groups)
+    "roles/container.admin",            # GKE cluster management
+    "roles/container.clusterAdmin",     # GKE cluster admin operations
+    "roles/iam.serviceAccountCreator",  # Create service accounts for workloads
+    "roles/iam.serviceAccountUser",     # Act as service accounts
+    "roles/logging.logWriter",          # Write build logs
+    "roles/storage.admin",              # Access Terraform state and build artifacts
+    "roles/workstations.admin",         # Manage Cloud Workstations
+  ]) : toset([])
 }
 
 # Enable required APIs
@@ -32,7 +45,7 @@ resource "google_project_service" "apis" {
 }
 
 # ===========================================
-# IAM BINDINGS FOR GKE AND CLOUD BUILD
+# IAM BINDINGS FOR CLOUD BUILD SA
 # ===========================================
 
 # Get project info for service account references
@@ -40,62 +53,13 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
-# Cloud Build SA needs compute.networkUser for GKE
-resource "google_project_iam_member" "cloudbuild_sa_network_user" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/compute.networkUser"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
+# Grant all required roles to Cloud Build service account
+resource "google_project_iam_member" "cloudbuild_sa" {
+  for_each = local.cloudbuild_sa_roles
 
-  depends_on = [google_project_service.apis]
-}
-
-# Cloud Build SA needs container.admin for GKE cluster management
-resource "google_project_iam_member" "cloudbuild_sa_container_admin" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/container.admin"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
-
-  depends_on = [google_project_service.apis]
-}
-
-# Cloud Build SA needs iam.serviceAccountUser to act as service accounts
-resource "google_project_iam_member" "cloudbuild_sa_service_account_user" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
-
-  depends_on = [google_project_service.apis]
-}
-
-# Cloud Build SA needs storage access for build artifacts
-resource "google_project_iam_member" "cloudbuild_sa_storage_admin" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/storage.admin"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
-
-  depends_on = [google_project_service.apis]
-}
-
-# Cloud Build SA needs logging access
-resource "google_project_iam_member" "cloudbuild_sa_log_writer" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
-
-  depends_on = [google_project_service.apis]
-}
-
-# Cloud Build SA needs artifact registry access
-resource "google_project_iam_member" "cloudbuild_sa_artifact_registry" {
-  count   = var.cloudbuild_sa_email != "" ? 1 : 0
-  project = var.project_id
-  role    = "roles/artifactregistry.admin"
-  member  = "serviceAccount:${var.cloudbuild_sa_email}"
+  project    = var.project_id
+  role       = each.value
+  member     = "serviceAccount:${var.cloudbuild_sa_email}"
 
   depends_on = [google_project_service.apis]
 }
@@ -111,7 +75,10 @@ module "artifact_registry" {
   region     = var.region
   labels     = local.labels
 
-  depends_on = [google_project_service.apis]
+  depends_on = [
+    google_project_service.apis,
+    google_project_iam_member.cloudbuild_sa,
+  ]
 }
 
 # ===========================================
@@ -128,7 +95,10 @@ module "gke_cluster" {
   subnetwork   = "default"
   labels       = local.labels
 
-  depends_on = [google_project_service.apis]
+  depends_on = [
+    google_project_service.apis,
+    google_project_iam_member.cloudbuild_sa,
+  ]
 }
 
 # ===========================================
@@ -175,6 +145,7 @@ module "workstations" {
 
   depends_on = [
     google_project_service.apis,
+    google_project_iam_member.cloudbuild_sa,
     module.artifact_registry,
     module.midnight_k8s_services,
   ]

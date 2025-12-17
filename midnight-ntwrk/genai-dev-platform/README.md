@@ -45,18 +45,60 @@ cp .env.example .env
 
 # 2. Edit .env with your settings
 #    Required: PROJECT_ID, STATE_BUCKET, STATE_PREFIX, CLOUDBUILD_SA_EMAIL
-#
-#    To create a Cloud Build service account:
-#    gcloud iam service-accounts create midnight-cloudbuild-sa \
-#      --display-name="Midnight Cloud Build SA" \
-#      --project=$PROJECT_ID
 
-# 3. Validate configuration
+# 3. Bootstrap Cloud Build service account (one-time setup)
+#    See "Bootstrapping the Cloud Build Service Account" section below
+
+# 4. Validate configuration
 make check-env
 
-# 4. Deploy to GCP
+# 5. Deploy to GCP
 make deploy
 ```
+
+### Bootstrapping the Cloud Build Service Account
+
+Terraform manages IAM roles for the Cloud Build service account, but it needs initial permissions to run. This is a **one-time setup** before the first deployment.
+
+```bash
+# Set your project ID
+export PROJECT_ID=your-gcp-project-id
+
+# Create the service account
+gcloud iam service-accounts create midnight-cloudbuild-sa \
+  --display-name="Midnight Cloud Build SA" \
+  --project=$PROJECT_ID
+
+# Grant bootstrap roles required for Terraform to manage IAM and resources
+# These roles allow Terraform to assign the full set of roles on first apply
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/cloudbuild.builds.builder"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/serviceusage.serviceUsageAdmin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/resourcemanager.projectIamAdmin"
+```
+
+After the first successful `make deploy`, Terraform will manage the complete set of IAM roles for the service account. The bootstrap roles above are the minimum required to:
+- Run Cloud Build jobs (`cloudbuild.builds.builder`)
+- Access Terraform state in GCS (`storage.admin`)
+- Enable required GCP APIs (`serviceusage.serviceUsageAdmin`)
+- Act as service accounts during deployment (`iam.serviceAccountUser`)
+- Manage IAM bindings for the service account itself (`resourcemanager.projectIamAdmin`)
 
 ## Project Structure
 
@@ -218,7 +260,7 @@ The platform deploys:
    - `proof-server` - Zero-knowledge proof generation (Deployment, port 6300)
    - `indexer` - Blockchain data indexer with SQLite (StatefulSet, port 8088)
 
-All services run in the `midnight-services` namespace and are exposed via Internal Load Balancers for secure access from Cloud Workstations.
+All services run in the `midnight-services` namespace and are exposed via External Load Balancers.
 
 Infrastructure is managed via Terraform and deployed through Cloud Build.
 

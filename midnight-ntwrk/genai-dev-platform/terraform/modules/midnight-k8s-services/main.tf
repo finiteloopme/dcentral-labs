@@ -1,9 +1,9 @@
 # Midnight Kubernetes Services Module
 #
 # Deploys Midnight standalone services to an existing GKE cluster:
-# - midnight-node: Blockchain node (StatefulSet with Internal LB)
-# - proof-server: Zero-knowledge proof generation (Deployment with Internal LB)
-# - indexer: Blockchain indexer using SQLite (StatefulSet with Internal LB)
+# - midnight-node: Blockchain node (StatefulSet with External LB)
+# - proof-server: Zero-knowledge proof generation (Deployment with External LB)
+# - indexer: Blockchain indexer using SQLite (StatefulSet with External LB)
 #
 # Prerequisites: GKE cluster must exist and Kubernetes provider must be configured.
 
@@ -39,7 +39,7 @@ resource "kubernetes_namespace_v1" "midnight_services" {
 }
 
 # ===========================================
-# MIDNIGHT NODE - StatefulSet + Internal LB
+# MIDNIGHT NODE - StatefulSet + External LB
 # ===========================================
 
 resource "kubernetes_stateful_set_v1" "midnight_node" {
@@ -147,9 +147,6 @@ resource "kubernetes_service_v1" "midnight_node" {
   metadata {
     name      = "midnight-node"
     namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
-    annotations = {
-      "cloud.google.com/load-balancer-type" = "Internal"
-    }
     labels = {
       app = "midnight-node"
     }
@@ -172,7 +169,7 @@ resource "kubernetes_service_v1" "midnight_node" {
 }
 
 # ===========================================
-# PROOF SERVER - Deployment + Internal LB
+# PROOF SERVER - Deployment + External LB
 # ===========================================
 
 resource "kubernetes_deployment_v1" "proof_server" {
@@ -265,9 +262,6 @@ resource "kubernetes_service_v1" "proof_server" {
   metadata {
     name      = "proof-server"
     namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
-    annotations = {
-      "cloud.google.com/load-balancer-type" = "Internal"
-    }
     labels = {
       app = "proof-server"
     }
@@ -290,7 +284,7 @@ resource "kubernetes_service_v1" "proof_server" {
 }
 
 # ===========================================
-# INDEXER - StatefulSet + Internal LB
+# INDEXER - StatefulSet + External LB
 # Uses SQLite (ephemeral storage OK for dev)
 # ===========================================
 
@@ -410,9 +404,6 @@ resource "kubernetes_service_v1" "indexer" {
   metadata {
     name      = "indexer"
     namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
-    annotations = {
-      "cloud.google.com/load-balancer-type" = "Internal"
-    }
     labels = {
       app = "indexer"
     }

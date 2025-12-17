@@ -65,4 +65,5 @@ steps:
           -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}"
     waitFor: ['tf-init']
 
-timeout: 1200s
+# Build timeout (45 minutes - allows for GKE cluster deletion)
+timeout: 2700s

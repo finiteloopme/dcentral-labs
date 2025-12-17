@@ -134,8 +134,8 @@ All services run in the `midnight-services` namespace on GKE Autopilot.
 
 - **artifact-registry**: Docker repo for dev container images
 - **workstations**: Cloud Workstation cluster, config, and IAM
-- **gke-cluster**: GKE Autopilot cluster for Midnight services
-- **midnight-k8s-services**: Kubernetes deployments for node, proof-server, indexer
+- **gke-cluster**: Public GKE Autopilot cluster for Midnight services
+- **midnight-k8s-services**: Kubernetes deployments for node, proof-server, indexer (External LBs)
 
 Service URLs are injected into the workstation container via environment variables.
 

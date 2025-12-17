@@ -142,8 +142,8 @@ steps:
         terraform output -json
     waitFor: ['tf-apply']
 
-# Build timeout (30 minutes)
-timeout: 1800s
+# Build timeout (45 minutes - allows for GKE cluster creation/recreation)
+timeout: 2700s
 
 # Images to be pushed (only the :latest tag, BUILD_ID tag is pushed in step 2)
 images:

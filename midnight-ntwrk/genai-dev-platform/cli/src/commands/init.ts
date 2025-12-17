@@ -125,28 +125,13 @@ describe('Counter Contract', () => {
     "source": "./contracts",
     "output": "./build"
   },
-  "chainEnvironment": {
-    "default": "standalone",
-    "environments": {
-      "standalone": {
-        "nodeUrl": "ws://localhost:9944",
-        "indexerUrl": "http://localhost:8088",
-        "proofServerUrl": "http://localhost:6300"
-      },
-      "testnet": {
-        "nodeUrl": "wss://testnet-node.midnight.network",
-        "indexerUrl": "https://testnet-indexer.midnight.network",
-        "proofServerUrl": "http://localhost:6300"
-      },
-      "mainnet": {
-        "nodeUrl": "wss://mainnet-node.midnight.network",
-        "indexerUrl": "https://mainnet-indexer.midnight.network",
-        "proofServerUrl": "http://localhost:6300"
-      }
-    }
-  }
+  "chainEnvironment": "standalone"
 }
 `,
+
+  // Note: Service URLs are configured via environment variables, not in this file.
+  // See .env.example in the platform root for configuration options.
+  // In GCP Workstation, URLs are injected automatically by Terraform.
 
   '.gitignore': `# Dependencies
 node_modules/
