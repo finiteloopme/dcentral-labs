@@ -4,23 +4,33 @@ import { logger } from '../../utils/logger';
 
 // Service definitions with their environment variable names
 const SERVICES = [
-  { name: 'Midnight Node', envVar: 'MIDNIGHT_NODE_URL', healthPath: '/health' },
-  { name: 'Proof Server', envVar: 'PROOF_SERVER_URL', healthPath: '/health' },
-  { name: 'Indexer', envVar: 'INDEXER_URL', healthPath: '/health' },
+  { name: 'Midnight Node', envVar: 'MIDNIGHT_NODE_URL', healthPath: '/health', port: 9944 },
+  { name: 'Proof Server', envVar: 'PROOF_SERVER_URL', healthPath: null, port: 6300 },  // TCP check only
+  { name: 'Indexer', envVar: 'INDEXER_URL', healthPath: '/health', port: 8088 },
 ];
 
 function getServiceUrl(envVar: string): string | null {
   return process.env[envVar] || null;
 }
 
-async function checkHealth(url: string, healthPath: string): Promise<boolean> {
+async function checkHealth(url: string, healthPath: string | null): Promise<boolean> {
   try {
-    const fullUrl = `${url}${healthPath}`;
-    const response = await fetch(fullUrl, { 
-      method: 'GET',
-      signal: AbortSignal.timeout(5000),
-    });
-    return response.ok;
+    if (healthPath) {
+      // HTTP health check
+      const fullUrl = `${url}${healthPath}`;
+      const response = await fetch(fullUrl, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000),
+      });
+      return response.ok;
+    } else {
+      // TCP check - just try to connect to the base URL
+      const response = await fetch(url, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000),
+      });
+      return true; // If we get any response, service is up
+    }
   } catch {
     return false;
   }
@@ -51,8 +61,8 @@ const statusCommand = new Command('status')
     logger.title('Midnight Services Status');
     console.log('');
     
-    const network = process.env.MIDNIGHT_NETWORK || 'standalone';
-    logger.info(`Network: ${network}`);
+    const chainEnv = process.env.CHAIN_ENVIRONMENT || process.env.MIDNIGHT_NETWORK || 'standalone';
+    logger.info(`Chain Environment: ${chainEnv}`);
     console.log('');
 
     for (const service of SERVICES) {
@@ -74,17 +84,17 @@ const statusCommand = new Command('status')
     console.log('');
   });
 
-// Start command - for Cloud Run, this is essentially a no-op or health check
+// Start command - verify services are running
 const startCommand = new Command('start')
   .description('Verify Midnight services are running')
   .action(async () => {
     logger.title('Midnight Services');
     
-    const network = process.env.MIDNIGHT_NETWORK || 'standalone';
+    const chainEnv = process.env.CHAIN_ENVIRONMENT || process.env.MIDNIGHT_NETWORK || 'standalone';
     
-    if (network === 'standalone') {
-      logger.info('Standalone services are managed by Cloud Run.');
-      logger.info('Services are always-on with min_instances=1.');
+    if (chainEnv === 'standalone') {
+      logger.info('Standalone services are managed by GKE Autopilot.');
+      logger.info('Services are always-on with replicas=1.');
       console.log('');
       logger.info('Checking service health...');
       console.log('');
@@ -115,17 +125,17 @@ const startCommand = new Command('start')
         logger.success('All services are running');
       } else {
         logger.warning('Some services may not be ready');
-        logger.info('Services may take a few minutes to start on first access.');
+        logger.info('Services may take a few minutes to initialize.');
       }
     } else {
-      logger.info(`Network mode: ${network}`);
-      logger.info('Remote network services are managed externally.');
+      logger.info(`Chain Environment: ${chainEnv}`);
+      logger.info('Remote chain services are managed externally.');
       console.log('');
       
-      // For remote networks, just check the proof server
+      // For remote chains, just check the proof server
       const proofUrl = getServiceUrl('PROOF_SERVER_URL');
       if (proofUrl) {
-        const isHealthy = await checkHealth(proofUrl, '/health');
+        const isHealthy = await checkHealth(proofUrl, null);
         if (isHealthy) {
           logger.success('Proof Server: Healthy');
         } else {
@@ -137,62 +147,68 @@ const startCommand = new Command('start')
     console.log('');
   });
 
-// Stop command - not applicable for Cloud Run
+// Stop command - not applicable for GKE Autopilot
 const stopCommand = new Command('stop')
-  .description('Stop services (not applicable for Cloud Run)')
+  .description('Stop services (not applicable - services are always-on)')
   .action(() => {
     logger.title('Midnight Services');
     
-    const network = process.env.MIDNIGHT_NETWORK || 'standalone';
+    const chainEnv = process.env.CHAIN_ENVIRONMENT || process.env.MIDNIGHT_NETWORK || 'standalone';
     
-    if (network === 'standalone') {
-      logger.info('Standalone services are managed by Cloud Run.');
-      logger.info('Services cannot be stopped from the workstation.');
+    if (chainEnv === 'standalone') {
+      logger.info('Standalone services are managed by GKE Autopilot.');
+      logger.info('Services are always-on with min replicas=1 and cannot be stopped.');
       console.log('');
-      logger.info('To manage Cloud Run services, use the GCP Console or:');
-      console.log('  gcloud run services list --filter="labels.cluster=<cluster-name>"');
+      logger.info('To manage GKE services, use kubectl or the GCP Console:');
+      console.log('  kubectl get pods -n midnight-services');
     } else {
-      logger.info(`Network mode: ${network}`);
-      logger.info('Remote network services are managed externally.');
+      logger.info(`Chain Environment: ${chainEnv}`);
+      logger.info('Remote chain services are managed externally.');
     }
     
     console.log('');
   });
 
-// Logs command - fetch logs from Cloud Run
+// Logs command - fetch logs from GKE
 const logsCommand = new Command('logs')
-  .description('View service logs from Cloud Run')
+  .description('View service logs from GKE')
   .argument('[service]', 'Service name: node, proof, indexer')
   .option('-f, --follow', 'Follow log output (tail)')
   .option('-n, --lines <lines>', 'Number of lines to show', '50')
   .action((service: string | undefined, options: { follow?: boolean; lines: string }) => {
-    const projectId = getProjectId();
-    const region = getRegion();
-    const clusterName = getClusterName();
+    const namespace = 'midnight-services';
     
-    if (!projectId) {
-      logger.error('Could not determine GCP project ID');
-      logger.info('Run: gcloud config set project <PROJECT_ID>');
-      process.exit(1);
-    }
-    
-    // Map service shorthand to full service name
+    // Map service shorthand to pod label selector
     const serviceMap: Record<string, string> = {
-      'node': `midnight-node-${clusterName}`,
-      'midnight-node': `midnight-node-${clusterName}`,
-      'proof': `proof-server-${clusterName}`,
-      'proof-server': `proof-server-${clusterName}`,
-      'indexer': `indexer-${clusterName}`,
+      'node': 'app=midnight-node',
+      'midnight-node': 'app=midnight-node',
+      'proof': 'app=proof-server',
+      'proof-server': 'app=proof-server',
+      'indexer': 'app=indexer',
     };
     
-    let serviceName: string;
+    const followFlag = options.follow ? '-f' : '';
+    const linesFlag = `--tail=${options.lines}`;
     
     if (service) {
-      serviceName = serviceMap[service.toLowerCase()];
-      if (!serviceName) {
+      const labelSelector = serviceMap[service.toLowerCase()];
+      if (!labelSelector) {
         logger.error(`Unknown service: ${service}`);
         logger.info('Valid services: node, proof, indexer');
         process.exit(1);
+      }
+      
+      logger.info(`Fetching logs for ${service}...`);
+      console.log('');
+      
+      try {
+        execSync(
+          `kubectl logs -n ${namespace} -l ${labelSelector} ${linesFlag} ${followFlag}`,
+          { encoding: 'utf-8', stdio: 'inherit' }
+        );
+      } catch (error) {
+        logger.error('Failed to fetch logs. Ensure kubectl is configured.');
+        logger.info('Run: gcloud container clusters get-credentials midnight-dev-gke --region=<REGION>');
       }
     } else {
       // Default to showing all services
@@ -202,45 +218,28 @@ const logsCommand = new Command('logs')
       logger.info('  midnightctl services logs indexer');
       console.log('');
       
-      // Show combined logs
-      const tailFlag = options.follow ? '--tail' : '';
-      const limitFlag = `--limit=${options.lines}`;
-      
       try {
-        execSync(
-          `gcloud logging read 'resource.type="cloud_run_revision" AND labels.cluster="${clusterName}"' ${limitFlag} --format='table(timestamp,resource.labels.service_name,textPayload)' --project=${projectId}`,
-          { encoding: 'utf-8', stdio: 'inherit' }
-        );
+        // Show pods first, then recent logs from each
+        execSync(`kubectl get pods -n ${namespace}`, { encoding: 'utf-8', stdio: 'inherit' });
+        console.log('');
+        
+        for (const [name, selector] of Object.entries(serviceMap)) {
+          if (!name.includes('-')) { // Skip aliases like "midnight-node"
+            console.log(`\n--- ${name} ---`);
+            try {
+              execSync(
+                `kubectl logs -n ${namespace} -l ${selector} --tail=10`,
+                { encoding: 'utf-8', stdio: 'inherit' }
+              );
+            } catch {
+              console.log('  (no logs available)');
+            }
+          }
+        }
       } catch (error) {
-        logger.error('Failed to fetch logs');
+        logger.error('Failed to fetch logs. Ensure kubectl is configured.');
+        logger.info('Run: gcloud container clusters get-credentials midnight-dev-gke --region=<REGION>');
       }
-      return;
-    }
-    
-    logger.info(`Fetching logs for ${serviceName}...`);
-    console.log('');
-    
-    const tailFlag = options.follow ? '--tail' : '';
-    const limitFlag = options.follow ? '' : `--limit=${options.lines}`;
-    
-    try {
-      if (options.follow) {
-        // Use gcloud run logs tail for following
-        execSync(
-          `gcloud beta run services logs tail ${serviceName} --region=${region} --project=${projectId}`,
-          { encoding: 'utf-8', stdio: 'inherit' }
-        );
-      } else {
-        // Use gcloud run services logs read for historical logs
-        execSync(
-          `gcloud beta run services logs read ${serviceName} --region=${region} --project=${projectId} ${limitFlag}`,
-          { encoding: 'utf-8', stdio: 'inherit' }
-        );
-      }
-    } catch (error) {
-      // User likely Ctrl+C'd, or gcloud beta not available
-      logger.info('Note: Log tailing requires gcloud beta. Install with:');
-      logger.info('  gcloud components install beta');
     }
   });
 
@@ -251,8 +250,8 @@ const urlsCommand = new Command('urls')
     logger.title('Midnight Service URLs');
     console.log('');
     
-    const network = process.env.MIDNIGHT_NETWORK || 'standalone';
-    logger.info(`Network: ${network}`);
+    const chainEnv = process.env.CHAIN_ENVIRONMENT || process.env.MIDNIGHT_NETWORK || 'standalone';
+    logger.info(`Chain Environment: ${chainEnv}`);
     console.log('');
     
     for (const service of SERVICES) {

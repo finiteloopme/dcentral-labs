@@ -124,17 +124,18 @@ Commands:
 
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
-| midnight-node-{cluster} | midnightntwrk/midnight-node:latest-main | 9944 | Blockchain node |
-| proof-server-{cluster} | midnightnetwork/proof-server:latest | 6300 | ZK proof generation |
-| indexer-{cluster} | midnightntwrk/indexer-standalone:latest | 8081 | Blockchain indexer |
+| midnight-node | midnightntwrk/midnight-node:0.18.0-rc.9 | 9944 | Blockchain node |
+| proof-server | midnightnetwork/proof-server:6.2.0-rc.1 | 6300 | ZK proof generation |
+| indexer | midnightntwrk/indexer-standalone:3.0.0-alpha.20 | 8088 | Blockchain indexer |
 
-Indexer runs with a PostgreSQL sidecar container (ephemeral, in-memory).
+All services run in the `midnight-services` namespace on GKE Autopilot.
 
 ### 4. Terraform Modules
 
 - **artifact-registry**: Docker repo for dev container images
 - **workstations**: Cloud Workstation cluster, config, and IAM
-- **midnight-services**: Cloud Run services with IAM bindings
+- **gke-cluster**: GKE Autopilot cluster for Midnight services
+- **midnight-k8s-services**: Kubernetes deployments for node, proof-server, indexer
 
 Service URLs are injected into the workstation container via environment variables.
 

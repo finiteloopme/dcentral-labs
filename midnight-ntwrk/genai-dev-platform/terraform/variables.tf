@@ -53,29 +53,51 @@ variable "persistent_disk_size_gb" {
 }
 
 # ===========================================
-# MIDNIGHT SERVICES CONFIGURATION
+# GKE MIDNIGHT SERVICES CONFIGURATION
 # ===========================================
 
-variable "min_instances" {
-  description = "Minimum number of Cloud Run instances (1 for always-on)"
-  type        = number
-  default     = 1
+variable "gke_cluster_name" {
+  description = "Name of the GKE Autopilot cluster for Midnight services"
+  type        = string
+  default     = "midnight-dev-gke"
+}
+
+variable "chain_environment" {
+  description = "Chain environment: standalone, testnet, mainnet"
+  type        = string
+  default     = "standalone"
 }
 
 variable "midnight_node_image" {
   description = "Docker image for Midnight node"
   type        = string
-  default     = "midnightntwrk/midnight-node:latest-main"
+  default     = "midnightntwrk/midnight-node:0.18.0-rc.9"
 }
 
 variable "proof_server_image" {
   description = "Docker image for proof server"
   type        = string
-  default     = "midnightnetwork/proof-server:latest"
+  default     = "midnightnetwork/proof-server:6.2.0-rc.1"
 }
 
 variable "indexer_image" {
   description = "Docker image for indexer"
   type        = string
-  default     = "midnightntwrk/indexer-standalone:latest"
+  default     = "midnightntwrk/indexer-standalone:3.0.0-alpha.20"
+}
+
+variable "indexer_secret" {
+  description = "32-byte hex secret for indexer encryption. Generate with: openssl rand -hex 32"
+  type        = string
+  sensitive   = true
+}
+
+# ===========================================
+# CLOUD BUILD CONFIGURATION
+# ===========================================
+
+variable "cloudbuild_sa_email" {
+  description = "Email of the Cloud Build service account (user-managed)"
+  type        = string
+  default     = ""
 }

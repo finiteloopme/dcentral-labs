@@ -7,28 +7,27 @@ substitutions:
   _PROJECT_ID: ${PROJECT_ID}
   _REGION: us-central1
   _STATE_BUCKET: ${STATE_BUCKET}
+  _STATE_PREFIX: terraform/state
   _CLUSTER_NAME: midnight-dev
+  _GKE_CLUSTER_NAME: midnight-dev-gke
   _IMAGE_NAME: midnight-dev-platform
   _IMAGE_TAG: latest
   _ENVIRONMENT: dev
-  _MIN_INSTANCES: "1"
-  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:latest-main
-  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:latest
-  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:latest
+  _CHAIN_ENVIRONMENT: standalone
+  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0-rc.9
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.2.0-rc.1
+  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:3.0.0-alpha.20
+  _INDEXER_SECRET: ""
   _MACHINE_TYPE: e2-standard-4
   _PERSISTENT_DISK_SIZE_GB: "100"
+  _CLOUDBUILD_SA_EMAIL: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # Clone the repo (since we use --no-source)
-  - name: 'gcr.io/cloud-builders/git'
-    id: 'clone'
-    args: ['clone', 'https://github.com/${_GITHUB_REPO:-$REPO_NAME}', '/workspace']
-
   # Initialize Terraform
-  - name: 'hashicorp/terraform:1.6'
+  - name: 'hashicorp/terraform:1.14'
     id: 'tf-init'
     entrypoint: 'sh'
     args:
@@ -37,10 +36,10 @@ steps:
         cd terraform
         terraform init \
           -backend-config="bucket=${_STATE_BUCKET}" \
-          -backend-config="prefix=terraform/state"
+          -backend-config="prefix=${_STATE_PREFIX}"
 
   # Terraform Plan
-  - name: 'hashicorp/terraform:1.6'
+  - name: 'hashicorp/terraform:1.14'
     id: 'tf-plan'
     entrypoint: 'sh'
     args:
@@ -51,14 +50,17 @@ steps:
           -var="project_id=${_PROJECT_ID}" \
           -var="region=${_REGION}" \
           -var="cluster_name=${_CLUSTER_NAME}" \
+          -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
           -var="environment=${_ENVIRONMENT}" \
+          -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
           -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
-          -var="min_instances=${_MIN_INSTANCES}" \
           -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
           -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
           -var="indexer_image=${_INDEXER_IMAGE}" \
+          -var="indexer_secret=${_INDEXER_SECRET}" \
           -var="machine_type=${_MACHINE_TYPE}" \
-          -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}"
+          -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
+          -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}"
     waitFor: ['tf-init']
 
 timeout: 600s

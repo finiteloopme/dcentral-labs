@@ -6,7 +6,7 @@ set -euo pipefail
 # Midnight Development Environment Setup
 #
 # This script configures the development environment based on the selected mode:
-# - standalone: Uses Cloud Run services (injected via env vars)
+# - standalone: Uses GKE-hosted services (injected via env vars)
 # - testnet: Uses Midnight testnet endpoints
 # - mainnet: Uses Midnight mainnet endpoints
 # ==============================================================================
@@ -86,12 +86,12 @@ check_all_services() {
 # ==============================================================================
 
 configure_standalone() {
-    log_info "Configuring standalone environment (Cloud Run services)"
+    log_info "Configuring standalone environment (GKE services)"
     
     # These are injected by the Workstation configuration from Terraform
     # If not set, try to discover them via gcloud
     if [[ -z "${MIDNIGHT_NODE_URL:-}" ]]; then
-        log_info "Discovering Cloud Run service URLs..."
+        log_info "Discovering GKE service URLs..."
         
         local cluster_name="${CLUSTER_NAME:-midnight-dev}"
         local project_id

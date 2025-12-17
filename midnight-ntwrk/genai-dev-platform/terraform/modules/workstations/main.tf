@@ -73,7 +73,4 @@ resource "google_workstations_workstation_config" "config" {
   running_timeout = "43200s"
 }
 
-# Service account for workstations
-data "google_compute_default_service_account" "default" {
-  project = var.project_id
-}
+

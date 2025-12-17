@@ -7,8 +7,8 @@ A cloud-native development environment for building applications on the [Midnigh
 - **Browser-based IDE** - VS Code (Code OSS) accessible from anywhere
 - **Compact Compiler** - Pre-installed Midnight smart contract toolchain
 - **Midnight CLI** - Project scaffolding, compilation, and service management
-- **Managed Services** - Blockchain node, proof server, and indexer running on Cloud Run
-- **Multi-network Support** - Switch between standalone, testnet, and mainnet
+- **Managed Services** - Blockchain node, proof server, and indexer running on GKE Autopilot
+- **Multi-chain Support** - Switch between standalone, testnet, and mainnet environments
 
 ## Quick Start
 
@@ -21,6 +21,7 @@ A cloud-native development environment for building applications on the [Midnigh
 - Google Cloud project with billing enabled
 - `gcloud` CLI installed and authenticated
 - GCS bucket for Terraform state
+- A user-managed service account for Cloud Build (see Cloud Deployment below)
 
 ### Local Development
 
@@ -43,7 +44,12 @@ make run
 cp .env.example .env
 
 # 2. Edit .env with your settings
-#    Required: PROJECT_ID, STATE_BUCKET
+#    Required: PROJECT_ID, STATE_BUCKET, STATE_PREFIX, CLOUDBUILD_SA_EMAIL
+#
+#    To create a Cloud Build service account:
+#    gcloud iam service-accounts create midnight-cloudbuild-sa \
+#      --display-name="Midnight Cloud Build SA" \
+#      --project=$PROJECT_ID
 
 # 3. Validate configuration
 make check-env
@@ -86,8 +92,9 @@ make deploy
 ├── terraform/                    # Infrastructure as Code
 │   ├── modules/
 │   │   ├── artifact-registry/    # Container registry
-│   │   ├── workstations/         # Cloud Workstations
-│   │   └── midnight-services/    # Cloud Run services
+│   │   ├── gke-cluster/          # GKE Autopilot cluster
+│   │   ├── midnight-k8s-services/# Kubernetes services (node, proof, indexer)
+│   │   └── workstations/         # Cloud Workstations
 │   └── *.tf                      # Root module
 │
 └── .devcontainer/                # VS Code devcontainer
@@ -128,7 +135,7 @@ midnightctl services status
 # View service logs
 midnightctl services logs node
 
-# Switch networks
+# Switch chain environments
 midnightctl env switch testnet
 ```
 
@@ -140,25 +147,63 @@ Copy `.env.example` to `.env` and configure:
 # Required for cloud deployment
 PROJECT_ID=your-gcp-project-id
 STATE_BUCKET=your-terraform-state-bucket
+STATE_PREFIX=terraform/state
+CLOUDBUILD_SA_EMAIL=midnight-cloudbuild-sa@your-project.iam.gserviceaccount.com
 
 # Optional
 REGION=us-central1
 CLUSTER_NAME=midnight-dev
+GKE_CLUSTER_NAME=midnight-dev-gke
+CHAIN_ENVIRONMENT=standalone
 MACHINE_TYPE=e2-standard-4
 ```
 
-## Network Modes
+## Chain Environments
 
-| Mode | Description |
-|------|-------------|
-| `standalone` | Local development network (Cloud Run services) |
-| `testnet` | Midnight public testnet |
-| `mainnet` | Midnight mainnet (production) |
+The platform supports multiple chain environments for different stages of development:
 
-Switch networks with:
+| Environment | Description | Use Case |
+|-------------|-------------|----------|
+| `standalone` | Isolated dev network with ephemeral state | Local development, testing, rapid iteration |
+| `devnet` | Midnight shared development network | Integration testing with other developers |
+| `testnet` | Midnight public testnet | Pre-production testing, staging |
+| `mainnet` | Midnight mainnet | Production deployments |
+
+### Environment Mapping
+
+The `chain_environment` setting is mapped to service-specific configurations:
+
+| Chain Environment | Node Mode | Proof Server | Indexer |
+|-------------------|-----------|--------------|---------|
+| `standalone` | `CFG_PRESET=dev` (ephemeral, local chain) | Auto-configured | Auto-configured |
+| `devnet` | `CFG_PRESET=devnet` | Auto-configured | Auto-configured |
+| `testnet` | `CFG_PRESET=testnet` | Auto-configured | Auto-configured |
+| `mainnet` | `CFG_PRESET=mainnet` | Auto-configured | Auto-configured |
+
+### Switching Environments
+
 ```bash
-midnightctl env switch <mode>
+# Check current environment
+midnightctl env status
+
+# Switch to a different environment
+midnightctl env switch testnet
 ```
+
+### Standalone Mode Details
+
+In `standalone` mode (default):
+- The midnight-node runs with `CFG_PRESET=dev`, which:
+  - Enables a local development chain
+  - Uses ephemeral storage (resets on restart)
+  - Requires no external bootnodes or peer connections
+- The proof-server auto-starts and downloads required ZK key material
+- The indexer connects to the local node via WebSocket
+
+**Required configuration:**
+- `INDEXER_SECRET` - A 32-byte hex string for encryption (generate with `openssl rand -hex 32`)
+
+This is ideal for rapid development and testing without external dependencies.
 
 ## Architecture
 
@@ -166,12 +211,14 @@ The platform deploys:
 
 1. **Cloud Workstations** - Managed dev environment with persistent storage
 2. **Artifact Registry** - Private Docker repository for container images
-3. **Cloud Run Services**:
-   - `midnight-node` - Blockchain node (port 9944)
-   - `proof-server` - Zero-knowledge proof generation (port 6300)
-   - `indexer` - Blockchain data indexer with PostgreSQL (port 8081)
+3. **GKE Autopilot Cluster** (`midnight-dev-gke`) with Kubernetes services:
+   - `midnight-node` - Blockchain node (StatefulSet, port 9944)
+   - `proof-server` - Zero-knowledge proof generation (Deployment, port 6300)
+   - `indexer` - Blockchain data indexer with SQLite (StatefulSet, port 8088)
 
-All infrastructure is managed via Terraform, deployed through Cloud Build.
+All services run in the `midnight-services` namespace and are exposed via Internal Load Balancers for secure access from Cloud Workstations.
+
+Infrastructure is managed via Terraform and deployed through Cloud Build.
 
 ## Development
 

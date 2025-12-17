@@ -1,4 +1,4 @@
-.PHONY: build run run-detach clean clean-all deploy plan destroy check-env help
+.PHONY: build run run-detach clean clean-all deploy plan destroy state-cleanup check-env help
 
 # Load environment variables from .env if present
 -include .env
@@ -23,10 +23,13 @@ help:
 	@echo "  make clean        Stop and remove container"
 	@echo ""
 	@echo "Cloud Deployment (GCP):"
-	@echo "  make deploy       Deploy to GCP via Cloud Build"
-	@echo "  make plan         Preview deployment changes"
-	@echo "  make destroy      Destroy cloud infrastructure"
-	@echo "  make check-env    Validate GCP configuration"
+	@echo "  make deploy                              Deploy to GCP via Cloud Build"
+	@echo "  make plan                                Preview deployment changes"
+	@echo "  make destroy                             Destroy cloud infrastructure"
+	@echo "  make state-cleanup                       List Terraform state"
+	@echo "  make state-cleanup PATTERN=x             Remove resources matching pattern from state"
+	@echo "  make state-cleanup PATTERN=x DELETE=true Destroy resources AND remove from state"
+	@echo "  make check-env                           Validate GCP configuration"
 	@echo ""
 	@echo "See .env.example for configuration options."
 
@@ -58,6 +61,11 @@ clean-all:
 check-env:
 	@./scripts/cloud.sh check
 
+clean-deploy:
+	# Workaround for issue with the v3 of k8s terraform provider
+	@./scripts/cloud.sh state-cleanup "module.midnight_k8s_services" "true"
+	@./scripts/cloud.sh deploy
+
 deploy:
 	@./scripts/cloud.sh deploy
 
@@ -66,3 +74,6 @@ plan:
 
 destroy:
 	@./scripts/cloud.sh destroy
+
+state-cleanup:
+	@./scripts/cloud.sh state-cleanup "$(PATTERN)" "$(DELETE)"

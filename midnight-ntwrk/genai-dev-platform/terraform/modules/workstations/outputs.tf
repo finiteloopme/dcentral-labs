@@ -20,7 +20,4 @@ output "config_id" {
   value       = google_workstations_workstation_config.config.id
 }
 
-output "service_account_email" {
-  description = "Service account email used by workstations"
-  value       = data.google_compute_default_service_account.default.email
-}
+

@@ -125,12 +125,12 @@ describe('Counter Contract', () => {
     "source": "./contracts",
     "output": "./build"
   },
-  "network": {
-    "default": "testnet",
-    "networks": {
+  "chainEnvironment": {
+    "default": "standalone",
+    "environments": {
       "standalone": {
         "nodeUrl": "ws://localhost:9944",
-        "indexerUrl": "http://localhost:8081",
+        "indexerUrl": "http://localhost:8088",
         "proofServerUrl": "http://localhost:6300"
       },
       "testnet": {

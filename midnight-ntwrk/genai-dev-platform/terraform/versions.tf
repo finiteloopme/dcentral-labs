@@ -1,16 +1,20 @@
 # Terraform and Provider Versions
 
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.14.0"
 
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 5.0"
+      version = "~> 7.13"
     }
     google-beta = {
       source  = "hashicorp/google-beta"
-      version = "~> 5.0"
+      version = "~> 7.13"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 3.0"
     }
   }
 }
@@ -23,4 +27,14 @@ provider "google" {
 provider "google-beta" {
   project = var.project_id
   region  = var.region
+}
+
+# Get credentials for Kubernetes provider
+data "google_client_config" "default" {}
+
+# Kubernetes provider - configured using GKE cluster outputs
+provider "kubernetes" {
+  host                   = "https://${module.gke_cluster.cluster_endpoint}"
+  token                  = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(module.gke_cluster.cluster_ca_certificate)
 }

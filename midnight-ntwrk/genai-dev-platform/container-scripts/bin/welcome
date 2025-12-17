@@ -27,8 +27,8 @@ NODE_VERSION=$(node --version 2>/dev/null || echo "not installed")
 # Get service URLs from environment
 MIDNIGHT_NODE="${MIDNIGHT_NODE_URL:-ws://localhost:9944}"
 PROOF_SERVER="${PROOF_SERVER_URL:-http://localhost:6300}"
-INDEXER="${INDEXER_URL:-http://localhost:8081}"
-NETWORK="${MIDNIGHT_NETWORK:-standalone}"
+INDEXER="${INDEXER_URL:-http://localhost:8088}"
+CHAIN_ENV="${CHAIN_ENVIRONMENT:-${MIDNIGHT_NETWORK:-standalone}}"
 
 # Header
 echo ""
@@ -38,7 +38,7 @@ echo -e "${BOLD}================================================================
 echo ""
 
 # Services
-echo -e "${BOLD}Services (${NETWORK}):${RESET}"
+echo -e "${BOLD}Services (${CHAIN_ENV}):${RESET}"
 echo -e "  ${GREEN}Code OSS Editor${RESET}    http://localhost:${EDITOR_PORT}"
 echo -e "  ${GREEN}Midnight Node${RESET}      ${MIDNIGHT_NODE}"
 echo -e "  ${GREEN}Proof Server${RESET}       ${PROOF_SERVER}"
@@ -55,7 +55,7 @@ echo ""
 # Environment
 echo -e "${BOLD}Environment:${RESET}"
 echo -e "  ${YELLOW}Mode${RESET}               $ENV_MODE"
-echo -e "  ${YELLOW}Network${RESET}            $NETWORK"
+echo -e "  ${YELLOW}Chain${RESET}              $CHAIN_ENV"
 echo -e "  ${YELLOW}User${RESET}               $(whoami)"
 echo -e "  ${YELLOW}Workspace${RESET}          ${HOME}"
 echo ""
