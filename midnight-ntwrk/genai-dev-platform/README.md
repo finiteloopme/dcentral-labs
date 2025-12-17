@@ -205,6 +205,8 @@ In `standalone` mode (default):
 
 This is ideal for rapid development and testing without external dependencies.
 
+**Pre-funded wallets:** In standalone mode, several genesis wallets are pre-funded for development. See [FUNDING.md](FUNDING.md) for details on wallet creation and funding.
+
 ## Architecture
 
 The platform deploys:
@@ -222,7 +224,9 @@ Infrastructure is managed via Terraform and deployed through Cloud Build.
 
 ## Development
 
-See [GenAI-Dev.md](GenAI-Dev.md) for detailed technical documentation.
+- [GenAI-Dev.md](GenAI-Dev.md) - Detailed technical documentation
+- [FUNDING.md](FUNDING.md) - Wallet creation and funding guide
+- [WALLET-INTEGRATION-REQ.md](WALLET-INTEGRATION-REQ.md) - Wallet CLI integration requirements
 
 ## License
 

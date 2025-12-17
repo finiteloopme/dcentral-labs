@@ -8,6 +8,18 @@
 
 This document outlines the requirements for integrating wallet utilities from the [midnight-wallet](https://github.com/midnightntwrk/midnight-wallet) SDK into the `midnightctl` CLI tool. The goal is to provide developers with essential wallet and address management capabilities directly from the command line.
 
+## Current Workaround
+
+Until this integration is complete, developers can perform wallet operations manually using the `midnight-node-toolkit` Docker image. See **[FUNDING.md](./FUNDING.md)** for detailed instructions on:
+- Using pre-funded genesis wallets
+- Creating new wallet seeds
+- Funding wallets and checking balances
+- DUST token registration
+
+The commands in FUNDING.md will eventually be replaced by the `midnightctl wallet` commands specified below.
+
+---
+
 ## Background
 
 The Midnight Wallet SDK (`midnight-wallet`) is the official implementation of the [Midnight Wallet Specification](https://github.com/midnightntwrk/midnight-architecture/blob/main/components/WalletEngine/Specification.md). It provides:
@@ -305,23 +317,33 @@ cli/
   src/
     commands/
       wallet/
-        index.ts        # Command group
-        generate.ts     # FR-1: Mnemonic generation
-        validate.ts     # FR-2: Mnemonic validation
+        index.ts           # Command group
+        generate.ts        # FR-1: Mnemonic generation
+        validate.ts        # FR-2: Mnemonic validation
+        balance.ts         # FR-7: Wallet balance
+        fund.ts            # FR-8: Wallet funding
+        register-dust.ts   # FR-9: DUST registration
+        address.ts         # FR-12: Address display
       address/
-        index.ts        # Command group
-        validate.ts     # FR-3: Address validation
-        encode.ts       # FR-4: Address encoding
-        decode.ts       # FR-5: Address decoding
+        index.ts           # Command group
+        validate.ts        # FR-3: Address validation
+        encode.ts          # FR-4: Address encoding
+        decode.ts          # FR-5: Address decoding
+      tx/
+        index.ts           # Command group
+        send.ts            # FR-10: Transaction sending
+        status.ts          # FR-11: Transaction status
     lib/
       midnight/
-        mnemonic.ts     # Mnemonic utilities (from hd package)
-        address.ts      # Address formatting (from address-format package)
-        network.ts      # NetworkId definitions
-        types.ts        # Type definitions
-        LICENSE         # Apache 2.0 license text
-        README.md       # Source attribution and version info
-    index.ts            # Add new command groups
+        mnemonic.ts        # Mnemonic utilities (from hd package)
+        address.ts         # Address formatting (from address-format package)
+        network.ts         # NetworkId definitions
+        types.ts           # Type definitions
+        rpc.ts             # Node RPC client
+        indexer.ts         # Indexer GraphQL client
+        LICENSE            # Apache 2.0 license text
+        README.md          # Source attribution and version info
+    index.ts               # Add new command groups
 ```
 
 ### Source Files to Copy
@@ -425,6 +447,29 @@ export const NetworkId = {
 - JSON output support
 - Updated documentation
 
+### Phase 5: Runtime Wallet Operations (Priority: Medium)
+
+1. Implement `midnightctl wallet balance`
+2. Implement `midnightctl wallet fund`
+3. Implement `midnightctl wallet register-dust`
+4. Implement `midnightctl wallet address`
+5. Implement `midnightctl tx send`
+6. Implement `midnightctl tx status`
+7. Add service connectivity helpers
+8. Write unit and integration tests
+
+**Deliverables:**
+- `commands/wallet/balance.ts`
+- `commands/wallet/fund.ts`
+- `commands/wallet/register-dust.ts`
+- `commands/wallet/address.ts`
+- `commands/tx/index.ts`
+- `commands/tx/send.ts`
+- `commands/tx/status.ts`
+- `lib/midnight/rpc.ts` (node RPC client)
+- `lib/midnight/indexer.ts` (indexer GraphQL client)
+- Integration tests with running services
+
 ---
 
 ## Testing Requirements
@@ -479,8 +524,244 @@ export const NetworkId = {
 
 ---
 
+## Phase 5: Runtime Wallet Operations (Priority: Medium)
+
+This phase adds runtime wallet operations that interact with the Midnight node and indexer services. These commands complement the key/address management commands from earlier phases.
+
+### FR-7: Wallet Balance
+
+**Command:** `midnightctl wallet balance [seed]`
+
+**Description:** Check wallet balance for tDUST and other tokens.
+
+**Requirements:**
+- FR-7.1: Accept wallet seed as argument or use stored default
+- FR-7.2: Connect to node via `$MIDNIGHT_NODE_URL` environment variable
+- FR-7.3: Display tDUST balance (unshielded and shielded)
+- FR-7.4: Display registered token balances
+- FR-7.5: Support `--json` output for scripting
+
+**Example:**
+```bash
+$ midnightctl wallet balance
+# Uses default wallet from config
+
+$ midnightctl wallet balance 0x0000...0001
+
+Wallet Balance
+==============
+  Network:    standalone
+  Address:    mn_addr_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+
+  tDUST:
+    Unshielded: 1,000,000.00
+    Shielded:   0.00
+
+  Tokens:
+    (none registered)
+```
+
+---
+
+### FR-8: Wallet Funding
+
+**Command:** `midnightctl wallet fund <seed> <amount>`
+
+**Description:** Fund a wallet from a genesis wallet (standalone/devnet only).
+
+**Requirements:**
+- FR-8.1: Only available on `standalone` and `devnet` networks
+- FR-8.2: Use pre-funded genesis wallet (seed `0x000...001`) as source
+- FR-8.3: Transfer specified amount of tDUST to target wallet
+- FR-8.4: Display transaction hash and confirmation
+- FR-8.5: Support `--from <seed>` to specify source wallet
+
+**Implementation Note:** This wraps the `midnight-node-toolkit` Docker image or calls node RPC directly.
+
+**Example:**
+```bash
+$ midnightctl wallet fund 0xabcd...1234 1000
+
+Funding Wallet
+==============
+  Network:     standalone
+  From:        Genesis Wallet #1
+  To:          mn_addr_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+  Amount:      1,000.00 tDUST
+
+  Transaction: 0x9876...fedc
+  Status:      Confirmed (block #12345)
+
+$ midnightctl wallet fund 0xabcd...1234 500 --from 0x000...002
+# Fund from a specific genesis wallet
+```
+
+---
+
+### FR-9: Token Registration (DUST)
+
+**Command:** `midnightctl wallet register-dust <seed>`
+
+**Description:** Register a wallet for DUST token operations.
+
+**Requirements:**
+- FR-9.1: Register the wallet's shielded address for DUST token
+- FR-9.2: Display registration transaction hash
+- FR-9.3: Warn if wallet is already registered
+
+**Example:**
+```bash
+$ midnightctl wallet register-dust 0xabcd...1234
+
+DUST Registration
+=================
+  Wallet:      mn_shield-addr_standalone1qpzry9x8gf2tvdw0s3jn54k...
+  Transaction: 0x5678...abcd
+  Status:      Registered
+
+Note: You can now receive shielded DUST tokens at this address.
+```
+
+---
+
+### FR-10: Transaction Sending
+
+**Command:** `midnightctl tx send <from-seed> <to-address> <amount>`
+
+**Description:** Send tDUST tokens to another address.
+
+**Requirements:**
+- FR-10.1: Validate destination address format
+- FR-10.2: Check sufficient balance before sending
+- FR-10.3: Support both unshielded and shielded transfers
+- FR-10.4: Display transaction hash and wait for confirmation
+- FR-10.5: Support `--no-wait` flag to return immediately
+
+**Example:**
+```bash
+$ midnightctl tx send 0xabcd...1234 mn_addr_standalone1xyz... 100
+
+Sending Transaction
+===================
+  From:    mn_addr_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+  To:      mn_addr_standalone1xyz...
+  Amount:  100.00 tDUST
+  Type:    Unshielded Transfer
+
+  Transaction: 0xfedc...9876
+  Status:      Confirmed (block #12350)
+  New Balance: 900.00 tDUST
+```
+
+---
+
+### FR-11: Transaction Status
+
+**Command:** `midnightctl tx status <tx-hash>`
+
+**Description:** Check the status of a transaction.
+
+**Requirements:**
+- FR-11.1: Query transaction by hash
+- FR-11.2: Display confirmation status (pending, confirmed, failed)
+- FR-11.3: Show block number if confirmed
+- FR-11.4: Display error message if failed
+- FR-11.5: Support `--json` output
+
+**Example:**
+```bash
+$ midnightctl tx status 0x9876...fedc
+
+Transaction Status
+==================
+  Hash:    0x9876...fedc
+  Status:  Confirmed
+  Block:   #12345
+  Type:    Transfer
+  From:    mn_addr_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+  To:      mn_addr_standalone1xyz...
+  Amount:  1,000.00 tDUST
+```
+
+---
+
+### FR-12: Wallet Address Display
+
+**Command:** `midnightctl wallet address <seed>`
+
+**Description:** Display wallet addresses derived from a seed.
+
+**Requirements:**
+- FR-12.1: Derive and display unshielded address
+- FR-12.2: Derive and display shielded address
+- FR-12.3: Use current chain environment for network prefix
+- FR-12.4: Support `--network` flag to override
+- FR-12.5: Support `--json` output
+
+**Example:**
+```bash
+$ midnightctl wallet address 0xabcd...1234
+
+Wallet Addresses
+================
+  Network:     standalone
+  
+  Unshielded:  mn_addr_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+  Shielded:    mn_shield-addr_standalone1qpzry9x8gf2tvdw0s3jn54k...
+  DUST:        mn_dust_standalone1qpzry9x8gf2tvdw0s3jn54khce6mua7l...
+```
+
+---
+
+### Implementation Notes for Phase 5
+
+**Dependencies:**
+- Requires running midnight-node service (via `midnightctl services` or external)
+- May use `midnight-node-toolkit` Docker image for some operations
+- Requires indexer for balance queries
+
+**Environment Variables:**
+```bash
+MIDNIGHT_NODE_URL=http://localhost:9944      # Node RPC endpoint
+MIDNIGHT_INDEXER_URL=http://localhost:8088   # Indexer GraphQL endpoint
+MIDNIGHT_DEFAULT_WALLET=0x000...001          # Optional default wallet seed
+```
+
+**Error Handling:**
+- Clear error if services are not running
+- Suggest `midnightctl services start` if connection fails
+- Validate network compatibility (e.g., funding only on standalone/devnet)
+
+---
+
+## Future Phases (Backlog)
+
+### Contract Operations (Phase 6)
+
+```bash
+midnightctl contract deploy <path>           # Deploy compiled contract
+midnightctl contract call <addr> <method>    # Call contract method
+midnightctl contract state <addr>            # Query contract state
+```
+
+### Advanced Wallet Features (Phase 7)
+
+```bash
+midnightctl wallet export <seed> --format    # Export keys in various formats
+midnightctl wallet import <file>             # Import wallet from file
+midnightctl wallet history <seed>            # Transaction history
+midnightctl wallet shield <seed> <amount>    # Shield tokens
+midnightctl wallet unshield <seed> <amount>  # Unshield tokens
+```
+
+---
+
 ## References
 
+### Internal Documentation
+- [FUNDING.md](./FUNDING.md) - Current manual workflow using midnight-node-toolkit
+
+### External Resources
 - [Midnight Wallet SDK](https://github.com/midnightntwrk/midnight-wallet)
 - [Midnight Wallet Specification](https://github.com/midnightntwrk/midnight-architecture/blob/main/components/WalletEngine/Specification.md)
 - [BIP39 Specification](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
