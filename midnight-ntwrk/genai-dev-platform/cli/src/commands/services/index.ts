@@ -10,13 +10,23 @@ import {
 } from '../../utils/config';
 
 /**
+ * Convert WebSocket URL to HTTP URL for health checks
+ */
+function wsToHttp(url: string): string {
+  return url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+}
+
+/**
  * Check health of a service via HTTP or TCP
  */
-async function checkHealth(url: string, healthPath: string | null): Promise<boolean> {
+async function checkHealth(url: string, healthPath: string | null, convertWs: boolean = false): Promise<boolean> {
   try {
+    // Convert ws:// to http:// if needed for health checks
+    const httpUrl = convertWs ? wsToHttp(url) : url;
+    
     if (healthPath) {
       // HTTP health check
-      const fullUrl = `${url}${healthPath}`;
+      const fullUrl = `${httpUrl}${healthPath}`;
       const response = await fetch(fullUrl, { 
         method: 'GET',
         signal: AbortSignal.timeout(5000),
@@ -24,11 +34,12 @@ async function checkHealth(url: string, healthPath: string | null): Promise<bool
       return response.ok;
     } else {
       // TCP check - just try to connect to the base URL
-      await fetch(url, { 
+      const response = await fetch(httpUrl, { 
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       });
-      return true; // If we get any response, service is up
+      // Any response (even 404) means service is up
+      return true;
     }
   } catch {
     return false;
@@ -67,7 +78,7 @@ const statusCommand = new Command('status')
         continue;
       }
 
-      const isHealthy = await checkHealth(url, service.healthPath);
+      const isHealthy = await checkHealth(url, service.healthPath, service.convertWsToHttp);
       const status = isHealthy 
         ? '\x1b[32m● Healthy\x1b[0m' 
         : '\x1b[31m○ Unhealthy\x1b[0m';
@@ -110,7 +121,7 @@ const startCommand = new Command('start')
           continue;
         }
 
-        const isHealthy = await checkHealth(url, service.healthPath);
+        const isHealthy = await checkHealth(url, service.healthPath, service.convertWsToHttp);
         if (isHealthy) {
           logger.success(`${service.name}: Healthy`);
         } else {

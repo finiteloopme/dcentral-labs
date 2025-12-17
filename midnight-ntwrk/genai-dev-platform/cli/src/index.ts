@@ -1,5 +1,14 @@
 #!/usr/bin/env node
 
+// Load environment variables from .env file (if present)
+// This must be done before any other imports that might use process.env
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Try to load .env from current directory, then from home directory
+dotenv.config(); // .env in current directory
+dotenv.config({ path: path.join(process.env.HOME || '', '.env') }); // ~/.env
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { initCommand } from './commands/init';
