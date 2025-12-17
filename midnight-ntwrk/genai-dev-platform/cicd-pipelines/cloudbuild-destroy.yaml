@@ -21,6 +21,7 @@ substitutions:
   _INDEXER_IMAGE: midnightntwrk/indexer-standalone:latest
   _MACHINE_TYPE: e2-standard-4
   _PERSISTENT_DISK_SIZE_GB: "100"
+  _INDEXER_SECRET: ""
   _CLOUDBUILD_SA_EMAIL: ""
 
 options:
@@ -58,6 +59,7 @@ steps:
           -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
           -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
           -var="indexer_image=${_INDEXER_IMAGE}" \
+          -var="indexer_secret=${_INDEXER_SECRET}" \
           -var="machine_type=${_MACHINE_TYPE}" \
           -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
           -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}"

@@ -12,7 +12,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}/.."
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Load environment
 if [[ -f "${PROJECT_DIR}/.env" ]]; then
