@@ -3,13 +3,13 @@
 variable "midnight_node_image" {
   description = "Docker image for Midnight node"
   type        = string
-  default     = "midnightntwrk/midnight-node:0.18.0-rc.9"
+  default     = "midnightntwrk/midnight-node:0.18.0"
 }
 
 variable "proof_server_image" {
   description = "Docker image for proof server"
   type        = string
-  default     = "midnightnetwork/proof-server:6.2.0-rc.1"
+  default     = "midnightnetwork/proof-server:6.2.0-rc.2"
 }
 
 variable "indexer_image" {
@@ -28,7 +28,8 @@ variable "indexer_secret" {
   description = "32-byte hex secret for indexer encryption. Generate with: openssl rand -hex 32"
   type        = string
   sensitive   = true
-  default     = ""
+  # Default value for development only - replace with a secure secret for production!
+  default     = "0000000000000000000000000000000000000000000000000000000000000001"
 }
 
 variable "labels" {

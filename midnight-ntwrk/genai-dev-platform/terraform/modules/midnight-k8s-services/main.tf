@@ -5,6 +5,15 @@
 # - proof-server: Zero-knowledge proof generation (Deployment with External LB)
 # - indexer: Blockchain indexer using SQLite (StatefulSet with External LB)
 #
+# Component Versions (as of 0.18.0 upgrade):
+# - Node: midnightntwrk/midnight-node:0.18.0
+# - Proof Server: midnightnetwork/proof-server:6.2.0-rc.2
+# - Indexer: midnightntwrk/indexer-standalone:3.0.0-alpha.20
+#
+# Key Configuration Notes:
+# - Node 0.18.0 requires USE_MAIN_CHAIN_FOLLOWER_MOCK=true for dev mode
+# - Indexer 3.x uses ConfigMap for config (API endpoint: /api/v3/graphql)
+#
 # Prerequisites: GKE cluster must exist and Kubernetes provider must be configured.
 
 terraform {
@@ -73,11 +82,29 @@ resource "kubernetes_stateful_set_v1" "midnight_node" {
           name  = "midnight-node"
           image = var.midnight_node_image
 
-          # Use CFG_PRESET env var instead of CLI args
-          # For dev mode: CFG_PRESET=dev enables local development chain
-          env {
-            name  = "CFG_PRESET"
-            value = local.is_dev_mode ? "dev" : var.chain_environment
+          # Command args for dev mode (required for 0.18.0+)
+          args = local.is_dev_mode ? [
+            "--dev",
+            "--rpc-external",
+            "--rpc-cors=all",
+            "--rpc-methods=unsafe"
+          ] : []
+
+          # Required for 0.18.0 dev mode - mock the Cardano chain follower
+          dynamic "env" {
+            for_each = local.is_dev_mode ? [1] : []
+            content {
+              name  = "USE_MAIN_CHAIN_FOLLOWER_MOCK"
+              value = "true"
+            }
+          }
+
+          dynamic "env" {
+            for_each = local.is_dev_mode ? [1] : []
+            content {
+              name  = "MOCK_REGISTRATIONS_FILE"
+              value = "res/mock-bridge-data/default-registrations.json"
+            }
           }
 
           # Block beneficiary address for dev mode block rewards
@@ -284,9 +311,66 @@ resource "kubernetes_service_v1" "proof_server" {
 }
 
 # ===========================================
-# INDEXER - StatefulSet + External LB
+# INDEXER - ConfigMap + StatefulSet + External LB
 # Uses SQLite (ephemeral storage OK for dev)
+# API endpoint: /api/v3/graphql (v1 redirects to v3)
 # ===========================================
+
+resource "kubernetes_config_map_v1" "indexer_config" {
+  metadata {
+    name      = "indexer-config"
+    namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
+    labels = {
+      app = "indexer"
+    }
+  }
+
+  data = {
+    "config.yaml" = <<-EOT
+      run_migrations: true
+
+      application:
+        network_id: "undeployed"
+        blocks_buffer: 10
+        save_ledger_state_after: 1000
+        caught_up_max_distance: 10
+        caught_up_leeway: 5
+        active_wallets_query_delay: "500ms"
+        active_wallets_ttl: "30m"
+        transaction_batch_size: 50
+
+      infra:
+        # 32-byte hex secret for encryption
+        secret: "${var.indexer_secret}"
+        
+        storage:
+          cnn_url: "/data/indexer.sqlite"
+
+        node:
+          url: "ws://midnight-node.midnight-services.svc.cluster.local:9944"
+          reconnect_max_delay: "10s"
+          reconnect_max_attempts: 30
+          subscription_recovery_timeout: "30s"
+
+        api:
+          address: "0.0.0.0"
+          port: 8088
+          request_body_limit: "1MiB"
+          max_complexity: 200
+          max_depth: 15
+
+      telemetry:
+        tracing:
+          enabled: false
+          service_name: "indexer"
+          otlp_exporter_endpoint: "http://localhost:4317"
+        metrics:
+          enabled: false
+          address: "0.0.0.0"
+          port: 9000
+    EOT
+  }
+}
 
 resource "kubernetes_stateful_set_v1" "indexer" {
   metadata {
@@ -319,24 +403,17 @@ resource "kubernetes_stateful_set_v1" "indexer" {
           name  = "indexer"
           image = var.indexer_image
 
-          # Indexer uses APP__* env var naming convention (double underscore = nested config)
-          # Only required env vars - others have sensible defaults
-
-          # WebSocket connection to midnight-node
-          env {
-            name  = "APP__INFRA__NODE__URL"
-            value = "ws://midnight-node.midnight-services.svc.cluster.local:9944"
-          }
-
-          # Required secret (32-byte hex string) - must be set in .env
-          env {
-            name  = "APP__INFRA__SECRET"
-            value = var.indexer_secret
-          }
+          # Indexer 3.x uses config file approach (more reliable than env vars)
+          # Config is mounted from ConfigMap at /opt/indexer-standalone/config.yaml
 
           port {
             container_port = 8088
             name           = "http"
+          }
+
+          port {
+            container_port = 9000
+            name           = "metrics"
           }
 
           resources {
@@ -348,6 +425,14 @@ resource "kubernetes_stateful_set_v1" "indexer" {
               cpu    = var.indexer_cpu
               memory = var.indexer_memory
             }
+          }
+
+          # Volume mount for config file
+          volume_mount {
+            name       = "config"
+            mount_path = "/opt/indexer-standalone/config.yaml"
+            sub_path   = "config.yaml"
+            read_only  = true
           }
 
           # Volume mount for SQLite data
@@ -387,6 +472,14 @@ resource "kubernetes_stateful_set_v1" "indexer" {
             period_seconds        = 10
             timeout_seconds       = 5
             failure_threshold     = 30
+          }
+        }
+
+        # Config volume from ConfigMap
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.indexer_config.metadata[0].name
           }
         }
 
