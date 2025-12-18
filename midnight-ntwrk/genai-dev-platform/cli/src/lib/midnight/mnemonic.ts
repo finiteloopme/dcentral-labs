@@ -6,7 +6,11 @@
 
 import { generateMnemonic as generateBip39Mnemonic, validateMnemonic as validateBip39Mnemonic, mnemonicToSeedSync } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
-import { bytesToHex, hexToBytes } from '@scure/base';
+import { hex } from '@scure/base';
+
+// Helper functions using @scure/base hex coder
+const bytesToHex = (bytes: Uint8Array): string => hex.encode(bytes);
+const hexToBytes = (hexStr: string): Uint8Array => hex.decode(hexStr);
 
 /**
  * Generate a new BIP39 mnemonic phrase

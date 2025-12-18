@@ -75,7 +75,8 @@ export function encodeAddress(type: AddressType, network: NetworkId, data: Uint8
  */
 export function decodeAddress(address: string): ParsedAddress {
   try {
-    const decoded = bech32m.decode(address, 256);
+    // Cast to expected type - bech32m.decode expects a specific template literal type
+    const decoded = bech32m.decode(address as `${string}1${string}`, 256);
     const prefixParts = parsePrefix(decoded.prefix);
     
     if (!prefixParts) {

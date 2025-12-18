@@ -186,7 +186,7 @@ async function createWalletMidnightProvider(wallet: any): Promise<any> {
   const { getLedgerNetworkId, getZswapNetworkId } = await import('@midnight-ntwrk/midnight-js-network-id');
   const { createBalancedTx } = await import('@midnight-ntwrk/midnight-js-types');
   
-  const state = await firstValueFrom(wallet.state());
+  const state: any = await firstValueFrom(wallet.state());
   
   return {
     coinPublicKey: state.coinPublicKey,
@@ -230,7 +230,7 @@ export async function waitForWalletSync(
   const timeoutMs = options.timeout ?? 120000; // 2 minutes default
   
   try {
-    const state = await firstValueFrom(
+    const result: { balance: bigint; synced: boolean } = await firstValueFrom(
       wallet.state().pipe(
         throttleTime(5000),
         tap((state: any) => {
@@ -255,20 +255,20 @@ export async function waitForWalletSync(
           return isSynced && (minBalance === 0n || hasBalance);
         }),
         map((state: any) => ({
-          balance: state.balances[nativeToken()] ?? 0n,
-          synced: true,
+          balance: (state.balances[nativeToken()] ?? 0n) as bigint,
+          synced: true as const,
         })),
         timeout(timeoutMs)
       )
     );
     
-    return state;
+    return result;
     
   } catch (error) {
     // Timeout or other error
-    const currentState = await firstValueFrom(wallet.state());
+    const currentState: any = await firstValueFrom(wallet.state());
     return {
-      balance: currentState.balances?.[nativeToken()] ?? 0n,
+      balance: (currentState.balances?.[nativeToken()] ?? 0n) as bigint,
       synced: false,
     };
   }
