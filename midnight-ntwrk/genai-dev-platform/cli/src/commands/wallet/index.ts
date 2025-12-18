@@ -5,15 +5,15 @@
  */
 
 import { Command } from 'commander';
-import { createCommand } from './create';
-import { importCommand } from './import';
-import { listCommand } from './list';
-import { addressCommand } from './address';
-import { removeCommand } from './remove';
-import { setDefaultCommand } from './set-default';
-import { balanceCommand } from './balance';
-import { fundCommand } from './fund';
-import { sendCommand } from './send';
+import { createCommand } from './create.js';
+import { importCommand } from './import.js';
+import { listCommand } from './list.js';
+import { addressCommand } from './address.js';
+import { removeCommand } from './remove.js';
+import { setDefaultCommand } from './set-default.js';
+import { balanceCommand } from './balance.js';
+import { fundCommand } from './fund.js';
+import { sendCommand } from './send.js';
 
 export const walletCommand = new Command('wallet')
   .description('Manage wallets')

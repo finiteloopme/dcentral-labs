@@ -71,19 +71,19 @@ variable "chain_environment" {
 variable "midnight_node_image" {
   description = "Docker image for Midnight node"
   type        = string
-  default     = "midnightntwrk/midnight-node:0.18.0-rc.9"
+  default     = "midnightnetwork/midnight-node:0.12.1"
 }
 
 variable "proof_server_image" {
   description = "Docker image for proof server"
   type        = string
-  default     = "midnightnetwork/proof-server:6.2.0-rc.1"
+  default     = "midnightnetwork/proof-server:4.0.0"
 }
 
 variable "indexer_image" {
   description = "Docker image for indexer"
   type        = string
-  default     = "midnightntwrk/indexer-standalone:3.0.0-alpha.20"
+  default     = "midnightntwrk/indexer-standalone:2.1.4"
 }
 
 variable "indexer_secret" {

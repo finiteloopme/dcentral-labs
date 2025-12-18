@@ -5,8 +5,8 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
-import { WalletManager } from '../../lib/midnight/index';
+import { logger } from '../../utils/logger.js';
+import { WalletManager } from '../../lib/midnight/index.js';
 
 export const setDefaultCommand = new Command('set-default')
   .description('Set the default wallet')

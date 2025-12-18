@@ -6,8 +6,8 @@
 
 import { Command } from 'commander';
 import * as readline from 'readline';
-import { logger } from '../../utils/logger';
-import { WalletManager, getNetworkDisplayName, validateMnemonic, validateHexSeed } from '../../lib/midnight/index';
+import { logger } from '../../utils/logger.js';
+import { WalletManager, getNetworkDisplayName, validateMnemonic, validateHexSeed } from '../../lib/midnight/index.js';
 
 /**
  * Prompt for mnemonic phrase interactively

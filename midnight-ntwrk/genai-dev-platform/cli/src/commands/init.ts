@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 // Template files embedded as strings
 const templates = {

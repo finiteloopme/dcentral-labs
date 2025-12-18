@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 import { 
   WalletManager, 
   getNetworkDisplayName,
@@ -16,7 +16,7 @@ import {
   isFundableNetwork,
   getDefaultGenesisWallet,
   getGenesisWallet,
-} from '../../lib/midnight/index';
+} from '../../lib/midnight/index.js';
 
 /**
  * Format a balance for display
@@ -39,10 +39,22 @@ export const fundCommand = new Command('fund')
   .argument('<amount>', 'Amount of tDUST to send')
   .option('--from <index>', 'Genesis wallet index (1-4)', '1')
   .option('--json', 'Output as JSON')
-  .action(async (name: string, amountStr: string, options: { from: string; json?: boolean }) => {
+  .option('--debug', 'Show debug information including service URLs')
+  .action(async (name: string, amountStr: string, options: { from: string; json?: boolean; debug?: boolean }) => {
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
+      
+      // Debug: show service URLs
+      if (options.debug) {
+        console.log('');
+        console.log('  [DEBUG] Service URLs:');
+        console.log(`    Node WS:      ${config.urls.nodeWsUrl}`);
+        console.log(`    Indexer:      ${config.urls.indexerUrl}`);
+        console.log(`    Indexer WS:   ${config.urls.indexerWsUrl}`);
+        console.log(`    Proof Server: ${config.urls.proofServerUrl}`);
+        console.log('');
+      }
       
       // Validate services
       const validation = validateServiceConfig(config);
@@ -77,12 +89,37 @@ export const fundCommand = new Command('fund')
         throw new Error(`Invalid genesis wallet index: ${options.from}. Use 1-4.`);
       }
       
+      // First, get the target wallet's shielded address by connecting to SDK
+      // The transferTransaction API requires a shielded address (mn_shield-addr_...)
+      if (!options.json) {
+        logger.info('Getting target wallet shielded address...');
+      }
+      
+      const { firstValueFrom } = await import('rxjs');
+      const targetWalletProvider = await createWalletProvider(targetWallet.seed, config);
+      targetWalletProvider.start();
+      
+      let targetShieldedAddress: string;
+      try {
+        const targetState: any = await firstValueFrom(targetWalletProvider.state());
+        targetShieldedAddress = targetState.address;
+        if (!targetShieldedAddress) {
+          throw new Error('Could not get shielded address from target wallet');
+        }
+      } finally {
+        try {
+          await targetWalletProvider.close();
+        } catch {
+          // Ignore close errors
+        }
+      }
+      
       if (!options.json) {
         logger.title(`Funding Wallet: ${name}`);
         console.log('');
         console.log(`  Network:  ${getNetworkDisplayName(config.network)}`);
         console.log(`  From:     ${genesisWallet.name}`);
-        console.log(`  To:       ${targetWallet.addresses.unshielded}`);
+        console.log(`  To:       ${targetShieldedAddress}`);
         console.log(`  Amount:   ${formatBalance(amount)} tDUST`);
         console.log('');
       }
@@ -129,18 +166,39 @@ export const fundCommand = new Command('fund')
           );
         }
         
-        // Send transaction
+        // Send transaction using the 3-step wallet API:
+        // 1. transferTransaction() - prepare the transfer
+        // 2. proveTransaction() - generate ZK proof
+        // 3. submitTransaction() - submit to network
+        
         if (!options.json) {
-          logger.info('Sending transaction...');
+          logger.info('Preparing transfer transaction...');
         }
         
-        // Use wallet SDK to send transaction
-        // Note: This is a simplified version - actual implementation would use
-        // the wallet's transfer method
-        const txHash = await sourceWallet.transfer(
-          targetWallet.addresses.unshielded,
-          amount
-        );
+        // Import nativeToken to get the tDUST token type
+        const { nativeToken } = await import('@midnight-ntwrk/ledger');
+        const tokenType = nativeToken();
+        
+        // Step 1: Prepare the transfer transaction (using shielded address)
+        const transferRecipe = await sourceWallet.transferTransaction([{
+          amount,
+          type: tokenType,
+          receiverAddress: targetShieldedAddress,
+        }]);
+        
+        if (!options.json) {
+          logger.info('Proving transaction...');
+        }
+        
+        // Step 2: Prove the transaction
+        const provenTx = await sourceWallet.proveTransaction(transferRecipe);
+        
+        if (!options.json) {
+          logger.info('Submitting transaction...');
+        }
+        
+        // Step 3: Submit the transaction
+        const txHash = await sourceWallet.submitTransaction(provenTx);
         
         if (!options.json) {
           console.log('');
@@ -151,7 +209,7 @@ export const fundCommand = new Command('fund')
             success: true,
             from: genesisWallet.name,
             to: targetWallet.name,
-            toAddress: targetWallet.addresses.unshielded,
+            toAddress: targetShieldedAddress,
             amount: amount.toString(),
             formatted: formatBalance(amount),
             txHash,

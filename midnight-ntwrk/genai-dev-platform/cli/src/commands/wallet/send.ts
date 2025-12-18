@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 import { 
   WalletManager, 
   getNetworkDisplayName,
@@ -15,7 +15,7 @@ import {
   validateServiceConfig,
   validateAddress,
   truncateAddress,
-} from '../../lib/midnight/index';
+} from '../../lib/midnight/index.js';
 
 /**
  * Format a balance for display
@@ -59,6 +59,15 @@ export const sendCommand = new Command('send')
       const addrValidation = validateAddress(to);
       if (!addrValidation.valid) {
         throw new Error(`Invalid destination address: ${addrValidation.error}`);
+      }
+      
+      // Check if address is shielded - transferTransaction requires shielded addresses
+      if (addrValidation.parsed?.type !== 'shield-addr') {
+        throw new Error(
+          `Destination must be a shielded address (mn_shield-addr_...). ` +
+          `Got ${addrValidation.parsed?.type || 'unknown'} address type. ` +
+          `Use 'midnightctl wallet address <name> --shielded' to get a wallet's shielded address.`
+        );
       }
       
       // Parse amount (in whole units, convert to smallest unit)
@@ -118,19 +127,46 @@ export const sendCommand = new Command('send')
           );
         }
         
-        // Send transaction
+        // Send transaction using the 3-step wallet API:
+        // 1. transferTransaction() - prepare the transfer
+        // 2. proveTransaction() - generate ZK proof
+        // 3. submitTransaction() - submit to network
+        
         if (!options.json) {
-          logger.info('Sending transaction...');
+          logger.info('Preparing transfer transaction...');
         }
         
-        const txHash = await wallet.transfer(to, amount);
+        // Import nativeToken to get the tDUST token type
+        const { nativeToken } = await import('@midnight-ntwrk/ledger');
+        const tokenType = nativeToken();
+        
+        // Step 1: Prepare the transfer transaction
+        const transferRecipe = await wallet.transferTransaction([{
+          amount,
+          type: tokenType,
+          receiverAddress: to,
+        }]);
+        
+        if (!options.json) {
+          logger.info('Proving transaction...');
+        }
+        
+        // Step 2: Prove the transaction
+        const provenTx = await wallet.proveTransaction(transferRecipe);
+        
+        if (!options.json) {
+          logger.info('Submitting transaction...');
+        }
+        
+        // Step 3: Submit the transaction
+        const txHash = await wallet.submitTransaction(provenTx);
         
         if (!options.json) {
           console.log('');
         }
         
-        // Get new balance
-        const newBalance = balance - amount; // Approximate (doesn't include fees)
+        // Get new balance (approximate - doesn't include fees)
+        const newBalance = balance - amount;
         
         if (options.json) {
           console.log(JSON.stringify({

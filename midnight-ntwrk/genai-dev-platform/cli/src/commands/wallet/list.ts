@@ -5,8 +5,8 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
-import { WalletManager, getNetworkDisplayName, truncateAddress } from '../../lib/midnight/index';
+import { logger } from '../../utils/logger.js';
+import { WalletManager, getNetworkDisplayName, truncateAddress } from '../../lib/midnight/index.js';
 
 export const listCommand = new Command('list')
   .description('List all wallets')

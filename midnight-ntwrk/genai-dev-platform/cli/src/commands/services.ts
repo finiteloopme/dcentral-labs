@@ -1,1 +1,1 @@
-export { servicesCommand } from './services/index';
+export { servicesCommand } from './services/index.js';

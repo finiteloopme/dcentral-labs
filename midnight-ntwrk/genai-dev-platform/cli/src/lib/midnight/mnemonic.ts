@@ -4,6 +4,7 @@
  * Uses @scure/bip39 for secure, audited mnemonic operations.
  */
 
+import { randomBytes } from 'node:crypto';
 import { generateMnemonic as generateBip39Mnemonic, validateMnemonic as validateBip39Mnemonic, mnemonicToSeedSync } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { hex } from '@scure/base';
@@ -95,8 +96,7 @@ export function mnemonicToHexSeed(words: string[] | string, passphrase: string =
  * Generate a random 32-byte seed as hex
  */
 export function generateRandomSeed(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
+  const bytes = randomBytes(32);
   return bytesToHex(bytes);
 }
 

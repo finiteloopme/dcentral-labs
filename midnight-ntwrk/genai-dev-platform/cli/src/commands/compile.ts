@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync, spawnSync } from 'child_process';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 interface MidnightConfig {
   contracts?: {

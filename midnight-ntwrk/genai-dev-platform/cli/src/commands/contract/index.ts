@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { deployCommand } from './deploy';
+import { deployCommand } from './deploy.js';
 
 export const contractCommand = new Command('contract')
   .description('Deploy and interact with contracts')

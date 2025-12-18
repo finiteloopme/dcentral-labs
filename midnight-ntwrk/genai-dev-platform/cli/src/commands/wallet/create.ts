@@ -5,8 +5,8 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
-import { WalletManager, getNetworkDisplayName } from '../../lib/midnight/index';
+import { logger } from '../../utils/logger.js';
+import { WalletManager, getNetworkDisplayName } from '../../lib/midnight/index.js';
 
 export const createCommand = new Command('create')
   .description('Create a new wallet')

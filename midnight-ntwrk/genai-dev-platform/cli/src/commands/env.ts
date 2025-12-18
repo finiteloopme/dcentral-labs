@@ -1,1 +1,1 @@
-export { envCommand } from './env/index';
+export { envCommand } from './env/index.js';

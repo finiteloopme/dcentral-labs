@@ -7,7 +7,7 @@
 import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 import { 
   WalletManager,
   getNetworkDisplayName,
@@ -16,8 +16,8 @@ import {
   validateServiceConfig,
   waitForWalletSync,
   truncateAddress,
-} from '../../lib/midnight/index';
-import { generateWitnesses, getWitnessSummary } from '../../lib/midnight/witness-gen';
+} from '../../lib/midnight/index.js';
+import { generateWitnesses, getWitnessSummary } from '../../lib/midnight/witness-gen.js';
 
 /**
  * Contract metadata stored in .private/contracts/

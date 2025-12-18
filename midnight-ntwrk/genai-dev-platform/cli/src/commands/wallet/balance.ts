@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 import { 
   WalletManager, 
   getNetworkDisplayName,
@@ -13,7 +13,7 @@ import {
   createWalletProvider,
   waitForWalletSync,
   validateServiceConfig,
-} from '../../lib/midnight/index';
+} from '../../lib/midnight/index.js';
 
 /**
  * Format a balance for display (convert from smallest unit)
@@ -36,10 +36,22 @@ export const balanceCommand = new Command('balance')
   .argument('[name]', 'Wallet name (uses default if not specified)')
   .option('--json', 'Output as JSON')
   .option('--no-sync', 'Skip wallet sync (show cached balance)')
-  .action(async (name: string | undefined, options: { json?: boolean; sync?: boolean }) => {
+  .option('--debug', 'Show debug information including service URLs')
+  .action(async (name: string | undefined, options: { json?: boolean; sync?: boolean; debug?: boolean }) => {
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
+      
+      // Debug: show service URLs
+      if (options.debug) {
+        console.log('');
+        console.log('  [DEBUG] Service URLs:');
+        console.log(`    Node WS:      ${config.urls.nodeWsUrl}`);
+        console.log(`    Indexer:      ${config.urls.indexerUrl}`);
+        console.log(`    Indexer WS:   ${config.urls.indexerWsUrl}`);
+        console.log(`    Proof Server: ${config.urls.proofServerUrl}`);
+        console.log('');
+      }
       
       // Validate services are configured
       const validation = validateServiceConfig(config);

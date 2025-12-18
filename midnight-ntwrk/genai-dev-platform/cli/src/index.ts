@@ -2,8 +2,9 @@
 
 // Load environment variables from .env file (if present)
 // This must be done before any other imports that might use process.env
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Try to load .env from current directory, then from home directory
 dotenv.config(); // .env in current directory
@@ -11,12 +12,12 @@ dotenv.config({ path: path.join(process.env.HOME || '', '.env') }); // ~/.env
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { initCommand } from './commands/init';
-import { compileCommand } from './commands/compile';
-import { servicesCommand } from './commands/services';
-import { envCommand } from './commands/env';
-import { walletCommand } from './commands/wallet/index';
-import { contractCommand } from './commands/contract/index';
+import { initCommand } from './commands/init.js';
+import { compileCommand } from './commands/compile.js';
+import { servicesCommand } from './commands/services.js';
+import { envCommand } from './commands/env.js';
+import { walletCommand } from './commands/wallet/index.js';
+import { contractCommand } from './commands/contract/index.js';
 
 const program = new Command();
 

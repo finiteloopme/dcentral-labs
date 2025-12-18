@@ -18,7 +18,20 @@ export function isGcpWorkstation(): boolean {
 }
 
 /**
+ * GraphQL API path for the indexer
+ * 
+ * Note: indexer-standalone 2.1.x uses v1 API.
+ * This is compatible with wallet SDK v5.0.0.
+ */
+const INDEXER_GRAPHQL_PATH = '/api/v1/graphql';
+const INDEXER_GRAPHQL_WS_PATH = '/api/v1/graphql/ws';
+
+/**
  * Get service URLs from environment variables
+ * 
+ * Automatically appends the GraphQL API paths to indexer URLs if missing.
+ * Users can specify just the base URL (e.g., http://host:8088) and the
+ * correct paths will be added automatically.
  */
 export function getServiceUrls(): ServiceUrls {
   const isWorkstation = isGcpWorkstation();
@@ -29,12 +42,26 @@ export function getServiceUrls(): ServiceUrls {
   // Derive HTTP URL from WebSocket URL for health checks
   const nodeHttpUrl = nodeUrl?.replace('ws://', 'http://').replace('wss://', 'https://');
   
-  const indexerUrl = process.env.INDEXER_URL || 
-                     (isWorkstation ? undefined : 'http://localhost:8088');
+  let indexerUrl = process.env.INDEXER_URL || 
+                   (isWorkstation ? undefined : 'http://localhost:8088');
+  
+  // Auto-append GraphQL path if missing
+  if (indexerUrl && !indexerUrl.includes(INDEXER_GRAPHQL_PATH)) {
+    indexerUrl = indexerUrl.replace(/\/$/, '') + INDEXER_GRAPHQL_PATH;
+  }
   
   // Indexer WebSocket URL (for subscriptions)
-  const indexerWsUrl = process.env.INDEXER_WS_URL ||
-                       indexerUrl?.replace('http://', 'ws://').replace('https://', 'wss://');
+  let indexerWsUrl = process.env.INDEXER_WS_URL;
+  if (!indexerWsUrl && indexerUrl) {
+    // Derive from HTTP URL: replace protocol and change path to WS path
+    indexerWsUrl = indexerUrl
+      .replace('http://', 'ws://')
+      .replace('https://', 'wss://')
+      .replace(INDEXER_GRAPHQL_PATH, INDEXER_GRAPHQL_WS_PATH);
+  } else if (indexerWsUrl && !indexerWsUrl.includes(INDEXER_GRAPHQL_WS_PATH)) {
+    // User provided WS URL but without path - append it
+    indexerWsUrl = indexerWsUrl.replace(/\/$/, '') + INDEXER_GRAPHQL_WS_PATH;
+  }
   
   const proofServerUrl = process.env.PROOF_SERVER_URL || 
                          (isWorkstation ? undefined : 'http://localhost:6300');

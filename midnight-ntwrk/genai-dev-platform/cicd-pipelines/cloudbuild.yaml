@@ -20,9 +20,9 @@ substitutions:
   _IMAGE_TAG: latest
   _ENVIRONMENT: dev
   _CHAIN_ENVIRONMENT: standalone
-  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0-rc.9
-  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.2.0-rc.1
-  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:3.0.0-alpha.20
+  _MIDNIGHT_NODE_IMAGE: midnightnetwork/midnight-node:0.12.1
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:4.0.0
+  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:2.1.4
   _INDEXER_SECRET: ""
   _MACHINE_TYPE: e2-standard-4
   _PERSISTENT_DISK_SIZE_GB: "100"

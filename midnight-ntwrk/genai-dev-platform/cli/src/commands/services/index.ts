@@ -1,13 +1,13 @@
 import { Command } from 'commander';
 import { execSync } from 'child_process';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 import { 
   getServiceUrls, 
   getChainEnvironment, 
   isGcpWorkstation,
   SERVICES,
   ServiceUrls,
-} from '../../utils/config';
+} from '../../utils/config.js';
 
 /**
  * Convert WebSocket URL to HTTP URL for health checks
