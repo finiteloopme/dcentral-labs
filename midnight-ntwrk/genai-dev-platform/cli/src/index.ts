@@ -15,6 +15,8 @@ import { initCommand } from './commands/init';
 import { compileCommand } from './commands/compile';
 import { servicesCommand } from './commands/services';
 import { envCommand } from './commands/env';
+import { walletCommand } from './commands/wallet/index';
+import { contractCommand } from './commands/contract/index';
 
 const program = new Command();
 
@@ -30,15 +32,20 @@ program.addCommand(compileCommand);
 // Namespaced commands
 program.addCommand(servicesCommand);
 program.addCommand(envCommand);
+program.addCommand(walletCommand);
+program.addCommand(contractCommand);
 
 // Custom help footer
 program.addHelpText('after', `
 ${chalk.cyan('Examples:')}
-  $ midnightctl init my-project       Create a new Midnight project
-  $ midnightctl compile                Compile Compact contracts
-  $ midnightctl services start         Start local development services
-  $ midnightctl services status        Check service status
-  $ midnightctl env show               Show current environment
+  $ midnightctl init my-project         Create a new Midnight project
+  $ midnightctl compile                  Compile Compact contracts
+  $ midnightctl services start           Start local development services
+  $ midnightctl services status          Check service status
+  $ midnightctl env show                 Show current environment
+  $ midnightctl wallet create dev        Create a new wallet
+  $ midnightctl wallet balance           Check wallet balance
+  $ midnightctl contract deploy ./build  Deploy a compiled contract
 
 ${chalk.cyan('Documentation:')}
   https://docs.midnight.network

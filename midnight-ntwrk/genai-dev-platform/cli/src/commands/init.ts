@@ -141,6 +141,10 @@ node_modules/
 dist/
 build/
 
+# Private data (wallets, contract state)
+# Contains sensitive data - never commit!
+.private/
+
 # IDE
 .idea/
 .vscode/
@@ -208,7 +212,29 @@ npm start
 │   └── contract.ts     # Contract bindings
 ├── tests/              # Test files
 ├── build/              # Compiled contract output
+├── .private/           # Wallet & contract state (gitignored)
 └── midnight.config.json # Project configuration
+\`\`\`
+
+## Wallet Management
+
+\`\`\`bash
+# Create a new wallet
+midnightctl wallet create dev-wallet
+
+# Check wallet balance
+midnightctl wallet balance
+
+# Fund wallet (standalone/devnet only)
+midnightctl wallet fund dev-wallet 10000
+\`\`\`
+
+## Contract Deployment
+
+\`\`\`bash
+# Compile and deploy
+midnightctl compile
+midnightctl contract deploy ./build/counter --wallet dev-wallet
 \`\`\`
 
 ## Resources
