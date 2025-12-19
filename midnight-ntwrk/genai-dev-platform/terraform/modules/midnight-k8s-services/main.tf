@@ -1,9 +1,9 @@
 # Midnight Kubernetes Services Module
 #
 # Deploys Midnight standalone services to an existing GKE cluster:
-# - midnight-node: Blockchain node (StatefulSet with External LB)
+# - midnight-node: Blockchain node (Deployment with External LB)
 # - proof-server: Zero-knowledge proof generation (Deployment with External LB)
-# - indexer: Blockchain indexer using SQLite (StatefulSet with External LB)
+# - indexer: Blockchain indexer using SQLite (Deployment with External LB)
 #
 # Component Versions (as of 0.18.0 upgrade):
 # - Node: midnightntwrk/midnight-node:0.18.0
@@ -13,6 +13,9 @@
 # Key Configuration Notes:
 # - Node 0.18.0 requires USE_MAIN_CHAIN_FOLLOWER_MOCK=true for dev mode
 # - Indexer 3.x uses ConfigMap for config (API endpoint: /api/v3/graphql)
+# - All services use ephemeral storage (Deployments) for dev environment
+# - Indexer has init container that clears SQLite DB on every pod start,
+#   ensuring it stays in sync with the ephemeral node
 #
 # Prerequisites: GKE cluster must exist and Kubernetes provider must be configured.
 
@@ -48,10 +51,10 @@ resource "kubernetes_namespace_v1" "midnight_services" {
 }
 
 # ===========================================
-# MIDNIGHT NODE - StatefulSet + External LB
+# MIDNIGHT NODE - Deployment + External LB
 # ===========================================
 
-resource "kubernetes_stateful_set_v1" "midnight_node" {
+resource "kubernetes_deployment_v1" "midnight_node" {
   metadata {
     name      = "midnight-node"
     namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
@@ -61,8 +64,7 @@ resource "kubernetes_stateful_set_v1" "midnight_node" {
   }
 
   spec {
-    service_name = "midnight-node"
-    replicas     = 1
+    replicas = 1
 
     selector {
       match_labels = {
@@ -83,11 +85,14 @@ resource "kubernetes_stateful_set_v1" "midnight_node" {
           image = var.midnight_node_image
 
           # Command args for dev mode (required for 0.18.0+)
+          # --state-pruning=archive ensures the indexer can sync from genesis
+          # (without this, the node prunes old block state and indexer crashes)
           args = local.is_dev_mode ? [
             "--dev",
             "--rpc-external",
             "--rpc-cors=all",
-            "--rpc-methods=unsafe"
+            "--rpc-methods=unsafe",
+            "--state-pruning=archive"
           ] : []
 
           # Required for 0.18.0 dev mode - mock the Cardano chain follower
@@ -153,7 +158,7 @@ resource "kubernetes_stateful_set_v1" "midnight_node" {
             failure_threshold     = 3
           }
 
-          # Startup probe - node takes time to sync
+          # Startup probe - node takes time to initialize
           startup_probe {
             http_get {
               path = "/health"
@@ -311,8 +316,8 @@ resource "kubernetes_service_v1" "proof_server" {
 }
 
 # ===========================================
-# INDEXER - ConfigMap + StatefulSet + External LB
-# Uses SQLite (ephemeral storage OK for dev)
+# INDEXER - ConfigMap + Deployment + External LB
+# Uses SQLite with ephemeral storage (resets on restart)
 # API endpoint: /api/v3/graphql (v1 redirects to v3)
 # ===========================================
 
@@ -372,7 +377,7 @@ resource "kubernetes_config_map_v1" "indexer_config" {
   }
 }
 
-resource "kubernetes_stateful_set_v1" "indexer" {
+resource "kubernetes_deployment_v1" "indexer" {
   metadata {
     name      = "indexer"
     namespace = kubernetes_namespace_v1.midnight_services.metadata[0].name
@@ -382,8 +387,7 @@ resource "kubernetes_stateful_set_v1" "indexer" {
   }
 
   spec {
-    service_name = "indexer"
-    replicas     = 1
+    replicas = 1
 
     selector {
       match_labels = {
@@ -399,6 +403,20 @@ resource "kubernetes_stateful_set_v1" "indexer" {
       }
 
       spec {
+        # Init container clears SQLite database on every pod start
+        # This ensures the indexer always starts fresh and stays in sync
+        # with the ephemeral node (which resets on restart)
+        init_container {
+          name    = "clear-db"
+          image   = "busybox:latest"
+          command = ["sh", "-c", "rm -rf /data/indexer.sqlite* && echo 'Cleared indexer database'"]
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/data"
+          }
+        }
+
         container {
           name  = "indexer"
           image = var.indexer_image
@@ -435,7 +453,7 @@ resource "kubernetes_stateful_set_v1" "indexer" {
             read_only  = true
           }
 
-          # Volume mount for SQLite data
+          # Volume mount for SQLite data (ephemeral)
           volume_mount {
             name       = "data"
             mount_path = "/data"
@@ -463,7 +481,7 @@ resource "kubernetes_stateful_set_v1" "indexer" {
             failure_threshold     = 3
           }
 
-          # TCP startup probe - indexer needs time to sync
+          # TCP startup probe - indexer needs time to connect and sync
           startup_probe {
             tcp_socket {
               port = 8088
@@ -483,7 +501,8 @@ resource "kubernetes_stateful_set_v1" "indexer" {
           }
         }
 
-        # Ephemeral volume for SQLite
+        # Ephemeral volume for SQLite - resets on pod restart
+        # This ensures indexer stays in sync with the ephemeral node
         volume {
           name = "data"
           empty_dir {}

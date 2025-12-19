@@ -1,7 +1,13 @@
 # Midnight GenAI Development Platform
 #
 # Base image: Cloud Workstations Code OSS
-# Includes: Compact compiler, Midnight CLI, gcloud SDK
+# Includes: Compact compiler, Midnight CLI, midnight-node-toolkit, gcloud SDK
+
+# Toolkit version for extracting binary
+ARG MIDNIGHT_TOOLKIT_VERSION=0.18.0
+
+# Source the toolkit binary from official image
+FROM docker.io/midnightntwrk/midnight-node-toolkit:${MIDNIGHT_TOOLKIT_VERSION} AS toolkit
 
 FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
 
@@ -21,6 +27,11 @@ ENV COMPACT_HOME="/usr/local/share/compact"
 ENV PATH="${COMPACT_HOME}:${PATH}"
 ENV CHAIN_ENVIRONMENT="standalone"
 ENV MIDNIGHT_NETWORK="standalone"
+ENV MIDNIGHT_TOOLKIT_PATH="/usr/local/bin/midnight-node-toolkit"
+
+# Copy toolkit binary from the toolkit image
+COPY --from=toolkit /midnight-node-toolkit ${MIDNIGHT_TOOLKIT_PATH}
+RUN chmod +x ${MIDNIGHT_TOOLKIT_PATH}
 
 # Container customization (installs Compact, configures Code OSS, etc.)
 COPY container-scripts/ /tmp/container-scripts/

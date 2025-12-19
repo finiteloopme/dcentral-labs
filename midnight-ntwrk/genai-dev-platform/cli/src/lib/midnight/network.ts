@@ -20,11 +20,12 @@ export function isGcpWorkstation(): boolean {
 /**
  * GraphQL API path for the indexer
  * 
- * Note: indexer-standalone 2.1.x uses v1 API.
- * This is compatible with wallet SDK v5.0.0.
+ * Note: indexer-standalone 3.x uses v3 API.
+ * v1 endpoints redirect to v3 automatically.
+ * This is compatible with node 0.18.0+ and wallet SDK v5.0.0.
  */
-const INDEXER_GRAPHQL_PATH = '/api/v1/graphql';
-const INDEXER_GRAPHQL_WS_PATH = '/api/v1/graphql/ws';
+const INDEXER_GRAPHQL_PATH = '/api/v3/graphql';
+const INDEXER_GRAPHQL_WS_PATH = '/api/v3/graphql/ws';
 
 /**
  * Get service URLs from environment variables
@@ -189,4 +190,25 @@ export function getNetworkDisplayName(network: NetworkId): string {
     [NetworkId.Standalone]: 'Standalone (Local)',
   };
   return names[network] || network;
+}
+
+/**
+ * Normalize network ID for address encoding
+ * 
+ * The toolkit and on-chain state use 'undeployed' for local/dev networks,
+ * but our UI/detection may use 'standalone'. This function ensures addresses
+ * are always encoded with the network ID that matches on-chain expectations.
+ * 
+ * This is critical because the same raw address bytes encode to different
+ * Bech32m strings depending on the network prefix in the address.
+ * 
+ * @param network - The detected or configured network ID
+ * @returns The normalized network ID for address encoding
+ */
+export function normalizeNetworkForAddresses(network: NetworkId): NetworkId {
+  // 'standalone' is our internal name, but on-chain uses 'undeployed'
+  if (network === NetworkId.Standalone) {
+    return NetworkId.Undeployed;
+  }
+  return network;
 }

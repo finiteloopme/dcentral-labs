@@ -10,6 +10,19 @@ A cloud-native development environment for building applications on the [Midnigh
 - **Managed Services** - Blockchain node, proof server, and indexer running on GKE Autopilot
 - **Multi-chain Support** - Switch between standalone, testnet, and mainnet environments
 
+## Midnight Token Model
+
+| Token | Description | Transferable |
+|-------|-------------|--------------|
+| **NIGHT** | Native token (shielded or unshielded) | Yes |
+| **DUST** | Fee resource (regenerates over time) | No |
+
+- **Shielded NIGHT** (`mn_shield-addr_...`): Private transactions using ZK proofs
+- **Unshielded NIGHT** (`mn_addr_...`): Public transactions visible on-chain
+- **DUST**: Non-transferable resource for transaction fees, regenerates based on NIGHT holdings
+
+For details, see [FUNDING.md](FUNDING.md).
+
 ## Quick Start
 
 ### Prerequisites
@@ -22,6 +35,9 @@ A cloud-native development environment for building applications on the [Midnigh
 - `gcloud` CLI installed and authenticated
 - GCS bucket for Terraform state
 - A user-managed service account for Cloud Build (see Cloud Deployment below)
+- `INDEXER_SECRET` environment variable set (32-byte hex string for encryption)
+  - Generate with: `openssl rand -hex 32`
+  - A default development value is provided, but **must be replaced for production**
 
 ### Local Development
 
@@ -181,6 +197,33 @@ midnightctl services logs node
 midnightctl env switch testnet
 ```
 
+### Wallet Management
+
+```bash
+# Create a wallet
+midnightctl wallet create my-wallet
+
+# Check balance (shielded + unshielded NIGHT)
+midnightctl wallet balance
+
+# Check balance including DUST resource
+midnightctl wallet balance --include-dust
+
+# View all addresses (unshielded, shielded, DUST)
+midnightctl wallet address --all
+
+# Fund from genesis (standalone mode only)
+midnightctl wallet fund my-wallet 10000
+
+# Send NIGHT (auto-detects address type)
+midnightctl wallet send my-wallet <destination-address> 100
+
+# Register for DUST generation
+midnightctl wallet register-dust
+```
+
+See [FUNDING.md](FUNDING.md) for detailed wallet operations.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and configure:
@@ -217,10 +260,15 @@ The `chain_environment` setting is mapped to service-specific configurations:
 
 | Chain Environment | Node Mode | Proof Server | Indexer |
 |-------------------|-----------|--------------|---------|
-| `standalone` | `CFG_PRESET=dev` (ephemeral, local chain) | Auto-configured | Auto-configured |
-| `devnet` | `CFG_PRESET=devnet` | Auto-configured | Auto-configured |
-| `testnet` | `CFG_PRESET=testnet` | Auto-configured | Auto-configured |
-| `mainnet` | `CFG_PRESET=mainnet` | Auto-configured | Auto-configured |
+| `standalone` | Dev mode with mock chain follower | Auto-configured | Auto-configured |
+| `devnet` | External devnet connection | Auto-configured | Auto-configured |
+| `testnet` | External testnet connection | Auto-configured | Auto-configured |
+| `mainnet` | External mainnet connection | Auto-configured | Auto-configured |
+
+**Component Versions (0.18.0 stack):**
+- Node: `midnightntwrk/midnight-node:0.18.0`
+- Proof Server: `midnightnetwork/proof-server:6.2.0-rc.2`
+- Indexer: `midnightntwrk/indexer-standalone:3.0.0-alpha.20`
 
 ### Switching Environments
 
@@ -235,15 +283,20 @@ midnightctl env switch testnet
 ### Standalone Mode Details
 
 In `standalone` mode (default):
-- The midnight-node runs with `CFG_PRESET=dev`, which:
-  - Enables a local development chain
-  - Uses ephemeral storage (resets on restart)
+- The midnight-node runs with dev mode configuration (0.18.0+):
+  - Uses `USE_MAIN_CHAIN_FOLLOWER_MOCK=true` to mock the Cardano chain follower
+  - Runs with `--dev --rpc-external --rpc-cors=all` command args
+  - Enables a local development chain with ephemeral storage (resets on restart)
   - Requires no external bootnodes or peer connections
-- The proof-server auto-starts and downloads required ZK key material
+- The proof-server auto-starts and downloads required ZK key material (~1GB, takes 5-10 min)
 - The indexer connects to the local node via WebSocket
+  - API endpoint: `/api/v3/graphql` (v1 redirects to v3)
+  - Configuration is managed via ConfigMap
 
 **Required configuration:**
 - `INDEXER_SECRET` - A 32-byte hex string for encryption (generate with `openssl rand -hex 32`)
+  - A default development value is provided in Terraform variables
+  - **Must be replaced with a secure value for production deployments**
 
 This is ideal for rapid development and testing without external dependencies.
 

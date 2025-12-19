@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "wallets": {
+    "test-wallet": {
+      "name": "test-wallet",
+      "createdAt": "2025-12-19T02:39:50.103Z",
+      "network": "standalone",
+      "seed": "ad4e82fb623f5d0fc09fb60005bccb146d29a1493a2635f9ba4ff76d2d75168d",
+      "addresses": {
+        "unshielded": "mn_addr_standalone1448g97mz8awslsylkcqqt0xtz3kjng2f8gnrt7d6flmk6tt4z6xswn8egp",
+        "coinPublicKey": "ad4e82fb623f5d0fc09fb60005bccb146d29a1493a2635f9ba4ff76d2d75168d"
+      }
+    },
+    "test-undeployed": {
+      "name": "test-undeployed",
+      "createdAt": "2025-12-19T03:24:58.580Z",
+      "network": "undeployed",
+      "seed": "9b127c0d917c2dbb5d7dfa0e3a1e6b5713f5e6402b4759966318c312c8daa01d",
+      "addresses": {
+        "unshielded": "mn_addr_undeployed1nvf8crv30skmkhtalg8r58nt2ufltejq9dr4n9nrrrp39jx65qws5qrxnm",
+        "coinPublicKey": "9b127c0d917c2dbb5d7dfa0e3a1e6b5713f5e6402b4759966318c312c8daa01d"
+      }
+    }
+  },
+  "default": "test-wallet"
+}

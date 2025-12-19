@@ -2,6 +2,9 @@
  * midnightctl wallet fund <name> <amount>
  * 
  * Fund a wallet from genesis (standalone/devnet only).
+ * 
+ * Uses the midnight-node-toolkit for unshielded transfers, avoiding
+ * SDK/Indexer GraphQL compatibility issues.
  */
 
 import { Command } from 'commander';
@@ -10,16 +13,15 @@ import {
   WalletManager, 
   getNetworkDisplayName,
   getProviderConfig,
-  createWalletProvider,
-  waitForWalletSync,
   validateServiceConfig,
   isFundableNetwork,
-  getDefaultGenesisWallet,
   getGenesisWallet,
+  createToolkit,
+  isToolkitAvailable,
 } from '../../lib/midnight/index.js';
 
 /**
- * Format a balance for display
+ * Format a balance for display (raw units to human-readable)
  */
 function formatBalance(balance: bigint): string {
   const whole = balance / 1_000_000n;
@@ -36,7 +38,7 @@ function formatBalance(balance: bigint): string {
 export const fundCommand = new Command('fund')
   .description('Fund a wallet from genesis (standalone/devnet only)')
   .argument('<name>', 'Wallet name to fund')
-  .argument('<amount>', 'Amount of tDUST to send')
+  .argument('<amount>', 'Amount of NIGHT tokens to send')
   .option('--from <index>', 'Genesis wallet index (1-4)', '1')
   .option('--json', 'Output as JSON')
   .option('--debug', 'Show debug information including service URLs')
@@ -44,6 +46,14 @@ export const fundCommand = new Command('fund')
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
+      
+      // Check toolkit availability first
+      if (!(await isToolkitAvailable())) {
+        throw new Error(
+          'Toolkit binary not found. The midnight-node-toolkit is required for funding operations.\n' +
+          'Set MIDNIGHT_TOOLKIT_PATH environment variable or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit'
+        );
+      }
       
       // Debug: show service URLs
       if (options.debug) {
@@ -56,12 +66,10 @@ export const fundCommand = new Command('fund')
         console.log('');
       }
       
-      // Validate services
-      const validation = validateServiceConfig(config);
-      if (!validation.valid) {
+      // Validate services (only need node for toolkit-based transfers)
+      if (!config.urls.nodeWsUrl) {
         throw new Error(
-          `Services not configured: ${validation.missing.join(', ')}. ` +
-          'Check your .env file.'
+          'MIDNIGHT_NODE_URL not configured. Check your .env file.'
         );
       }
       
@@ -76,7 +84,7 @@ export const fundCommand = new Command('fund')
       // Resolve target wallet
       const targetWallet = await manager.resolve(name, false);
       
-      // Parse amount (in whole units, convert to smallest unit)
+      // Parse amount (in whole units, convert to smallest unit - 6 decimal places)
       const amount = BigInt(Math.floor(parseFloat(amountStr) * 1_000_000));
       if (amount <= 0n) {
         throw new Error('Amount must be positive');
@@ -89,29 +97,11 @@ export const fundCommand = new Command('fund')
         throw new Error(`Invalid genesis wallet index: ${options.from}. Use 1-4.`);
       }
       
-      // First, get the target wallet's shielded address by connecting to SDK
-      // The transferTransaction API requires a shielded address (mn_shield-addr_...)
-      if (!options.json) {
-        logger.info('Getting target wallet shielded address...');
-      }
-      
-      const { firstValueFrom } = await import('rxjs');
-      const targetWalletProvider = await createWalletProvider(targetWallet.seed, config);
-      targetWalletProvider.start();
-      
-      let targetShieldedAddress: string;
-      try {
-        const targetState: any = await firstValueFrom(targetWalletProvider.state());
-        targetShieldedAddress = targetState.address;
-        if (!targetShieldedAddress) {
-          throw new Error('Could not get shielded address from target wallet');
-        }
-      } finally {
-        try {
-          await targetWalletProvider.close();
-        } catch {
-          // Ignore close errors
-        }
+      // Use the target wallet's UNSHIELDED address from stored metadata
+      // Genesis wallets have unshielded NIGHT tokens, so we send to unshielded addresses
+      const targetAddress = targetWallet.addresses.unshielded;
+      if (!targetAddress) {
+        throw new Error('Target wallet does not have an unshielded address');
       }
       
       if (!options.json) {
@@ -119,117 +109,100 @@ export const fundCommand = new Command('fund')
         console.log('');
         console.log(`  Network:  ${getNetworkDisplayName(config.network)}`);
         console.log(`  From:     ${genesisWallet.name}`);
-        console.log(`  To:       ${targetShieldedAddress}`);
-        console.log(`  Amount:   ${formatBalance(amount)} tDUST`);
+        console.log(`  To:       ${targetAddress}`);
+        console.log(`  Amount:   ${formatBalance(amount)} NIGHT`);
         console.log('');
       }
       
-      // Connect to genesis wallet
+      // Create toolkit instance
+      const toolkit = createToolkit({
+        nodeWsUrl: config.urls.nodeWsUrl,
+        network: config.network,
+      });
+      
+      // Check genesis wallet balance first (optional but helpful for user feedback)
       if (!options.json) {
-        logger.info('Connecting to genesis wallet...');
+        logger.info('Checking genesis wallet balance...');
       }
       
-      const sourceWallet = await createWalletProvider(genesisWallet.seed, config);
-      sourceWallet.start();
-      
       try {
-        // Wait for sync
-        if (!options.json) {
-          console.log('  Syncing genesis wallet...');
-        }
+        const genesisBalance = await toolkit.getWalletBalance(genesisWallet.seed);
+        const availableBalance = genesisBalance.unshieldedBalance;
         
-        const { balance: sourceBalance, synced } = await waitForWalletSync(sourceWallet, {
-          minBalance: amount,
-          timeout: 60000,
-          onProgress: (syncedBlocks, remaining) => {
-            if (!options.json) {
-              const pct = remaining > 0n 
-                ? Math.round(Number(syncedBlocks * 100n / (syncedBlocks + remaining)))
-                : 100;
-              process.stdout.write(`\r  Sync progress: ${pct}%   `);
-            }
-          },
-        });
-        
-        if (!options.json) {
+        if (options.debug) {
+          console.log('');
+          console.log('  [DEBUG] Genesis wallet state:');
+          console.log(`    Unshielded: ${formatBalance(availableBalance)} NIGHT`);
+          console.log(`    Shielded:   ${formatBalance(genesisBalance.shieldedBalance)} NIGHT`);
+          console.log(`    DUST:       ${formatBalance(genesisBalance.dustBalance)}`);
           console.log('');
         }
         
-        if (!synced) {
-          throw new Error('Wallet sync timed out. Check service connectivity.');
-        }
-        
-        if (sourceBalance < amount) {
+        if (availableBalance < amount) {
           throw new Error(
-            `Insufficient balance in genesis wallet. ` +
-            `Available: ${formatBalance(sourceBalance)}, Requested: ${formatBalance(amount)}`
+            `Insufficient unshielded balance in genesis wallet. ` +
+            `Available: ${formatBalance(availableBalance)} NIGHT, Requested: ${formatBalance(amount)} NIGHT`
           );
         }
-        
-        // Send transaction using the 3-step wallet API:
-        // 1. transferTransaction() - prepare the transfer
-        // 2. proveTransaction() - generate ZK proof
-        // 3. submitTransaction() - submit to network
-        
-        if (!options.json) {
-          logger.info('Preparing transfer transaction...');
+      } catch (balanceError: any) {
+        // Balance check failed - continue anyway, the transfer will fail if insufficient
+        if (options.debug) {
+          console.log(`  [DEBUG] Balance check failed: ${balanceError.message}`);
+          console.log('  [DEBUG] Proceeding with transfer anyway...');
         }
-        
-        // Import nativeToken to get the tDUST token type
-        const { nativeToken } = await import('@midnight-ntwrk/ledger');
-        const tokenType = nativeToken();
-        
-        // Step 1: Prepare the transfer transaction (using shielded address)
-        const transferRecipe = await sourceWallet.transferTransaction([{
-          amount,
-          type: tokenType,
-          receiverAddress: targetShieldedAddress,
-        }]);
-        
-        if (!options.json) {
-          logger.info('Proving transaction...');
-        }
-        
-        // Step 2: Prove the transaction
-        const provenTx = await sourceWallet.proveTransaction(transferRecipe);
-        
-        if (!options.json) {
-          logger.info('Submitting transaction...');
-        }
-        
-        // Step 3: Submit the transaction
-        const txHash = await sourceWallet.submitTransaction(provenTx);
-        
-        if (!options.json) {
+      }
+      
+      // Send unshielded transfer using toolkit
+      if (!options.json) {
+        logger.info('Sending unshielded transfer...');
+        console.log('  This may take a minute while the transaction is processed...');
+      }
+      
+      const result = await toolkit.sendUnshielded(
+        genesisWallet.seed,
+        targetAddress,
+        amount
+      );
+      
+      if (!result.success) {
+        // Include raw output in debug mode
+        if (options.debug && result.output) {
           console.log('');
+          console.log('  [DEBUG] Toolkit output:');
+          console.log(result.output.split('\n').map(l => `    ${l}`).join('\n'));
         }
-        
-        if (options.json) {
-          console.log(JSON.stringify({
-            success: true,
-            from: genesisWallet.name,
-            to: targetWallet.name,
-            toAddress: targetShieldedAddress,
-            amount: amount.toString(),
-            formatted: formatBalance(amount),
-            txHash,
-          }, null, 2));
-        } else {
-          logger.success('Transaction submitted!');
-          console.log('');
-          console.log(`  Transaction: ${txHash}`);
-          console.log(`  Amount:      ${formatBalance(amount)} tDUST`);
-          console.log('');
-          console.log('  Check balance with:');
-          console.log(`    midnightctl wallet balance ${name}`);
-          console.log('');
+        throw new Error(result.error || 'Transfer failed');
+      }
+      
+      if (!options.json) {
+        console.log('');
+      }
+      
+      if (options.json) {
+        console.log(JSON.stringify({
+          success: true,
+          from: genesisWallet.name,
+          to: targetWallet.name,
+          toAddress: targetAddress,
+          amount: amount.toString(),
+          formatted: formatBalance(amount),
+          txHash: result.txHash,
+        }, null, 2));
+      } else {
+        logger.success('Transaction submitted!');
+        console.log('');
+        if (result.txHash && result.txHash !== 'submitted') {
+          console.log(`  Transaction: ${result.txHash}`);
         }
+        console.log(`  Amount:      ${formatBalance(amount)} NIGHT`);
+        console.log('');
+        console.log('  Check balance with:');
+        console.log(`    midnightctl wallet balance ${name}`);
+        console.log('');
         
-      } finally {
-        try {
-          await sourceWallet.close();
-        } catch {
-          // Ignore close errors
+        if (options.debug && result.output) {
+          console.log('  [DEBUG] Toolkit output:');
+          console.log(result.output.split('\n').map(l => `    ${l}`).join('\n'));
         }
       }
       

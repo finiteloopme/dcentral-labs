@@ -9,8 +9,26 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { type StoredWallet, type WalletStore, type NetworkId } from './types.js';
 import { generateMnemonic, mnemonicToHexSeed, validateHexSeed, normalizeHexSeed } from './mnemonic.js';
-import { deriveUnshieldedAddress } from './address.js';
-import { detectNetwork } from './network.js';
+import { detectNetwork, normalizeNetworkForAddresses } from './network.js';
+import { createToolkit, isToolkitAvailable } from './toolkit.js';
+
+/**
+ * Error message for when toolkit is not available
+ */
+const TOOLKIT_INSTALL_INSTRUCTIONS = `
+Wallet creation requires the midnight-node-toolkit binary.
+
+To install the toolkit:
+
+  1. Pull the toolkit Docker image:
+     docker pull midnightntwrk/midnight-node-toolkit:0.18.0
+
+  2. Extract the binary:
+     docker run --rm -v /usr/local/bin:/out midnightntwrk/midnight-node-toolkit:0.18.0 \\
+       cp /usr/bin/midnight-node-toolkit /out/
+
+  Or set MIDNIGHT_TOOLKIT_PATH environment variable to point to an existing binary.
+`.trim();
 
 const WALLET_STORE_VERSION = 1;
 const PRIVATE_DIR = '.private';
@@ -102,6 +120,8 @@ export class WalletManager {
   /**
    * Create a new wallet from a mnemonic
    * 
+   * Requires the midnight-node-toolkit binary to be installed for address derivation.
+   * 
    * @param name - Wallet name
    * @param options - Creation options
    * @returns Created wallet and mnemonic words
@@ -113,6 +133,11 @@ export class WalletManager {
       setDefault?: boolean;
     } = {}
   ): Promise<{ wallet: StoredWallet; mnemonic: string[] }> {
+    // Check toolkit availability first
+    if (!(await isToolkitAvailable())) {
+      throw new Error(TOOLKIT_INSTALL_INSTRUCTIONS);
+    }
+    
     const store = this.loadStore();
     
     // Check if wallet already exists
@@ -131,20 +156,26 @@ export class WalletManager {
     const networkResult = await detectNetwork();
     const network = networkResult.network;
     
-    // Derive addresses (simplified - actual implementation would use wallet SDK)
-    // For now, we use the seed as a placeholder for the coin public key
-    const coinPublicKey = seed; // Placeholder
-    const unshieldedAddress = deriveUnshieldedAddress(coinPublicKey, network);
+    // Normalize network for address encoding
+    // This ensures addresses match what the toolkit/chain expects
+    // (e.g., 'standalone' -> 'undeployed')
+    const addressNetwork = normalizeNetworkForAddresses(network);
     
-    // Create wallet record
+    // Use toolkit to derive real addresses
+    const toolkit = createToolkit({ network: addressNetwork });
+    const derivedAddresses = await toolkit.getAddresses(seed);
+    
+    // Create wallet record with toolkit-derived addresses
     const wallet: StoredWallet = {
       name,
       createdAt: new Date().toISOString(),
-      network,
+      network: addressNetwork,
       seed,
       addresses: {
-        unshielded: unshieldedAddress,
-        coinPublicKey,
+        unshielded: derivedAddresses.unshielded,
+        shielded: derivedAddresses.shielded || undefined,
+        dust: derivedAddresses.dust || undefined,
+        coinPublicKey: seed, // Keep seed as reference (actual coinPublicKey would require SDK)
       },
     };
     
@@ -164,6 +195,8 @@ export class WalletManager {
   /**
    * Import a wallet from a hex seed
    * 
+   * Requires the midnight-node-toolkit binary to be installed for address derivation.
+   * 
    * @param name - Wallet name
    * @param seed - Hex-encoded seed
    * @param options - Import options
@@ -174,6 +207,11 @@ export class WalletManager {
     seed: string,
     options: { setDefault?: boolean } = {}
   ): Promise<StoredWallet> {
+    // Check toolkit availability first
+    if (!(await isToolkitAvailable())) {
+      throw new Error(TOOLKIT_INSTALL_INSTRUCTIONS);
+    }
+    
     // Validate seed
     const validation = validateHexSeed(seed);
     if (!validation.valid) {
@@ -192,19 +230,24 @@ export class WalletManager {
     const networkResult = await detectNetwork();
     const network = networkResult.network;
     
-    // Derive addresses
-    const coinPublicKey = normalizedSeed; // Placeholder
-    const unshieldedAddress = deriveUnshieldedAddress(coinPublicKey, network);
+    // Normalize network for address encoding
+    const addressNetwork = normalizeNetworkForAddresses(network);
     
-    // Create wallet record
+    // Use toolkit to derive real addresses
+    const toolkit = createToolkit({ network: addressNetwork });
+    const derivedAddresses = await toolkit.getAddresses(normalizedSeed);
+    
+    // Create wallet record with toolkit-derived addresses
     const wallet: StoredWallet = {
       name,
       createdAt: new Date().toISOString(),
-      network,
+      network: addressNetwork,
       seed: normalizedSeed,
       addresses: {
-        unshielded: unshieldedAddress,
-        coinPublicKey,
+        unshielded: derivedAddresses.unshielded,
+        shielded: derivedAddresses.shielded || undefined,
+        dust: derivedAddresses.dust || undefined,
+        coinPublicKey: normalizedSeed,
       },
     };
     

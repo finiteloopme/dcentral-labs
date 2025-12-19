@@ -1,7 +1,12 @@
 /**
  * midnightctl wallet balance [name]
  * 
- * Check wallet balance.
+ * Check wallet balance. Shows both shielded (private) and unshielded (public) NIGHT balances.
+ * Optionally shows DUST resource status.
+ * 
+ * Token Model:
+ * - NIGHT: Native token, can be shielded (private) or unshielded (public)
+ * - DUST: Non-transferable resource for transaction fees, regenerates based on NIGHT holdings
  */
 
 import { Command } from 'commander';
@@ -10,16 +15,15 @@ import {
   WalletManager, 
   getNetworkDisplayName,
   getProviderConfig,
-  createWalletProvider,
-  waitForWalletSync,
-  validateServiceConfig,
+  createToolkit,
+  isToolkitAvailable,
 } from '../../lib/midnight/index.js';
 
 /**
  * Format a balance for display (convert from smallest unit)
+ * NIGHT uses 6 decimal places
  */
 function formatBalance(balance: bigint): string {
-  // Assuming 6 decimal places for tDUST
   const whole = balance / 1_000_000n;
   const fraction = balance % 1_000_000n;
   
@@ -32,12 +36,12 @@ function formatBalance(balance: bigint): string {
 }
 
 export const balanceCommand = new Command('balance')
-  .description('Check wallet balance')
+  .description('Check wallet balance (shielded + unshielded NIGHT)')
   .argument('[name]', 'Wallet name (uses default if not specified)')
   .option('--json', 'Output as JSON')
-  .option('--no-sync', 'Skip wallet sync (show cached balance)')
+  .option('--include-dust', 'Show DUST resource status')
   .option('--debug', 'Show debug information including service URLs')
-  .action(async (name: string | undefined, options: { json?: boolean; sync?: boolean; debug?: boolean }) => {
+  .action(async (name: string | undefined, options: { json?: boolean; includeDust?: boolean; debug?: boolean }) => {
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
@@ -51,15 +55,6 @@ export const balanceCommand = new Command('balance')
         console.log(`    Indexer WS:   ${config.urls.indexerWsUrl}`);
         console.log(`    Proof Server: ${config.urls.proofServerUrl}`);
         console.log('');
-      }
-      
-      // Validate services are configured
-      const validation = validateServiceConfig(config);
-      if (!validation.valid) {
-        throw new Error(
-          `Services not configured: ${validation.missing.join(', ')}. ` +
-          'Check your .env file or run `midnightctl services status`.'
-        );
       }
       
       // Resolve wallet (auto-create if needed)
@@ -84,7 +79,7 @@ export const balanceCommand = new Command('balance')
           console.log(`    ${words.join('  ')}`);
         }
         console.log('');
-        console.log('\x1b[33m  ⚠ WARNING: Store this mnemonic securely!\x1b[0m');
+        console.log('\x1b[33m  WARNING: Store this mnemonic securely!\x1b[0m');
         console.log('');
       }
       
@@ -98,65 +93,127 @@ export const balanceCommand = new Command('balance')
         console.log('');
       }
       
-      // Connect to wallet and sync
-      if (!options.json) {
-        logger.info('Connecting to services...');
+      // Check if toolkit is available
+      const toolkitAvailable = await isToolkitAvailable();
+      
+      if (!toolkitAvailable) {
+        throw new Error(
+          'Balance queries require the midnight-node-toolkit binary. ' +
+          'Set MIDNIGHT_TOOLKIT_PATH or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit'
+        );
       }
       
-      const walletProvider = await createWalletProvider(wallet.seed, config);
-      walletProvider.start();
+      // Initialize balances
+      let shieldedBalance = 0n;
+      let unshieldedBalance = 0n;
+      let dustBalance = 0n;
+      
+      // Get all balances via toolkit
+      if (!options.json) {
+        logger.info('Querying wallet balance via toolkit...');
+      }
+      
+      const toolkit = createToolkit({
+        nodeWsUrl: config.urls.nodeWsUrl || 'ws://localhost:9944',
+        network: wallet.network,
+      });
       
       try {
-        if (!options.json) {
-          console.log('  Syncing wallet...');
-        }
+        const balanceInfo = await toolkit.getWalletBalance(wallet.seed);
         
-        const { balance, synced } = await waitForWalletSync(walletProvider, {
-          timeout: 60000, // 1 minute
-          onProgress: (syncedBlocks, remaining) => {
-            if (!options.json) {
-              const pct = remaining > 0n 
-                ? Math.round(Number(syncedBlocks * 100n / (syncedBlocks + remaining)))
-                : 100;
-              process.stdout.write(`\r  Sync progress: ${pct}%   `);
-            }
-          },
-        });
+        shieldedBalance = balanceInfo.shieldedBalance;
+        unshieldedBalance = balanceInfo.unshieldedBalance;
+        dustBalance = balanceInfo.dustBalance;
         
-        if (!options.json) {
-          console.log(''); // Clear progress line
+        if (options.debug && balanceInfo.rawState) {
+          console.log('');
+          console.log('  [DEBUG] Raw wallet state:');
+          console.log(`    ${JSON.stringify(balanceInfo.rawState, null, 2).split('\n').join('\n    ')}`);
           console.log('');
         }
         
-        if (options.json) {
-          console.log(JSON.stringify({
-            name: wallet.name,
-            network: wallet.network,
-            address: wallet.addresses.unshielded,
-            balance: {
-              tDUST: balance.toString(),
-              formatted: formatBalance(balance),
-            },
-            synced,
-          }, null, 2));
-        } else {
-          console.log(`  Balance:`);
-          console.log(`    tDUST: ${formatBalance(balance)}`);
-          console.log('');
-          
-          if (balance === 0n) {
-            logger.info('Wallet is unfunded.');
-            logger.info(`Run \`midnightctl wallet fund ${wallet.name} 10000\` to fund from genesis.`);
-            console.log('');
-          }
+      } catch (toolkitError) {
+        if (!options.json) {
+          logger.error(`Toolkit query failed: ${(toolkitError as Error).message}`);
         }
-        
-      } finally {
-        // Close wallet connection
+        throw toolkitError;
+      }
+      
+      // Get separate DUST status if requested and not already retrieved
+      if (options.includeDust && dustBalance === 0n) {
         try {
-          await walletProvider.close();
-        } catch {
-          // Ignore close errors
+          if (!options.json) {
+            logger.info('Querying DUST resource status...');
+          }
+          
+          const dustStatus = await toolkit.getDustStatus(wallet.seed);
+          dustBalance = dustStatus.balance;
+          
+          if (options.debug && dustStatus.rawOutput) {
+            console.log('');
+            console.log('  [DEBUG] DUST balance raw output:');
+            console.log(`    ${dustStatus.rawOutput.split('\n').join('\n    ')}`);
+          }
+        } catch (dustError) {
+          if (options.debug) {
+            console.log(`  [DEBUG] DUST query failed: ${(dustError as Error).message}`);
+          }
+          // DUST query failed, but continue with balance display
+        }
+      }
+      
+      // Calculate total NIGHT balance
+      const totalBalance = shieldedBalance + unshieldedBalance;
+      
+      if (options.json) {
+        const jsonOutput: Record<string, any> = {
+          name: wallet.name,
+          network: wallet.network,
+          address: wallet.addresses.unshielded,
+          balances: {
+            shielded: {
+              NIGHT: shieldedBalance.toString(),
+              formatted: formatBalance(shieldedBalance),
+            },
+            unshielded: {
+              NIGHT: unshieldedBalance.toString(),
+              formatted: formatBalance(unshieldedBalance),
+            },
+            total: {
+              NIGHT: totalBalance.toString(),
+              formatted: formatBalance(totalBalance),
+            },
+          },
+          toolkitAvailable,
+        };
+        
+        if (options.includeDust) {
+          jsonOutput.dust = {
+            balance: dustBalance.toString(),
+            formatted: formatBalance(dustBalance),
+          };
+        }
+        
+        console.log(JSON.stringify(jsonOutput, null, 2));
+      } else {
+        console.log('');
+        console.log(`  NIGHT Balances:`);
+        console.log(`    Shielded (private):   ${formatBalance(shieldedBalance)} NIGHT`);
+        console.log(`    Unshielded (public):  ${formatBalance(unshieldedBalance)} NIGHT`);
+        console.log(`    ────────────────────────────────`);
+        console.log(`    Total:                ${formatBalance(totalBalance)} NIGHT`);
+        console.log('');
+        
+        if (options.includeDust) {
+          console.log(`  DUST Resource:`);
+          console.log(`    Balance:     ${formatBalance(dustBalance)} DUST`);
+          console.log('');
+        }
+        
+        if (totalBalance === 0n) {
+          logger.info('Wallet is unfunded.');
+          logger.info(`Run \`midnightctl wallet fund ${wallet.name} 10000\` to fund from genesis.`);
+          console.log('');
         }
       }
       

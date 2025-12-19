@@ -1,4 +1,4 @@
-.PHONY: build run run-detach clean clean-all deploy plan destroy state-cleanup check-env help
+.PHONY: build run run-detach clean clean-all deploy plan destroy state-cleanup check-env help test-integration
 
 # Load environment variables from .env if present
 -include .env
@@ -30,6 +30,9 @@ help:
 	@echo "  make state-cleanup PATTERN=x             Remove resources matching pattern from state"
 	@echo "  make state-cleanup PATTERN=x DELETE=true Destroy resources AND remove from state"
 	@echo "  make check-env                           Validate GCP configuration"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test-integration    Run CLI integration tests (requires services)"
 	@echo ""
 	@echo "See .env.example for configuration options."
 
@@ -77,3 +80,11 @@ destroy:
 
 state-cleanup:
 	@./scripts/cloud.sh state-cleanup "$(PATTERN)" "$(DELETE)"
+
+# ==============================================================================
+# Testing
+# ==============================================================================
+
+test-integration:
+	@echo "Running CLI integration tests..."
+	@cd cli && npm run test:integration

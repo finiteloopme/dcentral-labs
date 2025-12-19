@@ -6,7 +6,30 @@
  */
 
 import { getServiceUrls, getNetworkSync } from './network.js';
-import { type NetworkId, type ServiceUrls, GENESIS_WALLETS, FUNDABLE_NETWORKS } from './types.js';
+import { type NetworkId, NetworkId as NetworkIdValues, type ServiceUrls, GENESIS_WALLETS, FUNDABLE_NETWORKS } from './types.js';
+
+/**
+ * Map our internal network ID to the SDK's NetworkId enum
+ * The SDK uses: Undeployed, DevNet, TestNet, MainNet
+ */
+function mapToSdkNetworkId(network: NetworkId): string {
+  switch (network) {
+    case NetworkIdValues.Standalone:
+    case NetworkIdValues.Undeployed:
+      return 'Undeployed';
+    case NetworkIdValues.DevNet:
+      return 'DevNet';
+    case NetworkIdValues.TestNet:
+    case NetworkIdValues.Preview:
+    case NetworkIdValues.PreProd:
+    case NetworkIdValues.QaNet:
+      return 'TestNet';
+    case NetworkIdValues.MainNet:
+      return 'MainNet';
+    default:
+      return 'Undeployed';
+  }
+}
 
 /**
  * Provider configuration for runtime operations
@@ -92,7 +115,13 @@ export async function createWalletProvider(
   // This allows the CLI to work even if SDK is not installed
   try {
     const { WalletBuilder } = await import('@midnight-ntwrk/wallet');
-    const { getZswapNetworkId } = await import('@midnight-ntwrk/midnight-js-network-id');
+    const { setNetworkId, getZswapNetworkId, NetworkId: SdkNetworkId } = await import('@midnight-ntwrk/midnight-js-network-id');
+    
+    // Set the global network ID before building the wallet
+    // This is required for proper transaction serialization
+    const sdkNetworkIdStr = mapToSdkNetworkId(config.network);
+    const sdkNetworkId = SdkNetworkId[sdkNetworkIdStr as keyof typeof SdkNetworkId];
+    setNetworkId(sdkNetworkId);
     
     const wallet = await WalletBuilder.buildFromSeed(
       config.urls.indexerUrl!,

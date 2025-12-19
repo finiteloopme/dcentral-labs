@@ -24,3 +24,6 @@ export * from './providers.js';
 
 // Re-export witness generation utilities
 export * from './witness-gen.js';
+
+// Re-export toolkit wrapper (for unshielded transfers and DUST operations)
+export * from './toolkit.js';

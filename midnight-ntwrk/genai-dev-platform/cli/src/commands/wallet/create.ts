@@ -86,7 +86,7 @@ export const createCommand = new Command('create')
       
       console.log('');
       console.log('  Next steps:');
-      console.log(`    midnightctl wallet fund ${name} 10000  # Fund from genesis (standalone)`);
+      console.log(`    midnightctl wallet fund ${name} 10000  # Fund from genesis (local dev)`);
       console.log(`    midnightctl wallet balance ${name}     # Check balance`);
       console.log('');
       

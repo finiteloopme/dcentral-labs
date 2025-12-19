@@ -57,6 +57,7 @@ export interface StoredWallet {
   addresses: {
     unshielded: string;
     shielded?: string;
+    dust?: string;  // DUST token address for fee resource
     coinPublicKey: string;
   };
 }

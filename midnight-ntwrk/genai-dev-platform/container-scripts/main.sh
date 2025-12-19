@@ -30,6 +30,13 @@ if [[ -x "${SCRIPT_DIR}/install/compact.sh" ]]; then
     "${SCRIPT_DIR}/install/compact.sh"
 fi
 
+# Verify midnight-node-toolkit (binary is copied via Dockerfile multi-stage build)
+if [[ -x "${MIDNIGHT_TOOLKIT_PATH:-/usr/local/bin/midnight-node-toolkit}" ]]; then
+    echo "  midnight-node-toolkit: installed"
+else
+    echo "  midnight-node-toolkit: not found (will use fallback extraction at runtime)"
+fi
+
 echo ""
 
 # ------------------------------------------------------------------------------
