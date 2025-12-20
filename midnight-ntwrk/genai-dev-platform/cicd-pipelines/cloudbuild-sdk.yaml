@@ -1,0 +1,106 @@
+# Cloud Build configuration for Midnight SDK
+#
+# Builds the SDK image from source and pushes to Artifact Registry.
+# The SDK image contains pre-built Midnight packages from:
+#   - midnight-ledger (WASM via Nix)
+#   - midnight-wallet (TypeScript)
+#   - midnight-js (TypeScript)
+#
+# Triggers:
+#   - Changes to Dockerfile.sdk
+#   - Changes to SDK version ARGs
+#   - Manual trigger for SDK upgrades
+#
+# Usage:
+#   gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml \
+#     --substitutions=_PROJECT_ID=$PROJECT_ID
+
+substitutions:
+  _PROJECT_ID: ${PROJECT_ID}
+  _REGION: us-central1
+  _REGISTRY_NAME: midnight-dev
+  _SDK_IMAGE_NAME: midnight-sdk
+  _SDK_IMAGE_TAG: latest
+  # SDK versions - update these to upgrade
+  _LEDGER_TAG: ledger-6.1.0-alpha.6
+  _WALLET_COMMIT: 6bf9fe8
+  _JS_TAG: v3.0.0-alpha.11
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  # Use high-CPU machine for Nix build
+  machineType: E2_HIGHCPU_32
+  # Increase disk for Nix store
+  diskSizeGb: 100
+
+steps:
+  # Step 1: Build SDK image
+  # This takes ~30 minutes for first build (Nix cache empty)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        
+        # Generate composite tag from versions
+        LEDGER_CLEAN=$(echo "${_LEDGER_TAG}" | sed 's/ledger-//')
+        WALLET_CLEAN=$(echo "${_WALLET_COMMIT}" | cut -c1-7)
+        JS_CLEAN=$(echo "${_JS_TAG}" | sed 's/v//')
+        COMPOSITE_TAG="ledger-$${LEDGER_CLEAN}_wallet-$${WALLET_CLEAN}_js-$${JS_CLEAN}"
+        
+        echo "=== Building SDK Image ==="
+        echo "Ledger:  ${_LEDGER_TAG}"
+        echo "Wallet:  ${_WALLET_COMMIT}"
+        echo "JS:      ${_JS_TAG}"
+        echo "Tag:     $${COMPOSITE_TAG}"
+        echo ""
+        
+        docker build \
+          -f Dockerfile.sdk \
+          --build-arg "LEDGER_TAG=${_LEDGER_TAG}" \
+          --build-arg "WALLET_COMMIT=${_WALLET_COMMIT}" \
+          --build-arg "JS_TAG=${_JS_TAG}" \
+          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}" \
+          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:$${COMPOSITE_TAG}" \
+          .
+        
+        echo ""
+        echo "=== SDK Image Built Successfully ==="
+    timeout: 3600s  # 1 hour for Nix build
+
+  # Step 2: Push SDK image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-sdk'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}'
+    waitFor: ['build-sdk']
+
+  # Step 3: Show completion message
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'complete'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo ""
+        echo "=========================================="
+        echo "SDK Build Complete!"
+        echo "=========================================="
+        echo ""
+        echo "Image: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        echo ""
+        echo "Next steps:"
+        echo "  Run 'make deploy' to deploy with updated SDK"
+        echo ""
+    waitFor: ['push-sdk']
+
+# Build timeout (2 hours - Nix can be slow)
+timeout: 7200s
+
+# Images to be pushed
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}'

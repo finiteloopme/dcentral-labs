@@ -18,6 +18,8 @@ substitutions:
   _GKE_CLUSTER_NAME: midnight-dev-gke
   _IMAGE_NAME: midnight-dev-platform
   _IMAGE_TAG: latest
+  _SDK_IMAGE_NAME: midnight-sdk
+  _SDK_IMAGE_TAG: latest
   _ENVIRONMENT: dev
   _CHAIN_ENVIRONMENT: standalone
   _MIDNIGHT_NODE_IMAGE: midnightnetwork/midnight-node:0.12.1
@@ -67,7 +69,25 @@ steps:
           -target=module.artifact_registry
     waitFor: ['-']  # Start immediately
 
-  # Step 2: Build the dev container image
+  # Step 2: Pull SDK image (must exist - run cloudbuild-sdk.yaml first)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'pull-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        echo "Pulling SDK image: $${SDK_IMAGE}"
+        docker pull "$${SDK_IMAGE}" || {
+          echo ""
+          echo "ERROR: SDK image not found!"
+          echo "Run cloudbuild-sdk.yaml first to build the SDK image."
+          echo ""
+          exit 1
+        }
+    waitFor: ['tf-init']
+
+  # Step 3: Build the dev container image
   # Use BUILD_ID as fallback when SHORT_SHA is not available (manual builds)
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
@@ -76,13 +96,16 @@ steps:
       - '-c'
       - |
         TAG="${SHORT_SHA:-$BUILD_ID}"
+        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        
         docker build \
+          --build-arg "SDK_IMAGE=$${SDK_IMAGE}" \
           -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
           -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:$${TAG}" \
           .
-    waitFor: ['tf-init']  # Wait for Terraform to create Artifact Registry
+    waitFor: ['pull-sdk']
 
-  # Step 3: Push image to Artifact Registry
+  # Step 4: Push image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
     args:
@@ -91,7 +114,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}'
     waitFor: ['build-image']
 
-  # Step 4: Terraform Plan
+  # Step 5: Terraform Plan
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-plan'
     entrypoint: 'sh'
@@ -117,7 +140,7 @@ steps:
           -out=tfplan
     waitFor: ['tf-init', 'push-image']
 
-  # Step 5: Terraform Apply
+  # Step 6: Terraform Apply
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-apply'
     entrypoint: 'sh'
@@ -128,7 +151,7 @@ steps:
         terraform apply -auto-approve tfplan
     waitFor: ['tf-plan']
 
-  # Step 6: Output service URLs
+  # Step 7: Output service URLs
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-output'
     entrypoint: 'sh'

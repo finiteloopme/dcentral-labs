@@ -211,15 +211,14 @@ export const deployCommand = new Command('deploy')
           console.log('  Syncing wallet...');
         }
         
-        const { balance, synced } = await waitForWalletSync(providers.wallet, {
+        const { balances, synced } = await waitForWalletSync(providers.wallet, {
           minBalance: 1_000_000n, // Minimum 1 tDUST for fees
           timeout: 60000,
-          onProgress: (syncedBlocks, remaining) => {
+          onProgress: (syncState) => {
             if (!options.json) {
-              const pct = remaining > 0n 
-                ? Math.round(Number(syncedBlocks * 100n / (syncedBlocks + remaining)))
-                : 100;
-              process.stdout.write(`\r  Sync progress: ${pct}%   `);
+              const syncedCount = [syncState.shielded, syncState.unshielded, syncState.dust].filter(Boolean).length;
+              const pct = Math.round((syncedCount / 3) * 100);
+              process.stdout.write(`\r  Sync progress: ${pct}% (shielded: ${syncState.shielded ? 'ok' : '...'}, unshielded: ${syncState.unshielded ? 'ok' : '...'}, dust: ${syncState.dust ? 'ok' : '...'})   `);
             }
           },
         });
@@ -233,14 +232,14 @@ export const deployCommand = new Command('deploy')
         }
         
         if (!options.json) {
-          console.log(`  Balance: ${formatBalance(balance)} tDUST`);
+          console.log(`  Balance: ${formatBalance(balances.total)} tDUST`);
           console.log('');
         }
         
-        if (balance < 1_000_000n) {
+        if (balances.total < 1_000_000n) {
           throw new Error(
             `Insufficient balance for deployment. ` +
-            `Need at least 1 tDUST, have ${formatBalance(balance)}`
+            `Need at least 1 tDUST, have ${formatBalance(balances.total)}`
           );
         }
         

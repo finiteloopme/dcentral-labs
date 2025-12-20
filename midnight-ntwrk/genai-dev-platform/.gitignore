@@ -187,3 +187,22 @@ chainspec.json
 
 # Cloud Build and deployment logs
 cloudbuild-*.json
+
+# Midnight SDK Vendor
+# Source repos (cloned locally for reference, built from source in Dockerfile.sdk)
+vendor/midnight-js/
+vendor/midnight-wallet/
+# Build outputs (extracted from container via `make extract-vendor`)
+vendor/ledger/
+vendor/wallet/
+vendor/js/
+vendor/compact-js/
+vendor/manifest.txt
+# Keep documentation and placeholder
+!vendor/.gitkeep
+!vendor/README.md
+
+# Nix build artifacts
+result
+result-*
+.direnv/

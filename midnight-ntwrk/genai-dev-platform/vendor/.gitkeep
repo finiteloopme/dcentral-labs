@@ -1,0 +1,3 @@
+# This directory contains locally-built Midnight SDK packages
+# The actual build artifacts are gitignored
+# Run scripts/build-vendor.sh to build the dependencies

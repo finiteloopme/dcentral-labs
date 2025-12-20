@@ -1,22 +1,32 @@
 # Wallet Integration Requirements
 
-**Document Version:** 1.0  
-**Date:** 2025-12-17  
-**Status:** Draft  
+**Document Version:** 2.0  
+**Date:** 2025-12-21  
+**Status:** Partially Implemented  
 
 ## Overview
 
 This document outlines the requirements for integrating wallet utilities from the [midnight-wallet](https://github.com/midnightntwrk/midnight-wallet) SDK into the `midnightctl` CLI tool. The goal is to provide developers with essential wallet and address management capabilities directly from the command line.
 
-## Current Workaround
+## Implementation Status
 
-Until this integration is complete, developers can perform wallet operations manually using the `midnight-node-toolkit` Docker image. See **[FUNDING.md](./FUNDING.md)** for detailed instructions on:
-- Using pre-funded genesis wallets
-- Creating new wallet seeds
-- Funding wallets and checking balances
-- DUST token registration
+Most core wallet commands have been implemented using SDK 3.x. See **[WALLET-HOW-TO.md](./WALLET-HOW-TO.md)** for user documentation.
 
-The commands in FUNDING.md will eventually be replaced by the `midnightctl wallet` commands specified below.
+| Command | Status | Notes |
+|---------|--------|-------|
+| `wallet create` | ✅ Implemented | BIP39 mnemonic generation |
+| `wallet balance` | ✅ Implemented | Shows shielded/unshielded/dust |
+| `wallet fund` | ✅ Implemented | Genesis wallet funding |
+| `wallet send` | ✅ Implemented | SDK 3.x transaction flow |
+| `wallet address` | ✅ Implemented | All address types |
+| `wallet register-dust` | ✅ Implemented | DUST registration |
+| `wallet generate` | ⚠️ Merged into `create` | |
+| `wallet validate` | ❌ Not implemented | Mnemonic validation |
+| `address validate` | ❌ Not implemented | Address format validation |
+| `address encode` | ❌ Not implemented | |
+| `address decode` | ❌ Not implemented | |
+| `tx send` | ⚠️ Via `wallet send` | |
+| `tx status` | ❌ Not implemented | |
 
 ---
 
@@ -39,27 +49,29 @@ This integration will add wallet and address utilities to streamline the develop
 
 ## Integration Approach
 
-### Selected Approach: Hybrid (Approach 3)
+### Current Approach: SDK 3.x Direct Integration
 
-We will use a hybrid approach that combines:
+We build SDK 3.x packages from source as a separate container image (`Dockerfile.sdk`) and use them directly in the CLI. This approach was adopted because:
 
-1. **Public NPM packages** for audited cryptographic libraries
-2. **Copied source files** from the midnight-wallet repo for Midnight-specific logic
+1. **SDK packages are not yet on public npm** - requires building from source
+2. **Full wallet functionality** - HD wallets, ZK proofs, transaction signing
+3. **Three-wallet architecture** - ZswapWallet + UnshieldedWallet + DustWallet via WalletFacade
 
-This approach was chosen because:
-- No dependency on private `@midnight-ntwrk/*` npm registry
-- Uses battle-tested, audited crypto libraries (`@scure/*`)
-- Minimal code to maintain from the wallet SDK
-- Apache 2.0 license allows copying with attribution
+### Source Repositories
 
-### Source Repository
+| Repository | Purpose | Version |
+|------------|---------|---------|
+| [midnight-wallet](https://github.com/midnightntwrk/midnight-wallet) | HD wallet, address format, wallet types | `6bf9fe8` |
+| [midnight-js](https://github.com/midnightntwrk/midnight-js) | Providers, indexer, pub-sub | `v3.0.0-alpha.11` |
+| [midnight-ledger](https://github.com/midnightntwrk/midnight-ledger) | WASM packages for ZK proofs | `ledger-6.1.0-alpha.6` |
 
-- **Repository:** https://github.com/midnightntwrk/midnight-wallet
-- **License:** Apache 2.0
-- **Relevant Packages:**
-  - `packages/hd/` - HD wallet and mnemonic utilities
-  - `packages/address-format/` - Bech32m address encoding
-  - `packages/abstractions/` - NetworkId and type definitions
+### Key Implementation Files
+
+- `cli/src/lib/midnight/providers.ts` - Wallet creation and provider setup
+- `cli/src/lib/midnight/seed.ts` - Seed parsing (mnemonic/hex)
+- `cli/src/commands/wallet/*.ts` - Wallet CLI commands
+
+See [vendor/README.md](./vendor/README.md) for SDK architecture details.
 
 ---
 
@@ -292,25 +304,25 @@ const NetworkId = {
 
 ## Technical Design
 
-### Dependencies to Add
+### SDK 3.x Dependencies (Actual Implementation)
+
+The CLI uses SDK 3.x packages built from source via `Dockerfile.sdk`:
 
 ```json
 {
   "dependencies": {
-    "@scure/bip39": "^1.4.0",
-    "@scure/base": "^1.1.0"
+    "@midnight-ntwrk/wallet-hd": "file:/opt/vendor/wallet/hd",
+    "@midnight-ntwrk/dust-wallet": "file:/opt/vendor/wallet/dust-wallet",
+    "@midnight-ntwrk/wallet-utilities": "file:/opt/vendor/wallet/utilities",
+    "@midnight-ntwrk/wallet-capabilities": "file:/opt/vendor/wallet/capabilities",
+    "@midnight-ntwrk/midnight-js-providers": "file:/opt/vendor/midnight-js/providers",
+    "@midnight-ntwrk/midnight-js-indexer": "file:/opt/vendor/midnight-js/indexer",
+    "@midnight-ntwrk/midnight-js-wallet-providers": "file:/opt/vendor/midnight-js/wallet-providers"
   }
 }
 ```
 
-| Package | Version | Purpose | License |
-|---------|---------|---------|---------|
-| `@scure/bip39` | ^1.4.0 | BIP39 mnemonic generation/validation | MIT |
-| `@scure/base` | ^1.1.0 | Bech32m encoding/decoding | MIT |
-
-**Note:** We intentionally avoid adding `effect` as a dependency. The wallet SDK uses Effect-TS heavily, but we will rewrite copied utilities to use plain TypeScript to keep our bundle smaller and simpler.
-
-### File Structure
+### Actual File Structure
 
 ```
 cli/
@@ -318,73 +330,67 @@ cli/
     commands/
       wallet/
         index.ts           # Command group
-        generate.ts        # FR-1: Mnemonic generation
-        validate.ts        # FR-2: Mnemonic validation
-        balance.ts         # FR-7: Wallet balance
-        fund.ts            # FR-8: Wallet funding
-        register-dust.ts   # FR-9: DUST registration
-        address.ts         # FR-12: Address display
-      address/
-        index.ts           # Command group
-        validate.ts        # FR-3: Address validation
-        encode.ts          # FR-4: Address encoding
-        decode.ts          # FR-5: Address decoding
-      tx/
-        index.ts           # Command group
-        send.ts            # FR-10: Transaction sending
-        status.ts          # FR-11: Transaction status
+        create.ts          # Wallet creation with mnemonic
+        balance.ts         # Balance display
+        fund.ts            # Genesis funding
+        send.ts            # Token transfers
+        address.ts         # Address display
+        register-dust.ts   # DUST registration
+      contract/
+        deploy.ts          # Contract deployment (uses wallet)
     lib/
       midnight/
-        mnemonic.ts        # Mnemonic utilities (from hd package)
-        address.ts         # Address formatting (from address-format package)
-        network.ts         # NetworkId definitions
-        types.ts           # Type definitions
-        rpc.ts             # Node RPC client
-        indexer.ts         # Indexer GraphQL client
-        LICENSE            # Apache 2.0 license text
-        README.md          # Source attribution and version info
-    index.ts               # Add new command groups
+        providers.ts       # Wallet + provider creation (SDK 3.x)
+        seed.ts            # Seed parsing (mnemonic/hex)
+    index.ts
 ```
 
-### Source Files to Copy
-
-| Source File | Target Location | Modifications |
-|-------------|-----------------|---------------|
-| `packages/hd/src/MnemonicUtils.ts` | `lib/midnight/mnemonic.ts` | Remove Effect dependency |
-| `packages/address-format/src/index.ts` | `lib/midnight/address.ts` | Remove Effect/ledger dependencies, simplify |
-| `packages/abstractions/src/NetworkId.ts` | `lib/midnight/network.ts` | Copy as-is |
-
-### API Design
+### Core API (providers.ts)
 
 ```typescript
-// lib/midnight/mnemonic.ts
-export function generateMnemonic(strength?: 128 | 256): string[];
-export function validateMnemonic(mnemonic: string): boolean;
-export function mnemonicToSeed(mnemonic: string, passphrase?: string): Uint8Array;
+// Seed parsing
+export type ParsedSeed = { type: 'mnemonic' | 'hex'; value: string };
+export function parseSeed(input: string): ParsedSeed;
 
-// lib/midnight/address.ts
-export type AddressType = 'addr' | 'shield-addr' | 'shield-cpk' | 'shield-epk' | 'dust';
-
-export interface ParsedAddress {
-  type: AddressType;
-  network: string;
-  data: Uint8Array;
+// Wallet creation (SDK 3.x architecture)
+export interface WalletConfig {
+  networkId: string;
+  indexer: string;
+  indexerWs: string;
+  node: string;
+  proofServer: string;
 }
 
-export function parseAddress(bech32Address: string): ParsedAddress;
-export function encodeAddress(type: AddressType, network: string, data: Uint8Array): string;
-export function validateAddress(bech32Address: string): { valid: boolean; error?: string };
+export interface WalletBundle {
+  wallet: WalletFacade;          // Unified interface
+  zswapWallet: ZswapWallet;      // Shielded operations
+  unshieldedWallet: UnshieldedWallet;
+  dustWallet: DustWallet;
+  providers: MidnightProviders;
+}
 
-// lib/midnight/network.ts
-export const NetworkId = {
+export async function createWallet(seed: string, config: WalletConfig): Promise<WalletBundle>;
+
+// Balance retrieval
+export interface Balances {
+  shielded: bigint;
+  unshielded: bigint;
+  dust: bigint;
+  total: bigint;
+}
+
+export async function getBalances(wallet: WalletBundle): Promise<Balances>;
+```
+
+### NetworkId (from SDK)
+
+```typescript
+// SDK 3.x uses string-based NetworkId
+const NetworkId = {
   MainNet: 'mainnet',
   TestNet: 'testnet',
   DevNet: 'devnet',
-  QaNet: 'qanet',
-  Undeployed: 'undeployed',
-  Preview: 'preview',
-  PreProd: 'preprod',
-  Standalone: 'standalone',  // Our addition for GKE-managed local dev
+  Standalone: 'standalone',  // Maps to 'undeployed' internally
 } as const;
 ```
 
@@ -392,83 +398,67 @@ export const NetworkId = {
 
 ## Implementation Plan
 
-### Phase 1: Foundation (Priority: High)
+### Phase 1: Foundation ✅ COMPLETE
 
-1. Add npm dependencies (`@scure/bip39`, `@scure/base`)
-2. Create `lib/midnight/` directory structure
-3. Copy and adapt `MnemonicUtils.ts`
-4. Copy and adapt address format utilities
-5. Add `NetworkId` definitions
-
-**Deliverables:**
-- `lib/midnight/mnemonic.ts`
-- `lib/midnight/address.ts`
-- `lib/midnight/network.ts`
-- `lib/midnight/LICENSE`
-- Updated `package.json`
-
-### Phase 2: Wallet Commands (Priority: High)
-
-1. Implement `midnightctl wallet generate`
-2. Implement `midnightctl wallet validate`
-3. Add command to main CLI
-4. Write unit tests
+1. ~~Add npm dependencies~~ → Using SDK 3.x packages directly
+2. ~~Create `lib/midnight/` directory structure~~ → Done
+3. ~~Copy and adapt utilities~~ → Using SDK packages instead
+4. ~~Add `NetworkId` definitions~~ → Using SDK NetworkId
 
 **Deliverables:**
-- `commands/wallet/index.ts`
-- `commands/wallet/generate.ts`
-- `commands/wallet/validate.ts`
-- Unit tests
+- `cli/src/lib/midnight/providers.ts` ✅
+- `cli/src/lib/midnight/seed.ts` ✅
+- Updated `cli/package.json` with SDK dependencies ✅
 
-### Phase 3: Address Commands (Priority: Medium)
+### Phase 2: Wallet Commands ✅ COMPLETE
 
-1. Implement `midnightctl address validate`
-2. Implement `midnightctl address encode`
-3. Implement `midnightctl address decode`
-4. Add command to main CLI
-5. Write unit tests
+1. ~~Implement `midnightctl wallet generate`~~ → Merged into `wallet create`
+2. `midnightctl wallet validate` → ❌ Not implemented (low priority)
+3. ~~Add command to main CLI~~ → Done
 
 **Deliverables:**
-- `commands/address/index.ts`
-- `commands/address/validate.ts`
-- `commands/address/encode.ts`
-- `commands/address/decode.ts`
-- Unit tests
+- `commands/wallet/index.ts` ✅
+- `commands/wallet/create.ts` ✅
+- `commands/wallet/balance.ts` ✅
+- `commands/wallet/send.ts` ✅
 
-### Phase 4: Integration & Polish (Priority: Medium)
+### Phase 3: Address Commands ⚠️ PARTIAL
 
-1. Update `env` command to use official NetworkIds
-2. Add `--json` output support to all new commands
-3. Update help text and examples
-4. Integration testing
+1. `midnightctl address validate` → ❌ Not implemented
+2. `midnightctl address encode` → ❌ Not implemented
+3. `midnightctl address decode` → ❌ Not implemented
+4. `midnightctl wallet address` → ✅ Implemented (shows all address types)
+
+**Remaining Work:**
+- Standalone address validation/encoding commands (low priority - `wallet address` covers most use cases)
+
+### Phase 4: Integration & Polish ⚠️ PARTIAL
+
+1. ~~Update `env` command to use official NetworkIds~~ → Using SDK NetworkId
+2. `--json` output support → ❌ Not implemented
+3. ~~Update help text and examples~~ → Done
+4. Integration testing → ⚠️ Basic tests only
+
+**Remaining Work:**
+- Add `--json` flag to wallet commands
+- Comprehensive integration test suite
+
+### Phase 5: Runtime Wallet Operations ✅ COMPLETE
+
+1. ~~Implement `midnightctl wallet balance`~~ ✅
+2. ~~Implement `midnightctl wallet fund`~~ ✅
+3. ~~Implement `midnightctl wallet register-dust`~~ ✅
+4. ~~Implement `midnightctl wallet address`~~ ✅
+5. ~~Implement `midnightctl wallet send`~~ ✅ (replaces `tx send`)
+6. `midnightctl tx status` → ❌ Not implemented
 
 **Deliverables:**
-- Updated `commands/env/index.ts`
-- JSON output support
-- Updated documentation
-
-### Phase 5: Runtime Wallet Operations (Priority: Medium)
-
-1. Implement `midnightctl wallet balance`
-2. Implement `midnightctl wallet fund`
-3. Implement `midnightctl wallet register-dust`
-4. Implement `midnightctl wallet address`
-5. Implement `midnightctl tx send`
-6. Implement `midnightctl tx status`
-7. Add service connectivity helpers
-8. Write unit and integration tests
-
-**Deliverables:**
-- `commands/wallet/balance.ts`
-- `commands/wallet/fund.ts`
-- `commands/wallet/register-dust.ts`
-- `commands/wallet/address.ts`
-- `commands/tx/index.ts`
-- `commands/tx/send.ts`
-- `commands/tx/status.ts`
-- `lib/midnight/rpc.ts` (node RPC client)
-- `lib/midnight/indexer.ts` (indexer GraphQL client)
-- Integration tests with running services
+- `commands/wallet/balance.ts` ✅
+- `commands/wallet/fund.ts` ✅
+- `commands/wallet/register-dust.ts` ✅
+- `commands/wallet/address.ts` ✅
+- `commands/wallet/send.ts` ✅
+- `lib/midnight/providers.ts` ✅ (wallet + provider creation)
 
 ---
 
@@ -501,26 +491,33 @@ export const NetworkId = {
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| Wallet SDK API changes | Medium | Medium | Pin to specific commit, document version |
-| Cryptographic library vulnerabilities | High | Low | Use well-audited @scure packages, keep updated |
-| Address format changes in Midnight protocol | High | Low | Monitor midnight-wallet releases |
-| Effect dependency required | Medium | Medium | Rewrite utilities without Effect |
+| SDK 3.x API changes before stable release | Medium | Medium | Pin to specific commits in Dockerfile.sdk |
+| SDK packages not published to npm | Medium | High | Build from source via Dockerfile.sdk (current approach) |
+| WASM package compatibility issues | High | Low | Pin ledger version, test thoroughly |
+| Wallet sync performance | Medium | Medium | Add timeout handling, retry logic |
+
+**Resolved Risks:**
+- ~~Effect dependency required~~ → Using SDK packages directly (Effect included)
+- ~~Cryptographic library vulnerabilities~~ → SDK uses audited libraries internally
 
 ---
 
 ## Open Questions
 
 1. **HD Derivation Path:** Should we support custom derivation paths or use Midnight's default?
-   - **Recommendation:** Use Midnight's default path initially, add `--path` flag later if needed.
+   - **Resolution:** ✅ Using SDK's default derivation with Roles (Zswap, NightExternal, Dust)
 
-2. **Shielded Address Generation:** Full shielded address generation requires additional cryptographic operations. Should we support this in Phase 2 or defer?
-   - **Recommendation:** Defer full shielded key generation to a future phase; focus on validation/parsing first.
+2. **Shielded Address Generation:** Full shielded address generation requires additional cryptographic operations.
+   - **Resolution:** ✅ Implemented via SDK 3.x ZswapWallet
 
-3. **Key Export Formats:** Should we support exporting keys in different formats (hex, base64, JSON)?
-   - **Recommendation:** Support hex and JSON initially; add others based on user feedback.
+3. **Key Export Formats:** Should we support exporting keys in different formats?
+   - **Status:** ❌ Not implemented - wallets stored as JSON with mnemonic
 
-4. **Passphrase Support:** BIP39 supports optional passphrases. Should we include this?
-   - **Recommendation:** Yes, add `--passphrase` flag to wallet commands.
+4. **Passphrase Support:** BIP39 supports optional passphrases.
+   - **Status:** ❌ Not implemented - add if users request it
+
+5. **Wallet Encryption:** Should stored wallets be encrypted?
+   - **Status:** ❌ Not implemented - low priority for early dev phase
 
 ---
 
@@ -759,7 +756,8 @@ midnightctl wallet unshield <seed> <amount>  # Unshield tokens
 ## References
 
 ### Internal Documentation
-- [FUNDING.md](./FUNDING.md) - Current manual workflow using midnight-node-toolkit
+- [WALLET-HOW-TO.md](./WALLET-HOW-TO.md) - User guide for wallet operations
+- [vendor/README.md](./vendor/README.md) - SDK 3.x architecture and build process
 
 ### External Resources
 - [Midnight Wallet SDK](https://github.com/midnightntwrk/midnight-wallet)

@@ -1,0 +1,238 @@
+# Midnight SDK 3.x Build
+#
+# Builds Midnight SDK packages from source for use in the main container.
+# This is a separate build to allow caching and faster iteration.
+#
+# Stages:
+#   1. ledger-builder: Build WASM packages with Nix (~30 min)
+#   2. ts-builder: Build TypeScript packages (wallet, js)
+#   3. final: Minimal image with just /opt/vendor
+#
+# Usage:
+#   make build-sdk
+#   # or
+#   podman build -f Dockerfile.sdk -t midnight-sdk:latest .
+#
+# The main Dockerfile uses: COPY --from=midnight-sdk /opt/vendor /opt/vendor
+
+# ==============================================================================
+# VERSION ARGS - Change these to rebuild vendor packages
+# ==============================================================================
+ARG LEDGER_TAG=ledger-6.1.0-alpha.6
+ARG WALLET_COMMIT=6bf9fe8
+ARG JS_TAG=v3.0.0-alpha.11
+
+# ==============================================================================
+# Stage: ledger-builder - Build WASM packages with Nix
+# ==============================================================================
+FROM nixos/nix:latest AS ledger-builder
+ARG LEDGER_TAG
+
+WORKDIR /build
+
+# Configure Nix for flakes
+RUN mkdir -p /etc/nix && \
+    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+
+# Clone midnight-ledger at pinned tag
+RUN git clone --depth 1 --branch ${LEDGER_TAG} \
+    https://github.com/midnightntwrk/midnight-ledger.git .
+
+# Build with Nix (produces WASM packages)
+# This is the slow step (~15-30 min first time, cached after)
+RUN nix build --extra-experimental-features 'nix-command flakes'
+
+# Copy built packages to a clean location for extraction
+# The nix build outputs to ./result which is a symlink
+RUN mkdir -p /output && \
+    cp -rL result/lib/node_modules/@midnight-ntwrk/* /output/
+
+# ==============================================================================
+# Stage: ts-builder - Build TypeScript packages (wallet + js)
+# ==============================================================================
+FROM node:22-bookworm AS ts-builder
+ARG WALLET_COMMIT
+ARG JS_TAG
+
+WORKDIR /build
+
+# Install jq for JSON manipulation
+RUN apt-get update && apt-get install -y jq && rm -rf /var/lib/apt/lists/*
+
+# Enable corepack for yarn
+RUN corepack enable && corepack prepare yarn@4.10.3 --activate
+
+# Copy ledger packages from previous stage (needed as dependencies)
+COPY --from=ledger-builder /output /build/ledger-packages
+
+# Debug: Show what ledger packages we have
+RUN echo "=== Ledger packages from Nix build ===" && \
+    ls -la /build/ledger-packages/ && \
+    for pkg in /build/ledger-packages/*/package.json; do \
+        echo "Package: $(dirname $pkg)"; \
+        jq '{name, version}' "$pkg" 2>/dev/null || cat "$pkg" | head -5; \
+    done
+
+# ------------------------------------------------------------------------------
+# Build midnight-wallet
+# ------------------------------------------------------------------------------
+RUN git clone https://github.com/midnightntwrk/midnight-wallet.git wallet && \
+    cd wallet && git checkout ${WALLET_COMMIT}
+
+# Patch .yarnrc.yml to remove private GitHub registry requirement
+# Also delete yarn.lock to force fresh resolution without GitHub URLs
+RUN cd wallet && \
+    grep -v 'npmPublishRegistry' .yarnrc.yml | \
+    grep -v 'npmScopes:' | \
+    grep -v 'midnight-ntwrk:' | \
+    grep -v 'npmAlwaysAuth:' | \
+    grep -v 'npmRegistryServer:' > .yarnrc.yml.tmp && \
+    mv .yarnrc.yml.tmp .yarnrc.yml && \
+    rm -f yarn.lock && \
+    echo "=== Patched wallet .yarnrc.yml ===" && cat .yarnrc.yml
+
+# Remove e2e-tests and other test packages from workspaces (they have external deps we can't resolve)
+# Also add resolutions for ledger packages
+RUN cd wallet && \
+    jq '.workspaces = (.workspaces | map(select(. != "packages/e2e-tests" and . != "packages/wallet-integration-tests" and . != "packages/docs-snippets"))) | \
+        .resolutions["@midnight-ntwrk/ledger-v6"] = "portal:/build/ledger-packages/ledger-v6" | \
+        .resolutions["@midnight-ntwrk/onchain-runtime-v1"] = "portal:/build/ledger-packages/onchain-runtime-v1" | \
+        .resolutions["@midnight-ntwrk/zkir-v2"] = "portal:/build/ledger-packages/zkir-v2" | \
+        .resolutions["@midnight-ntwrk/zkir-v3"] = "portal:/build/ledger-packages/zkir-v3"' \
+        package.json > package.json.tmp && mv package.json.tmp package.json
+
+# Debug: Show patched package.json resolutions
+RUN echo "=== Wallet package.json resolutions ===" && \
+    cd wallet && jq '.resolutions' package.json
+
+# Install dependencies (must run full install to update lockfile with portal resolutions)
+RUN cd wallet && yarn install 2>&1 | tee /tmp/wallet-install.log || \
+    (echo "=== Wallet install failed, showing log ===" && tail -100 /tmp/wallet-install.log && exit 1)
+
+# Build wallet packages
+RUN cd wallet && yarn dist 2>&1 | tee /tmp/wallet-build.log || \
+    (echo "=== Wallet build failed, showing log ===" && tail -100 /tmp/wallet-build.log && exit 1)
+
+# Debug: Show what was built
+RUN echo "=== Wallet packages built ===" && \
+    find /build/wallet/packages -name "dist" -type d | head -20
+
+# ------------------------------------------------------------------------------
+# Build midnight-js
+# ------------------------------------------------------------------------------
+RUN git clone --depth 1 --branch ${JS_TAG} \
+    https://github.com/midnightntwrk/midnight-js.git js
+
+# Copy wallet packages INTO the JS directory so portal resolutions stay within project root
+# This avoids Yarn 4's "Writing attempt prevented outside project root" error
+RUN mkdir -p /build/js/vendor/wallet /build/js/vendor/ledger && \
+    for pkg in abstractions address-format capabilities dust-wallet facade hd indexer-client node-client prover-client runtime shielded-wallet unshielded-wallet utilities; do \
+        if [ -d "/build/wallet/packages/$pkg" ]; then \
+            cp -r "/build/wallet/packages/$pkg" "/build/js/vendor/wallet/"; \
+        fi; \
+    done && \
+    cp -r /build/ledger-packages/* /build/js/vendor/ledger/ && \
+    echo "=== Copied vendor packages into JS directory ===" && \
+    ls -la /build/js/vendor/wallet/ /build/js/vendor/ledger/
+
+# Patch .yarnrc.yml to remove private GitHub registry requirement
+# Also delete yarn.lock to force fresh resolution without GitHub URLs
+RUN cd js && \
+    grep -v 'npmPublishRegistry' .yarnrc.yml | \
+    grep -v 'npmScopes:' | \
+    grep -v 'midnight-ntwrk:' | \
+    grep -v 'npmAlwaysAuth:' | \
+    grep -v 'npmRegistryServer:' > .yarnrc.yml.tmp && \
+    mv .yarnrc.yml.tmp .yarnrc.yml && \
+    rm -f yarn.lock && \
+    echo "=== Patched JS .yarnrc.yml ===" && cat .yarnrc.yml
+
+# Remove testkit and e2e workspaces (not needed for CLI), add resolutions for ledger + ALL wallet packages
+# Use relative paths (portal:./vendor/...) so Yarn can write node_modules within project root
+RUN cd js && \
+    jq '.workspaces = ["packages/*", "compact-js/*", "platform-js/*"] | \
+        .resolutions["@midnight-ntwrk/ledger-v6"] = "portal:./vendor/ledger/ledger-v6" | \
+        .resolutions["@midnight-ntwrk/onchain-runtime-v1"] = "portal:./vendor/ledger/onchain-runtime-v1" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-abstractions"] = "portal:./vendor/wallet/abstractions" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-address-format"] = "portal:./vendor/wallet/address-format" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-capabilities"] = "portal:./vendor/wallet/capabilities" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-dust-wallet"] = "portal:./vendor/wallet/dust-wallet" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-facade"] = "portal:./vendor/wallet/facade" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-hd"] = "portal:./vendor/wallet/hd" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-indexer-client"] = "portal:./vendor/wallet/indexer-client" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-node-client"] = "portal:./vendor/wallet/node-client" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-prover-client"] = "portal:./vendor/wallet/prover-client" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-runtime"] = "portal:./vendor/wallet/runtime" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-shielded"] = "portal:./vendor/wallet/shielded-wallet" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-unshielded-wallet"] = "portal:./vendor/wallet/unshielded-wallet" | \
+        .resolutions["@midnight-ntwrk/wallet-sdk-utilities"] = "portal:./vendor/wallet/utilities"' \
+        package.json > package.json.tmp && mv package.json.tmp package.json
+
+# Debug: Show patched package.json resolutions
+RUN echo "=== JS package.json resolutions ===" && \
+    cd js && jq '.resolutions' package.json
+
+# Install dependencies (must run full install to update lockfile with portal resolutions)
+RUN cd js && yarn install 2>&1 | tee /tmp/js-install.log || \
+    (echo "=== JS install failed, showing log ===" && tail -100 /tmp/js-install.log && exit 1)
+
+# Build JS packages
+RUN cd js && yarn build 2>&1 | tee /tmp/js-build.log || \
+    (echo "=== JS build failed, showing log ===" && tail -100 /tmp/js-build.log && exit 1)
+
+# Debug: Show what was built
+RUN echo "=== JS packages built ===" && \
+    find /build/js/packages -name "dist" -type d | head -20
+
+# ------------------------------------------------------------------------------
+# Organize output for final image
+# ------------------------------------------------------------------------------
+RUN mkdir -p /output/ledger /output/wallet /output/js /output/compact-js
+
+# Copy ledger packages
+RUN cp -r /build/ledger-packages/* /output/ledger/
+
+# Copy wallet packages (only the ones we need)
+RUN for pkg in facade shielded-wallet unshielded-wallet indexer-client abstractions address-format capabilities hd node-client prover-client runtime utilities dust-wallet; do \
+        if [ -d "/build/wallet/packages/$pkg" ]; then \
+            cp -r "/build/wallet/packages/$pkg" "/output/wallet/"; \
+            echo "Copied wallet/$pkg"; \
+        fi; \
+    done
+
+# Copy JS packages (only the ones we need)
+RUN for pkg in contracts types network-id utils indexer-public-data-provider http-client-proof-provider level-private-state-provider node-zk-config-provider fetch-zk-config-provider logger-provider compact; do \
+        if [ -d "/build/js/packages/$pkg" ]; then \
+            cp -r "/build/js/packages/$pkg" "/output/js/"; \
+            echo "Copied js/$pkg"; \
+        fi; \
+    done
+
+# Copy compact-js packages
+RUN if [ -d "/build/js/compact-js" ]; then \
+        cp -r /build/js/compact-js/* /output/compact-js/; \
+        echo "Copied compact-js"; \
+    fi
+
+# Final debug: Show output structure
+RUN echo "=== Final output structure ===" && \
+    find /output -maxdepth 3 -type d | sort
+
+# ==============================================================================
+# Stage: final - Minimal image with vendor packages
+# ==============================================================================
+FROM alpine:latest
+
+# Copy organized vendor packages
+COPY --from=ts-builder /output /opt/vendor
+
+# Create manifest for debugging
+RUN find /opt/vendor -name "package.json" -exec dirname {} \; | sort > /opt/vendor/manifest.txt
+
+# Label with version info
+ARG LEDGER_TAG
+ARG WALLET_COMMIT
+ARG JS_TAG
+LABEL org.midnight.sdk.ledger="${LEDGER_TAG}" \
+      org.midnight.sdk.wallet="${WALLET_COMMIT}" \
+      org.midnight.sdk.js="${JS_TAG}"

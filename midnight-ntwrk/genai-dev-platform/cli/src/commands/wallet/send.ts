@@ -196,14 +196,13 @@ async function sendShielded(
       console.log('  Syncing wallet...');
     }
     
-    const { balance, synced } = await waitForWalletSync(wallet, {
+    const { balances, synced } = await waitForWalletSync(wallet, {
       minBalance: amount,
       timeout: 60000,
-      onProgress: (syncedBlocks, remaining) => {
+      onProgress: (syncState) => {
         if (!options.json) {
-          const pct = remaining > 0n 
-            ? Math.round(Number(syncedBlocks * 100n / (syncedBlocks + remaining)))
-            : 100;
+          const syncedCount = [syncState.shielded, syncState.unshielded, syncState.dust].filter(Boolean).length;
+          const pct = Math.round((syncedCount / 3) * 100);
           process.stdout.write(`\r  Sync progress: ${pct}%   `);
         }
       },
@@ -217,10 +216,10 @@ async function sendShielded(
       throw new Error('Wallet sync timed out. Check service connectivity.');
     }
     
-    if (balance < amount) {
+    if (balances.total < amount) {
       throw new Error(
-        `Insufficient shielded balance. ` +
-        `Available: ${formatBalance(balance)}, Requested: ${formatBalance(amount)}`
+        `Insufficient balance. ` +
+        `Available: ${formatBalance(balances.total)}, Requested: ${formatBalance(amount)}`
       );
     }
     
@@ -234,27 +233,38 @@ async function sendShielded(
     const tokenType = nativeToken();
     
     // Step 1: Prepare the transfer transaction
+    // SDK 3.x uses a different transfer format with 'shielded' or 'unshielded' type
     const transferRecipe = await wallet.transferTransaction([{
-      amount,
-      type: tokenType,
-      receiverAddress: to,
+      type: 'shielded',
+      outputs: [{
+        amount,
+        type: tokenType,
+        receiverAddress: to,
+      }],
     }]);
     
     if (!options.json) {
-      logger.info('Proving transaction...');
+      logger.info('Signing transaction...');
     }
     
-    // Step 2: Prove the transaction
-    const provenTx = await wallet.proveTransaction(transferRecipe);
+    // Step 2: Sign the transaction (for unshielded parts)
+    const signedTx = await wallet.signTransaction(transferRecipe.transaction);
+    
+    if (!options.json) {
+      logger.info('Finalizing transaction...');
+    }
+    
+    // Step 3: Finalize (prove) the transaction
+    const finalizedTx = await wallet.finalizeTransaction({ ...transferRecipe, transaction: signedTx });
     
     if (!options.json) {
       logger.info('Submitting transaction...');
     }
     
-    // Step 3: Submit the transaction
+    // Step 4: Submit the transaction
     let txHash: string;
     try {
-      txHash = await wallet.submitTransaction(provenTx);
+      txHash = await wallet.submitTransaction(finalizedTx);
     } catch (submitError: any) {
       // Extract detailed error information
       const errorMessage = submitError?.message || 'Unknown error';

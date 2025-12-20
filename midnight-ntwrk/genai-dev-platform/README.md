@@ -21,7 +21,7 @@ A cloud-native development environment for building applications on the [Midnigh
 - **Unshielded NIGHT** (`mn_addr_...`): Public transactions visible on-chain
 - **DUST**: Non-transferable resource for transaction fees, regenerates based on NIGHT holdings
 
-For details, see [FUNDING.md](FUNDING.md).
+For details, see [WALLET-HOW-TO.md](WALLET-HOW-TO.md).
 
 ## Quick Start
 
@@ -46,7 +46,10 @@ For details, see [FUNDING.md](FUNDING.md).
 git clone <repo-url>
 cd genai-dev-platform
 
-# Build the container
+# Build SDK image (one-time, ~30 min)
+make build-sdk
+
+# Build the container (uses SDK image)
 make build
 
 # Run interactively
@@ -166,7 +169,8 @@ After the first successful `make deploy`, Terraform will manage the complete set
 
 | Target | Description |
 |--------|-------------|
-| `make build` | Build container locally with Podman |
+| `make build-sdk` | Build SDK image from source (~30 min, one-time) |
+| `make build` | Build container (requires SDK image) |
 | `make run` | Run container interactively |
 | `make run-detach` | Run container in background |
 | `make clean` | Stop and remove container |
@@ -300,7 +304,7 @@ In `standalone` mode (default):
 
 This is ideal for rapid development and testing without external dependencies.
 
-**Pre-funded wallets:** In standalone mode, several genesis wallets are pre-funded for development. See [FUNDING.md](FUNDING.md) for details on wallet creation and funding.
+**Pre-funded wallets:** In standalone mode, several genesis wallets are pre-funded for development. See [WALLET-HOW-TO.md](WALLET-HOW-TO.md) for details on wallet creation and funding.
 
 ## Architecture
 
@@ -317,10 +321,81 @@ All services run in the `midnight-services` namespace and are exposed via Extern
 
 Infrastructure is managed via Terraform and deployed through Cloud Build.
 
+## Midnight SDK 3.x Dependency
+
+The Midnight CLI requires SDK 3.x packages which are currently only available via a private GitHub npm registry. Until they are published to public npm, we build them from source as a separate container image.
+
+### How It Works
+
+The SDK is built as a separate container image (`midnight-sdk`) that the main container depends on:
+
+1. **`Dockerfile.sdk`**: Builds SDK packages from source
+   - **ledger-builder** (Nix): Builds WASM packages from [midnight-ledger](https://github.com/midnightntwrk/midnight-ledger)
+   - **ts-builder** (Node): Builds TypeScript packages from [midnight-wallet](https://github.com/midnightntwrk/midnight-wallet) and [midnight-js](https://github.com/midnightntwrk/midnight-js)
+   - Output: `/opt/vendor/` with all built packages
+
+2. **`Dockerfile`**: Uses pre-built SDK image
+   - `COPY --from=midnight-sdk:latest /opt/vendor /opt/vendor`
+   - Builds CLI using vendor packages
+
+### Pinned Versions
+
+Versions are controlled by ARGs in `Dockerfile.sdk`:
+
+| Repository | ARG | Current Version |
+|------------|-----|-----------------|
+| midnight-ledger | `LEDGER_TAG` | `ledger-6.1.0-alpha.6` |
+| midnight-wallet | `WALLET_COMMIT` | `6bf9fe8` |
+| midnight-js | `JS_TAG` | `v3.0.0-alpha.11` |
+
+### Local Development Workflow
+
+```bash
+# 1. Build SDK image (one-time, ~30 min)
+make build-sdk
+
+# 2. Build main container (uses SDK image)
+make build
+
+# 3. Run container
+make run
+```
+
+### Cloud Deployment Workflow
+
+```bash
+# 1. Build and push SDK image (one-time per SDK version)
+gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml
+
+# 2. Deploy (uses SDK image from Artifact Registry)
+make deploy
+```
+
+### Upgrading SDK Versions
+
+1. Edit the version ARGs in `Dockerfile.sdk`
+2. Rebuild SDK: `make build-sdk`
+3. Rebuild container: `make build`
+
+For cloud deployment:
+1. Edit versions in `cicd-pipelines/cloudbuild-sdk.yaml`
+2. Run SDK pipeline: `gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml`
+3. Run main deploy: `make deploy`
+
+### When SDK 3.x is Published
+
+Once the SDK is available on public npm:
+
+1. Update `cli/package.json` - replace `file:/opt/vendor/...` with `^3.0.0`
+2. Update `Dockerfile` - remove `COPY --from=sdk` and SDK_IMAGE ARG
+3. Delete `Dockerfile.sdk` and `cicd-pipelines/cloudbuild-sdk.yaml`
+
+See [vendor/README.md](vendor/README.md) for detailed documentation.
+
 ## Development
 
 - [GenAI-Dev.md](GenAI-Dev.md) - Detailed technical documentation
-- [FUNDING.md](FUNDING.md) - Wallet creation and funding guide
+- [WALLET-HOW-TO.md](WALLET-HOW-TO.md) - Wallet creation and funding guide
 - [WALLET-INTEGRATION-REQ.md](WALLET-INTEGRATION-REQ.md) - Wallet CLI integration requirements
 
 ## License
