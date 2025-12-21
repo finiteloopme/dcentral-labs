@@ -1,8 +1,8 @@
 # Wallet Integration Requirements
 
-**Document Version:** 2.1  
+**Document Version:** 2.2  
 **Date:** 2025-12-21  
-**Status:** SDK 3.x Primary Implementation Complete  
+**Status:** SDK 3.x Primary Implementation Complete - HD Derivation Fixed  
 
 ## Overview
 
@@ -10,18 +10,20 @@ This document outlines the requirements for integrating wallet utilities from th
 
 ## Implementation Status
 
-All core wallet commands are now implemented using **SDK 3.x as the primary method**. The legacy toolkit is available via `--use-legacy-toolkit` flag (deprecated).
+All core wallet commands are now implemented using **SDK 3.x as the primary method**. The legacy toolkit is available via `--use-toolkit` flag (deprecated).
+
+**Key Fix (2025-12-21):** Removed broken `legacyDerivation` flag. SDK now uses same BIP44 HD derivation paths as toolkit (`m/44'/2400'/0'/<role>/0`), ensuring genesis wallet compatibility.
 
 See **[WALLET-HOW-TO.md](./WALLET-HOW-TO.md)** for user documentation.
 
 | Command | Status | Method | Notes |
 |---------|--------|--------|-------|
 | `wallet create` | ✅ Implemented | SDK 3.x | BIP39 mnemonic generation |
-| `wallet balance` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
-| `wallet fund` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet balance` | ✅ Implemented | SDK 3.x primary | `--use-toolkit` fallback available |
+| `wallet fund` | ✅ Implemented | SDK 3.x primary | `--use-toolkit` fallback available |
 | `wallet send` | ✅ Implemented | SDK 3.x primary | Both shielded & unshielded |
-| `wallet address` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
-| `wallet register-dust` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet address` | ✅ Implemented | SDK 3.x primary | `--use-toolkit` fallback available |
+| `wallet register-dust` | ✅ Implemented | SDK 3.x primary | `--use-toolkit` fallback available |
 | `wallet generate` | ⚠️ Merged into `create` | | |
 | `wallet validate` | ❌ Not implemented | | Mnemonic validation |
 | `address validate` | ❌ Not implemented | | Address format validation |
@@ -33,9 +35,9 @@ See **[WALLET-HOW-TO.md](./WALLET-HOW-TO.md)** for user documentation.
 ### New CLI Options (SDK 3.x)
 
 All wallet commands now support:
-- `--timeout <ms>` - Timeout for wallet sync (default: 60000ms)
-- `--use-legacy-toolkit` - Use deprecated toolkit binary (shows warning)
-- `--debug` - Show detailed debug information
+- `--timeout <ms>` - Timeout for wallet sync (default: 60000ms for balance, 120000ms for fund/send)
+- `--use-toolkit` - Use deprecated toolkit binary (shows warning)
+- `--debug` - Show detailed debug information including service URLs
 
 ---
 
@@ -313,6 +315,23 @@ const NetworkId = {
 
 ## Technical Design
 
+### HD Key Derivation (BIP44)
+
+Both SDK and toolkit use identical BIP44 derivation paths with Midnight's registered coin type `2400`:
+
+| Role | Derivation Path | SDK Constant | Purpose |
+|------|-----------------|--------------|---------|
+| Unshielded External | `m/44'/2400'/0'/0/0` | `Roles.NightExternal` (0) | Public transactions |
+| Unshielded Internal | `m/44'/2400'/0'/1/0` | `Roles.NightInternal` (1) | Change addresses |
+| Dust | `m/44'/2400'/0'/2/0` | `Roles.Dust` (2) | Fee payments |
+| Zswap (Shielded) | `m/44'/2400'/0'/3/0` | `Roles.Zswap` (3) | Private transactions |
+| Metadata | `m/44'/2400'/0'/4/0` | `Roles.Metadata` (4) | Metadata storage |
+
+This ensures:
+- **Genesis wallets work correctly**: Pre-funded wallets (seeds 0x01-0x04) are accessible via SDK
+- **Addresses match**: SDK-derived addresses are identical to toolkit-derived addresses
+- **No legacy mode needed**: The `legacyDerivation` flag was removed as it incorrectly skipped HD derivation
+
 ### SDK 3.x Dependencies (Actual Implementation)
 
 The CLI uses SDK 3.x packages built from source via `Dockerfile.sdk`:
@@ -510,13 +529,30 @@ const NetworkId = {
 **Resolved Risks:**
 - ~~Effect dependency required~~ → Using SDK packages directly (Effect included)
 - ~~Cryptographic library vulnerabilities~~ → SDK uses audited libraries internally
+- ~~SDK/Toolkit derivation mismatch~~ → Both use identical BIP44 paths; `legacyDerivation` flag removed
+- ~~Error 115 on transaction submission~~ → Caused by SDK/Proof Server version mismatch; ensure ledger version matches proof server (see Version Compatibility below)
+
+---
+
+## Version Compatibility
+
+Ensure SDK and service versions are aligned to avoid transaction errors (e.g., Error 115):
+
+| SDK Ledger | Proof Server | Node | Indexer | Status |
+|------------|--------------|------|---------|--------|
+| 6.1.0-alpha.6 | 6.1.0-alpha.6 | 0.18.0 | 3.0.0-alpha.20 | ✅ Working |
+| 6.1.0-alpha.6 | 6.2.0-rc.2 | 0.18.0 | 3.0.0-alpha.20 | ❌ Error 115 |
+
+**Key insight:** The SDK ledger version must match the proof server version. Mismatched versions cause transaction submission to fail with "Custom error: 115".
+
+See `vendor/README.md` for full compatibility matrix and `test/docker-compose.local.yml` for a working local setup.
 
 ---
 
 ## Open Questions
 
 1. **HD Derivation Path:** Should we support custom derivation paths or use Midnight's default?
-   - **Resolution:** ✅ Using SDK's default derivation with Roles (Zswap, NightExternal, Dust)
+   - **Resolution:** ✅ Using SDK's default BIP44 derivation with `m/44'/2400'/0'/<role>/0`. Both SDK and toolkit use identical paths. The `legacyDerivation` flag was removed as it was incorrectly skipping HD derivation entirely.
 
 2. **Shielded Address Generation:** Full shielded address generation requires additional cryptographic operations.
    - **Resolution:** ✅ Implemented via SDK 3.x ZswapWallet
