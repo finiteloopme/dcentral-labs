@@ -129,10 +129,25 @@ The CLI uses the Midnight SDK 3.x wallet architecture internally:
 - **DustWallet**: Manages DUST resource for transaction fees
 - **WalletFacade**: Unified interface combining all wallet types
 
+### HD Key Derivation
+
+Both SDK and toolkit use **BIP44 HD derivation** with Midnight's registered coin type `2400`:
+
+| Wallet Type | Derivation Path | Purpose |
+|-------------|-----------------|---------|
+| Unshielded | `m/44'/2400'/0'/0/0` | Public NIGHT transactions |
+| Dust | `m/44'/2400'/0'/2/0` | Fee payment registration |
+| Shielded | `m/44'/2400'/0'/3/0` | Private ZK transactions |
+
+This ensures:
+- **Genesis wallets work correctly**: Pre-funded wallets (seeds 0x01-0x04) are accessible via SDK
+- **Addresses are consistent**: SDK-derived addresses match toolkit-derived addresses
+- **Full compatibility**: No special "legacy mode" is needed
+
 For implementation details, see:
 - `cli/src/lib/midnight/providers.ts` - Wallet creation and provider setup
 - `cli/src/lib/midnight/seed.ts` - Seed parsing utilities
-- `vendor/README.md` - SDK 3.x architecture documentation
+- `vendor/README.md` - SDK 3.x architecture and version compatibility
 
 ---
 

@@ -24,14 +24,15 @@
   "comments": {
     "sdk": "Midnight SDK 3.x packages built from source. See: make build-sdk",
     "paths": "These file: paths reference /opt/vendor in the container",
-    "upgrade": "When SDK 3.x is published to npm, replace file: paths with ^3.0.0 versions"
+    "upgrade": "When SDK 3.x is published to npm, replace file: paths with ^3.0.0 versions",
+    "transitive": "Dependencies below the vendor packages are transitive deps required by SDK packages"
   },
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
     "dotenv": "^16.3.1",
 
-    "@midnight-ntwrk/ledger": "file:/opt/vendor/ledger/ledger-v6",
+    "@midnight-ntwrk/ledger-v6": "file:/opt/vendor/ledger/ledger-v6",
     "@midnight-ntwrk/onchain-runtime-v1": "file:/opt/vendor/ledger/onchain-runtime-v1",
     
     "@midnight-ntwrk/wallet-sdk-facade": "file:/opt/vendor/wallet/facade",
@@ -44,6 +45,9 @@
     "@midnight-ntwrk/wallet-sdk-dust-wallet": "file:/opt/vendor/wallet/dust-wallet",
     "@midnight-ntwrk/wallet-sdk-utilities": "file:/opt/vendor/wallet/utilities",
     "@midnight-ntwrk/wallet-sdk-capabilities": "file:/opt/vendor/wallet/capabilities",
+    "@midnight-ntwrk/wallet-sdk-node-client": "file:/opt/vendor/wallet/node-client",
+    "@midnight-ntwrk/wallet-sdk-prover-client": "file:/opt/vendor/wallet/prover-client",
+    "@midnight-ntwrk/wallet-sdk-runtime": "file:/opt/vendor/wallet/runtime",
     
     "@midnight-ntwrk/midnight-js-contracts": "file:/opt/vendor/js/contracts",
     "@midnight-ntwrk/midnight-js-types": "file:/opt/vendor/js/types",
@@ -57,17 +61,50 @@
     "@midnight-ntwrk/compact-runtime": "file:/opt/vendor/compact-js/compact-js",
     
     "@scure/bip39": "^1.4.0",
-    "@scure/base": "^1.1.0",
+    "@scure/base": "^1.2.6",
+    "@scure/bip32": "^1.6.2",
     
     "rxjs": "^7.8.2",
-    "level": "^8.0.0",
+    "level": "^10.0.0",
     "ws": "^8.18.0",
     "pino": "^9.0.0",
-    "pino-pretty": "^11.0.0"
+    "pino-pretty": "^11.0.0",
+
+    "effect": "^3.17.3",
+    "@effect/platform": "^0.90.0",
+
+    "cross-fetch": "^4.1.0",
+    "fetch-retry": "^6.0.0",
+    "isomorphic-ws": "^5.0.0",
+    "node-fetch": "3.3.2",
+
+    "@apollo/client": "^3.13.8",
+    "graphql": "^16.8.0",
+    "graphql-http": "^1.22.4",
+    "graphql-ws": "^6.0.0",
+    "@graphql-typed-document-node/core": "^3.2.0",
+    "zen-observable-ts": "^1.1.0",
+
+    "scale-ts": "^1.1.0",
+    "@subsquid/scale-codec": "^4.0.1",
+    "buffer": "^6.0.3",
+
+    "@polkadot/api": "^16.3.1",
+    "bn.js": "^5.2.2",
+
+    "abstract-level": "^3.0.0",
+    "superjson": "^2.0.0",
+
+    "fp-ts": "^2.16.1",
+    "io-ts": "^2.2.20",
+    "lodash": "^4.17.21",
+    "portfinder": "^1.0.37"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/ws": "^8.5.10",
+    "@types/bn.js": "^5.1.0",
+    "@types/lodash": "^4.17.0",
     "typescript": "^5.3.3",
     "ts-node": "^10.9.2",
     "vitest": "^2.0.0"

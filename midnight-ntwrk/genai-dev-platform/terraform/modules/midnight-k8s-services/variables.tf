@@ -9,7 +9,7 @@ variable "midnight_node_image" {
 variable "proof_server_image" {
   description = "Docker image for proof server"
   type        = string
-  default     = "midnightnetwork/proof-server:6.2.0-rc.2"
+  default     = "docker.io/midnightnetwork/proof-server:6.1.0-alpha.6"
 }
 
 variable "indexer_image" {

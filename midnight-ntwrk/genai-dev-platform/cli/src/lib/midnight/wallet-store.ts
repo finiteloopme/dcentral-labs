@@ -166,6 +166,7 @@ export class WalletManager {
     const derivedAddresses = await toolkit.getAddresses(seed);
     
     // Create wallet record with toolkit-derived addresses
+    // Note: Toolkit uses seed directly (legacy derivation), not HD wallet derivation
     const wallet: StoredWallet = {
       name,
       createdAt: new Date().toISOString(),
@@ -238,6 +239,7 @@ export class WalletManager {
     const derivedAddresses = await toolkit.getAddresses(normalizedSeed);
     
     // Create wallet record with toolkit-derived addresses
+    // Note: Both SDK and toolkit use identical BIP44 HD derivation paths
     const wallet: StoredWallet = {
       name,
       createdAt: new Date().toISOString(),

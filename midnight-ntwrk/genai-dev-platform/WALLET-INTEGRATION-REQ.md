@@ -1,8 +1,8 @@
 # Wallet Integration Requirements
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Date:** 2025-12-21  
-**Status:** Partially Implemented  
+**Status:** SDK 3.x Primary Implementation Complete  
 
 ## Overview
 
@@ -10,23 +10,32 @@ This document outlines the requirements for integrating wallet utilities from th
 
 ## Implementation Status
 
-Most core wallet commands have been implemented using SDK 3.x. See **[WALLET-HOW-TO.md](./WALLET-HOW-TO.md)** for user documentation.
+All core wallet commands are now implemented using **SDK 3.x as the primary method**. The legacy toolkit is available via `--use-legacy-toolkit` flag (deprecated).
 
-| Command | Status | Notes |
-|---------|--------|-------|
-| `wallet create` | ✅ Implemented | BIP39 mnemonic generation |
-| `wallet balance` | ✅ Implemented | Shows shielded/unshielded/dust |
-| `wallet fund` | ✅ Implemented | Genesis wallet funding |
-| `wallet send` | ✅ Implemented | SDK 3.x transaction flow |
-| `wallet address` | ✅ Implemented | All address types |
-| `wallet register-dust` | ✅ Implemented | DUST registration |
-| `wallet generate` | ⚠️ Merged into `create` | |
-| `wallet validate` | ❌ Not implemented | Mnemonic validation |
-| `address validate` | ❌ Not implemented | Address format validation |
-| `address encode` | ❌ Not implemented | |
-| `address decode` | ❌ Not implemented | |
-| `tx send` | ⚠️ Via `wallet send` | |
-| `tx status` | ❌ Not implemented | |
+See **[WALLET-HOW-TO.md](./WALLET-HOW-TO.md)** for user documentation.
+
+| Command | Status | Method | Notes |
+|---------|--------|--------|-------|
+| `wallet create` | ✅ Implemented | SDK 3.x | BIP39 mnemonic generation |
+| `wallet balance` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet fund` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet send` | ✅ Implemented | SDK 3.x primary | Both shielded & unshielded |
+| `wallet address` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet register-dust` | ✅ Implemented | SDK 3.x primary | `--use-legacy-toolkit` available |
+| `wallet generate` | ⚠️ Merged into `create` | | |
+| `wallet validate` | ❌ Not implemented | | Mnemonic validation |
+| `address validate` | ❌ Not implemented | | Address format validation |
+| `address encode` | ❌ Not implemented | | |
+| `address decode` | ❌ Not implemented | | |
+| `tx send` | ⚠️ Via `wallet send` | | |
+| `tx status` | ❌ Not implemented | | |
+
+### New CLI Options (SDK 3.x)
+
+All wallet commands now support:
+- `--timeout <ms>` - Timeout for wallet sync (default: 60000ms)
+- `--use-legacy-toolkit` - Use deprecated toolkit binary (shows warning)
+- `--debug` - Show detailed debug information
 
 ---
 
@@ -445,20 +454,22 @@ const NetworkId = {
 
 ### Phase 5: Runtime Wallet Operations ✅ COMPLETE
 
-1. ~~Implement `midnightctl wallet balance`~~ ✅
-2. ~~Implement `midnightctl wallet fund`~~ ✅
-3. ~~Implement `midnightctl wallet register-dust`~~ ✅
-4. ~~Implement `midnightctl wallet address`~~ ✅
-5. ~~Implement `midnightctl wallet send`~~ ✅ (replaces `tx send`)
+1. ~~Implement `midnightctl wallet balance`~~ ✅ SDK 3.x primary
+2. ~~Implement `midnightctl wallet fund`~~ ✅ SDK 3.x primary
+3. ~~Implement `midnightctl wallet register-dust`~~ ✅ SDK 3.x primary
+4. ~~Implement `midnightctl wallet address`~~ ✅ SDK 3.x primary
+5. ~~Implement `midnightctl wallet send`~~ ✅ SDK 3.x (both shielded & unshielded)
 6. `midnightctl tx status` → ❌ Not implemented
 
 **Deliverables:**
-- `commands/wallet/balance.ts` ✅
-- `commands/wallet/fund.ts` ✅
-- `commands/wallet/register-dust.ts` ✅
-- `commands/wallet/address.ts` ✅
-- `commands/wallet/send.ts` ✅
-- `lib/midnight/providers.ts` ✅ (wallet + provider creation)
+- `commands/wallet/balance.ts` ✅ SDK primary with `--use-legacy-toolkit` fallback
+- `commands/wallet/fund.ts` ✅ SDK primary with `--use-legacy-toolkit` fallback
+- `commands/wallet/register-dust.ts` ✅ SDK primary with `--use-legacy-toolkit` fallback
+- `commands/wallet/address.ts` ✅ SDK primary with `--use-legacy-toolkit` fallback
+- `commands/wallet/send.ts` ✅ SDK for both shielded and unshielded transfers
+- `lib/midnight/providers.ts` ✅ Added `sendUnshielded()` and `registerForDustGeneration()`
+- `lib/midnight/toolkit.ts` ✅ Marked as deprecated, added `clearSyncCache()`
+- `utils/logger.ts` ✅ Added `showLegacyToolkitWarning()`, `showSyncProgress()`
 
 ---
 

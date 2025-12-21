@@ -64,6 +64,62 @@ RUN echo "=== Vendor packages ===" && \
     cat /opt/vendor/manifest.txt 2>/dev/null || \
     find /opt/vendor -name "package.json" -exec dirname {} \; | sort
 
+# ------------------------------------------------------------------------------
+# Patch missing dependencies in wallet-sdk packages
+# 
+# Some wallet-sdk packages import @midnight-ntwrk/wallet-sdk-runtime but don't
+# declare it as a dependency in their package.json. This works in the Yarn
+# monorepo due to hoisting, but fails with npm install. We patch the missing
+# dependency before running npm install.
+# ------------------------------------------------------------------------------
+RUN echo "=== Patching missing wallet-sdk-runtime dependency ===" && \
+    for pkg in unshielded-wallet dust-wallet; do \
+        pkgfile="/opt/vendor/wallet/$pkg/package.json"; \
+        if [ -f "$pkgfile" ]; then \
+            echo "Patching: $pkgfile"; \
+            jq '.dependencies["@midnight-ntwrk/wallet-sdk-runtime"] = "file:/opt/vendor/wallet/runtime"' "$pkgfile" > "$pkgfile.tmp" && \
+            mv "$pkgfile.tmp" "$pkgfile"; \
+        fi; \
+    done && \
+    echo "=== Patching complete ==="
+
+# ------------------------------------------------------------------------------
+# Install production dependencies in vendor packages
+# 
+# ESM module resolution requires dependencies to be in the package's own
+# node_modules or an ancestor directory. Since vendor packages are symlinked
+# from /opt/midnight-cli/node_modules, their transitive deps (like 'effect')
+# are not found. This step installs each vendor package's dependencies locally.
+# ------------------------------------------------------------------------------
+RUN echo "=== Installing production dependencies in vendor packages ===" && \
+    for pkgdir in /opt/vendor/wallet/* /opt/vendor/js/* /opt/vendor/compact-js/*; do \
+        if [ -f "$pkgdir/package.json" ]; then \
+            echo "Installing deps in: $pkgdir"; \
+            cd "$pkgdir" && \
+            npm install --production --ignore-scripts --no-audit --no-fund 2>&1 | tail -5 || true; \
+        fi; \
+    done && \
+    echo "=== Vendor dependency installation complete ==="
+
+# ------------------------------------------------------------------------------
+# Deduplicate ledger-v6 across all vendor packages
+#
+# npm install creates separate copies of ledger-v6 in each package's node_modules.
+# This causes class identity issues (DustParameters from one copy isn't recognized
+# by DustWallet from another copy). We replace all copies with symlinks to the
+# canonical ledger-v6 at /opt/vendor/ledger/ledger-v6.
+# ------------------------------------------------------------------------------
+RUN echo "=== Deduplicating ledger-v6 across vendor packages ===" && \
+    CANONICAL_LEDGER="/opt/vendor/ledger/ledger-v6" && \
+    find /opt/vendor -path "*/node_modules/@midnight-ntwrk/ledger-v6" -type d | while read ledger_copy; do \
+        if [ "$ledger_copy" != "$CANONICAL_LEDGER" ]; then \
+            echo "Replacing $ledger_copy with symlink to $CANONICAL_LEDGER"; \
+            rm -rf "$ledger_copy" && \
+            ln -s "$CANONICAL_LEDGER" "$ledger_copy"; \
+        fi; \
+    done && \
+    echo "=== ledger-v6 deduplication complete ==="
+
 # ==============================================================================
 # Midnight CLI
 # ==============================================================================
@@ -73,6 +129,24 @@ COPY cli/ /opt/midnight-cli/
 # package.json uses file:/opt/vendor/... references
 RUN cd /opt/midnight-cli && npm install && npm run build && \
     chmod +x /opt/midnight-cli/dist/index.js
+
+# ------------------------------------------------------------------------------
+# Final ledger-v6 deduplication (after CLI install)
+#
+# CLI npm install may create additional ledger-v6 copies in the CLI's node_modules
+# or reinstall them in vendor packages. Run deduplication again to ensure only
+# one copy exists (prevents DustParameters class identity issues).
+# ------------------------------------------------------------------------------
+RUN echo "=== Final ledger-v6 deduplication ===" && \
+    CANONICAL_LEDGER="/opt/vendor/ledger/ledger-v6" && \
+    find /opt/midnight-cli/node_modules /opt/vendor -path "*/node_modules/@midnight-ntwrk/ledger-v6" -type d 2>/dev/null | while read ledger_copy; do \
+        if [ "$ledger_copy" != "$CANONICAL_LEDGER" ]; then \
+            echo "Replacing $ledger_copy with symlink to $CANONICAL_LEDGER"; \
+            rm -rf "$ledger_copy" && \
+            ln -s "$CANONICAL_LEDGER" "$ledger_copy"; \
+        fi; \
+    done && \
+    echo "=== Final ledger-v6 deduplication complete ==="
 
 # Environment setup script
 COPY .devcontainer/setup-env.sh /opt/midnight-cli/setup-env.sh

@@ -48,6 +48,10 @@ export const GENESIS_WALLETS = [
 
 /**
  * Stored wallet metadata
+ * 
+ * Note: The `useLegacyDerivation` field was removed. Both SDK and toolkit use
+ * the same BIP44 HD derivation paths (m/44'/2400'/0'/<role>/0), so all wallets
+ * use standard HD derivation. Genesis wallets work correctly with this approach.
  */
 export interface StoredWallet {
   name: string;

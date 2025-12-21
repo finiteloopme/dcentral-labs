@@ -62,6 +62,40 @@ Versions are set in `Dockerfile.sdk`:
 | [midnight-wallet](https://github.com/midnightntwrk/midnight-wallet) | `WALLET_COMMIT` | `6bf9fe8` |
 | [midnight-js](https://github.com/midnightntwrk/midnight-js) | `JS_TAG` | `v3.0.0-alpha.11` |
 
+## Version Compatibility Matrix
+
+This table shows tested compatible versions between SDK, node, and services:
+
+| SDK Stack | Node | Indexer | Proof Server | Network | Notes |
+|-----------|------|---------|--------------|---------|-------|
+| ledger-6.1.0-alpha.6 + wallet-6bf9fe8 | 0.18.0 | 3.0.0-alpha.20 | 6.1.0-alpha.6 | standalone | **Current** |
+| ledger-6.1.0-alpha.6 + wallet-6bf9fe8 | 0.18.0 | 3.0.0-alpha.20 | 6.2.0-rc.2 | standalone | GKE deploy |
+
+### Key Compatibility Notes
+
+1. **SDK and Proof Server versions must match**: The ledger WASM version in SDK must match the proof server version (both use ledger-6.x)
+
+2. **Indexer version affects GraphQL schema**: Ensure indexer version matches what SDK expects
+
+3. **Node version determines chain protocol**: Genesis wallets are pre-funded in dev mode (CFG_PRESET=dev)
+
+### HD Derivation Compatibility
+
+Both SDK 3.x and midnight-node-toolkit use **identical BIP44 HD derivation paths**:
+
+| Role | Derivation Path | SDK Role Constant |
+|------|-----------------|-------------------|
+| Unshielded External | `m/44'/2400'/0'/0/0` | `Roles.NightExternal` (0) |
+| Unshielded Internal | `m/44'/2400'/0'/1/0` | `Roles.NightInternal` (1) |
+| Dust | `m/44'/2400'/0'/2/0` | `Roles.Dust` (2) |
+| Zswap (Shielded) | `m/44'/2400'/0'/3/0` | `Roles.Zswap` (3) |
+| Metadata | `m/44'/2400'/0'/4/0` | `Roles.Metadata` (4) |
+
+This means:
+- **Genesis wallets work with SDK**: The pre-funded genesis wallets (seeds 0x...0001 to 0x...0004) are accessible via SDK
+- **Addresses match**: SDK-derived addresses are identical to toolkit-derived addresses
+- **No legacy mode needed**: There is no need for a "legacy derivation" option
+
 ## SDK Image Contents
 
 The `midnight-sdk:latest` image contains:
@@ -163,7 +197,7 @@ make build      # Then build main container
 
 ## SDK 3.x vs midnight-node-toolkit
 
-The container includes both SDK 3.x packages and the `midnight-node-toolkit` binary. This section documents the differences and migration plan.
+The container includes both SDK 3.x packages and the `midnight-node-toolkit` binary. **SDK 3.x is now the primary method for all operations.** The toolkit is deprecated and available only via `--use-legacy-toolkit` flag.
 
 ### Feature Comparison
 
@@ -177,8 +211,8 @@ The container includes both SDK 3.x packages and the `midnight-node-toolkit` bin
 | **Unshielded Balance** | ✅ `facade.state()` | ✅ `show-wallet` | Both work |
 | **Dust Balance** | ✅ `facade.state()` | ✅ `show-wallet` | Both work |
 | **Shielded Transfer** | ✅ `facade.transferTransaction()` | ❌ Not supported | **SDK only** |
-| **Unshielded Transfer** | ✅ `facade.transferTransaction()` | ✅ `generate-txs single-tx` | Both work |
-| **Dust Registration** | ✅ `facade.registerNightUtxosForDustGeneration()` | ✅ `generate-txs register-dust-address` | Both work |
+| **Unshielded Transfer** | ✅ `wallet.sendUnshielded()` | ✅ `generate-txs single-tx` | Both work |
+| **Dust Registration** | ✅ `wallet.registerForDustGeneration()` | ✅ `generate-txs register-dust-address` | Both work |
 | **Contract Deployment** | ✅ Full provider support | ❌ Not supported | **SDK only** |
 | **Private State** | ✅ `levelPrivateStateProvider` | ❌ Not supported | **SDK only** |
 | **ZK Proofs** | ✅ `httpClientProofProvider` | ❌ Not supported | **SDK only** |
@@ -194,42 +228,45 @@ The container includes both SDK 3.x packages and the `midnight-node-toolkit` bin
 - HD wallet derivation (BIP-44 style)
 - Programmatic control with TypeScript API and RxJS observables
 - Atomic swap support between shielded/unshielded
+- Unified API for both shielded and unshielded operations
 
 **Toolkit Advantages:**
 - No wallet sync required - queries are immediate
 - Single binary, no Node.js runtime needed
 - Faster for one-off balance checks and debugging
-- Battle-tested and stable for production use
 
 ### Current Usage
 
-The CLI currently uses **both**:
+The CLI now uses **SDK 3.x as primary** with deprecated toolkit fallback:
 
-| CLI Command | Uses SDK 3.x | Uses Toolkit |
-|-------------|--------------|--------------|
-| `wallet send` (shielded) | ✅ | |
-| `wallet send` (unshielded) | | ✅ |
-| `wallet balance` | | ✅ |
-| `wallet fund` | | ✅ |
-| `wallet register-dust` | | ✅ |
-| `contract deploy` | ✅ | |
+| CLI Command | Default (SDK 3.x) | `--use-legacy-toolkit` |
+|-------------|-------------------|------------------------|
+| `wallet balance` | ✅ Primary | ⚠️ Deprecated fallback |
+| `wallet send` (shielded) | ✅ SDK only | N/A (not supported) |
+| `wallet send` (unshielded) | ✅ Primary | ⚠️ Deprecated fallback |
+| `wallet fund` | ✅ Primary | ⚠️ Deprecated fallback |
+| `wallet register-dust` | ✅ Primary | ⚠️ Deprecated fallback |
+| `wallet address --all` | ✅ Primary | ⚠️ Deprecated fallback |
+| `contract deploy` | ✅ SDK only | N/A |
 
-### Migration Plan
+### Migration Status
 
-**Phase 1 (Current):** Keep both
-- Use SDK 3.x for: Shielded transfers, contract operations, new features
-- Use Toolkit for: Quick balance checks, unshielded transfers, debugging
+**Phase 1:** ✅ COMPLETE - Keep both
+- SDK 3.x used for: Shielded transfers, contract operations
 
-**Phase 2:** Gradual migration
-- [ ] Update `balance.ts` to use SDK `wallet.getBalances()` with toolkit fallback
-- [ ] Update `fund.ts` to use SDK unshielded transfers
-- [ ] Update `register-dust.ts` to use SDK `registerNightUtxosForDustGeneration()`
-- [ ] Add timeout fallback to toolkit for sync-sensitive operations
+**Phase 2:** ✅ COMPLETE - SDK primary
+- [x] Update `balance.ts` to use SDK `wallet.getBalances()` with toolkit fallback
+- [x] Update `fund.ts` to use SDK unshielded transfers
+- [x] Update `register-dust.ts` to use SDK `registerForDustGeneration()`
+- [x] Update `send.ts` to use SDK for both shielded and unshielded
+- [x] Update `address.ts` to use SDK for address retrieval
+- [x] Add `--use-legacy-toolkit` flag with deprecation warning
+- [x] Add `--timeout` flag for SDK sync operations
 
-**Phase 3:** SDK only (when SDK 3.x is stable in production)
+**Phase 3:** PENDING - SDK only (when SDK 3.x is stable in production)
 - [ ] Remove toolkit stage from `Dockerfile`
 - [ ] Remove `cli/src/lib/midnight/toolkit.ts`
-- [ ] Update CLI commands to remove toolkit fallback logic
+- [ ] Remove `--use-legacy-toolkit` flag from CLI commands
 - [ ] Simplify error messages
 
 ### Toolkit Binary

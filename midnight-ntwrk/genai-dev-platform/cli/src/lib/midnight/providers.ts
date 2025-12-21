@@ -10,7 +10,7 @@
  * - @midnight-ntwrk/wallet-sdk-unshielded-wallet (UnshieldedWallet)
  * - @midnight-ntwrk/wallet-sdk-dust-wallet (DustWallet for fees)
  * - @midnight-ntwrk/wallet-sdk-hd (HD wallet for seed derivation)
- * - @midnight-ntwrk/ledger (ledger-v6)
+ * - @midnight-ntwrk/ledger-v6 (ledger with WASM ZK support)
  */
 
 import { getServiceUrls, getNetworkSync } from './network.js';
@@ -18,10 +18,20 @@ import { type NetworkId, NetworkId as NetworkIdValues, type ServiceUrls, GENESIS
 import { parseSeed, type ParsedSeed } from './seed.js';
 
 /**
- * Map our internal network ID to the SDK's NetworkId string
- * SDK 3.x uses lowercase strings: 'undeployed', 'devnet', 'testnet', 'mainnet'
+ * SDK Network ID string type
+ * 
+ * The SDK uses lowercase string literals for network IDs:
+ *   'undeployed' - Local/standalone networks
+ *   'devnet' - Development network
+ *   'testnet' - Test network
+ *   'mainnet' - Main network
  */
-function mapToSdkNetworkId(network: NetworkId): string {
+type SdkNetworkId = 'undeployed' | 'devnet' | 'testnet' | 'mainnet';
+
+/**
+ * Map our internal network ID to the SDK's network ID string
+ */
+function mapToSdkNetworkId(network: NetworkId): SdkNetworkId {
   switch (network) {
     case NetworkIdValues.Standalone:
     case NetworkIdValues.Undeployed:
@@ -131,6 +141,12 @@ export interface Sdk3Wallet {
   
   // Balance queries
   getBalances(): Promise<WalletBalances>;
+  
+  // SDK 3.x native operations (replacing toolkit)
+  /** Send unshielded NIGHT tokens */
+  sendUnshielded(to: string, amount: bigint): Promise<string>;
+  /** Register wallet for DUST generation */
+  registerForDustGeneration(): Promise<string>;
 }
 
 /**
@@ -159,6 +175,18 @@ export class WalletCreationError extends Error {
 }
 
 /**
+ * Options for wallet creation
+ * 
+ * Note: The `legacyDerivation` option was removed. Both the SDK and toolkit
+ * use the same BIP44 HD derivation paths (m/44'/2400'/0'/<role>/0), so there
+ * is no need for a separate legacy mode. Genesis wallets work correctly with
+ * standard HD derivation.
+ */
+export interface WalletProviderOptions {
+  // Reserved for future options
+}
+
+/**
  * Create a wallet provider using the SDK 3.x wallet-sdk packages
  * 
  * SDK 3.x uses three wallet types:
@@ -170,11 +198,13 @@ export class WalletCreationError extends Error {
  * 
  * @param seedInput - Mnemonic (12-24 words) or hex seed (64 or 128 chars)
  * @param config - Provider configuration with network and URLs
+ * @param _options - Reserved for future options
  * @returns Sdk3Wallet instance
  */
 export async function createWalletProvider(
   seedInput: string,
-  config: ProviderConfig
+  config: ProviderConfig,
+  _options: WalletProviderOptions = {}
 ): Promise<Sdk3Wallet> {
   // Validate configuration
   const validation = validateServiceConfig(config);
@@ -199,27 +229,30 @@ export async function createWalletProvider(
       );
     }
     
-    // SDK 3.x imports
+    // SDK 3.x imports - these packages are only available inside the container
+    // via file: references in package.json pointing to /opt/vendor
     const { setNetworkId } = await import('@midnight-ntwrk/midnight-js-network-id');
+    // @ts-ignore - wallet-sdk packages available at runtime in container
     const { ShieldedWallet } = await import('@midnight-ntwrk/wallet-sdk-shielded');
-    const { 
-      UnshieldedWallet, 
-      createKeystore, 
-      PublicKey,
-      InMemoryTransactionHistoryStorage 
-    } = await import('@midnight-ntwrk/wallet-sdk-unshielded-wallet');
+    // @ts-ignore - wallet-sdk packages available at runtime in container
+    const { UnshieldedWallet, createKeystore, PublicKey, InMemoryTransactionHistoryStorage } = await import('@midnight-ntwrk/wallet-sdk-unshielded-wallet');
+    // @ts-ignore - wallet-sdk packages available at runtime in container
     const { DustWallet } = await import('@midnight-ntwrk/wallet-sdk-dust-wallet');
+    // @ts-ignore - wallet-sdk packages available at runtime in container
     const { WalletFacade } = await import('@midnight-ntwrk/wallet-sdk-facade');
+    // @ts-ignore - wallet-sdk packages available at runtime in container
     const { HDWallet, Roles } = await import('@midnight-ntwrk/wallet-sdk-hd');
-    const ledger = await import('@midnight-ntwrk/ledger');
+    // @ts-ignore - ledger-v6 available at runtime in container
+    const ledger = await import('@midnight-ntwrk/ledger-v6');
 
-    // Set global network ID
-    const networkIdStr = mapToSdkNetworkId(config.network);
-    setNetworkId(networkIdStr);
+    // Map our network ID to SDK's string format and set globally
+    // Note: Local npm version expects enum, container version expects string - cast to any
+    const sdkNetworkId = mapToSdkNetworkId(config.network);
+    setNetworkId(sdkNetworkId as any);
 
     // Wallet configuration
     const walletConfig = {
-      networkId: networkIdStr,
+      networkId: sdkNetworkId,
       indexerClientConnection: {
         indexerHttpUrl: config.urls.indexerUrl!,
         indexerWsUrl: config.urls.indexerWsUrl || config.urls.indexerUrl!.replace('http', 'ws'),
@@ -228,7 +261,11 @@ export async function createWalletProvider(
       relayURL: new URL(config.urls.nodeWsUrl!),
     };
 
-    // Derive seeds using HD wallet
+    // Derive seeds using BIP44 HD wallet derivation
+    // Both SDK and toolkit use the same derivation paths:
+    //   m/44'/2400'/0'/0/0 - NightExternal (unshielded)
+    //   m/44'/2400'/0'/2/0 - Dust
+    //   m/44'/2400'/0'/3/0 - Zswap (shielded)
     let shieldedSeed: Uint8Array;
     let unshieldedSeed: Uint8Array;
     let dustSeed: Uint8Array;
@@ -263,10 +300,10 @@ export async function createWalletProvider(
       );
     }
 
-    // Create secret keys
+    // Create secret keys from derived seeds using ledger-v6
     const zswapSecretKeys = ledger.ZswapSecretKeys.fromSeed(shieldedSeed);
     const dustSecretKey = ledger.DustSecretKey.fromSeed(dustSeed);
-    const unshieldedKeystore = createKeystore(unshieldedSeed, networkIdStr);
+    const unshieldedKeystore = createKeystore(unshieldedSeed, sdkNetworkId);
 
     // Create wallets using factory pattern
     let shieldedWallet: any;
@@ -297,7 +334,10 @@ export async function createWalletProvider(
     }
 
     try {
+      // Get dust parameters from ledger-v6's LedgerParameters
+      // This is the canonical approach used in SDK docs-snippets/utils.ts
       const dustParameters = ledger.LedgerParameters.initialParameters().dust;
+      
       dustWallet = DustWallet({
         ...walletConfig,
         costParameters: {
@@ -374,14 +414,30 @@ export async function createWalletProvider(
 
       async getBalances(): Promise<WalletBalances> {
         const { firstValueFrom } = await import('rxjs');
-        const { nativeToken } = await import('@midnight-ntwrk/ledger');
+        // @ts-ignore - ledger-v6 available at runtime in container
+        const { nativeToken, unshieldedToken } = await import('@midnight-ntwrk/ledger-v6');
         
         const state: any = await firstValueFrom(facade.state());
-        const token = String(nativeToken());
+        // Token types are different for shielded vs unshielded:
+        // - Shielded uses nativeToken().raw (or shieldedToken().raw)
+        // - Unshielded uses unshieldedToken().raw
+        const shieldedTokenType = nativeToken().raw;
+        const unshieldedTokenType = unshieldedToken().raw;
         
-        const shieldedBalance: bigint = state.shielded?.state?.balances?.[token] ?? 0n;
-        const unshieldedBalance: bigint = state.unshielded?.balances?.[token] ?? 0n;
-        const dustBalance: bigint = BigInt(state.dust?.availableCoins?.length ?? 0);
+        const shieldedBalance: bigint = state.shielded?.state?.balances?.[shieldedTokenType] ?? 0n;
+        const unshieldedBalance: bigint = state.unshielded?.balances?.[unshieldedTokenType] ?? 0n;
+        
+        // Get DUST balance - use walletBalance() if available, fallback to counting coins
+        let dustBalance = 0n;
+        try {
+          if (state.dust?.walletBalance) {
+            dustBalance = state.dust.walletBalance(new Date()) ?? 0n;
+          } else {
+            dustBalance = BigInt(state.dust?.availableCoins?.length ?? 0);
+          }
+        } catch {
+          dustBalance = BigInt(state.dust?.availableCoins?.length ?? 0);
+        }
         
         return {
           shielded: shieldedBalance,
@@ -390,6 +446,97 @@ export async function createWalletProvider(
           total: shieldedBalance + unshieldedBalance,
         };
       },
+
+      async sendUnshielded(to: string, amount: bigint): Promise<string> {
+        // Note: ledger-v6 exports unshieldedToken, npm ledger@4.0.0 does not
+        // This code only runs inside the container where ledger-v6 is available
+        // @ts-ignore - ledger-v6 available at runtime in container
+        const ledgerModule = await import('@midnight-ntwrk/ledger-v6');
+        const tokenType = ledgerModule.unshieldedToken().raw;
+        
+        const debugLog = (msg: string) => {
+          if (process.env.DEBUG_SDK === '1') {
+            console.log(`  [SDK DEBUG] ${msg}`);
+          }
+        };
+        
+        debugLog(`Token type: ${tokenType}`);
+        debugLog(`Receiver: ${to}`);
+        debugLog(`Amount: ${amount}`);
+        
+        // Prepare unshielded transfer
+        debugLog('Creating transfer transaction...');
+        const recipe = await facade.transferTransaction(
+          zswapSecretKeys,
+          dustSecretKey,
+          [{
+            type: 'unshielded',
+            outputs: [{
+              amount,
+              receiverAddress: to,
+              type: tokenType,
+            }],
+          }],
+          new Date(Date.now() + 30 * 60 * 1000) // 30 min TTL
+        );
+        debugLog(`Recipe type: ${recipe.type}`);
+        
+        // Sign transaction (required for unshielded transfers)
+        debugLog('Signing transaction...');
+        const signedTx = await facade.signTransaction(
+          recipe.transaction,
+          (payload: Uint8Array) => {
+            debugLog(`Signing payload of ${payload.length} bytes`);
+            const sig = unshieldedKeystore.signData(payload);
+            debugLog(`Signature created`);
+            return sig;
+          }
+        );
+        debugLog('Transaction signed');
+        
+        // Finalize (prove) transaction
+        debugLog('Finalizing transaction...');
+        const finalized = await facade.finalizeTransaction({
+          ...recipe,
+          transaction: signedTx,
+        });
+        debugLog('Transaction finalized');
+        
+        // Submit transaction
+        debugLog('Submitting transaction...');
+        const txHash = await facade.submitTransaction(finalized);
+        debugLog(`Transaction submitted: ${txHash}`);
+        return txHash;
+      },
+
+      async registerForDustGeneration(): Promise<string> {
+        const { firstValueFrom } = await import('rxjs');
+        
+        // Get current wallet state
+        const state: any = await firstValueFrom(facade.state());
+        
+        // Check if wallet has unshielded coins to register
+        const availableCoins = state.unshielded?.availableCoins;
+        if (!availableCoins || availableCoins.length === 0) {
+          throw new Error(
+            'No unshielded NIGHT tokens available for DUST registration. ' +
+            'Fund wallet with unshielded NIGHT first using: midnightctl wallet fund <name> <amount>'
+          );
+        }
+        
+        // Register NIGHT UTXOs for DUST generation
+        const recipe = await facade.registerNightUtxosForDustGeneration(
+          availableCoins,
+          unshieldedKeystore.getPublicKey(),
+          (payload: Uint8Array) => unshieldedKeystore.signData(payload)
+        );
+        
+        // Finalize (prove) transaction
+        const finalized = await facade.finalizeTransaction(recipe);
+        
+        // Submit transaction
+        return facade.submitTransaction(finalized);
+      },
     };
     
   } catch (error) {
@@ -397,8 +544,14 @@ export async function createWalletProvider(
       throw error;
     }
     if ((error as any).code === 'ERR_MODULE_NOT_FOUND') {
+      // Extract the missing module name from the error message
+      const errorMsg = (error as Error).message;
+      const missingModule = errorMsg.match(/Cannot find package '([^']+)'/)?.[1] 
+        || errorMsg.match(/Cannot find module '([^']+)'/)?.[1]
+        || 'unknown';
       throw new WalletCreationError(
-        'Midnight SDK not installed. Run `make build && make run` to build the container.',
+        `SDK module not found: ${missingModule}. ` +
+        'Ensure the container was built with SDK packages. Run `make build` to rebuild.',
         'module-load',
         error as Error
       );
@@ -450,12 +603,17 @@ export async function createContractProviders(
     // Create wallet/midnight provider adapter
     const walletProvider = await createWalletMidnightProvider(wallet);
     
+    // Build private state provider config
+    // Note: privateStoragePasswordProvider is available in SDK 3.x but types may vary
+    const privateStateConfig: any = {
+      privateStateStoreName: options.privateStateDir,
+      signingKeyStoreName: `${options.privateStateDir}-signing-keys`,
+      // Password must be at least 16 characters
+      privateStoragePasswordProvider: async () => 'midnight-cli-storage-password',
+    };
+    
     return {
-      privateStateProvider: levelPrivateStateProvider({
-        privateStateStoreName: options.privateStateDir,
-        signingKeyStoreName: `${options.privateStateDir}-signing-keys`,
-        privateStoragePasswordProvider: () => 'midnight-cli-storage',
-      }),
+      privateStateProvider: levelPrivateStateProvider(privateStateConfig),
       publicDataProvider: indexerPublicDataProvider(
         config.urls.indexerUrl!,
         config.urls.indexerWsUrl || config.urls.indexerUrl!.replace('http', 'ws')
@@ -469,8 +627,14 @@ export async function createContractProviders(
     
   } catch (error) {
     if ((error as any).code === 'ERR_MODULE_NOT_FOUND') {
+      // Extract the missing module name from the error message
+      const errorMsg = (error as Error).message;
+      const missingModule = errorMsg.match(/Cannot find package '([^']+)'/)?.[1] 
+        || errorMsg.match(/Cannot find module '([^']+)'/)?.[1]
+        || 'unknown';
       throw new Error(
-        'Midnight SDK not installed. Run `make build && make run` to build the container.'
+        `SDK module not found: ${missingModule}. ` +
+        'Ensure the container was built with SDK packages. Run `make build` to rebuild.'
       );
     }
     throw error;
@@ -527,10 +691,17 @@ export async function waitForWalletSync(
   } = {}
 ): Promise<{ balances: WalletBalances; synced: boolean }> {
   const { firstValueFrom, timeout: rxTimeout, filter, tap, map } = await import('rxjs');
-  const { nativeToken } = await import('@midnight-ntwrk/ledger');
+  // @ts-ignore - ledger-v6 available at runtime in container
+  const { nativeToken, unshieldedToken } = await import('@midnight-ntwrk/ledger-v6');
   
   const minBalance = options.minBalance ?? 0n;
   const timeoutMs = options.timeout ?? 120000; // 2 minutes default
+  
+  // Token types are different for shielded vs unshielded:
+  // - Shielded uses nativeToken().raw (or shieldedToken().raw)
+  // - Unshielded uses unshieldedToken().raw
+  const shieldedTokenType = nativeToken().raw;
+  const unshieldedTokenType = unshieldedToken().raw;
   
   const stateObs = wallet.state();
   
@@ -558,9 +729,8 @@ export async function waitForWalletSync(
           
           // Check balance if required
           if (minBalance > 0n) {
-            const token = String(nativeToken());
-            const shieldedBalance: bigint = state.shielded?.state?.balances?.[token] ?? 0n;
-            const unshieldedBalance: bigint = state.unshielded?.balances?.[token] ?? 0n;
+            const shieldedBalance: bigint = state.shielded?.state?.balances?.[shieldedTokenType] ?? 0n;
+            const unshieldedBalance: bigint = state.unshielded?.balances?.[unshieldedTokenType] ?? 0n;
             const totalBalance = shieldedBalance + unshieldedBalance;
             return totalBalance >= minBalance;
           }
@@ -568,9 +738,8 @@ export async function waitForWalletSync(
           return true;
         }),
         map((state: any): { balances: WalletBalances; synced: boolean } => {
-          const token = String(nativeToken());
-          const shieldedBalance: bigint = state.shielded?.state?.balances?.[token] ?? 0n;
-          const unshieldedBalance: bigint = state.unshielded?.balances?.[token] ?? 0n;
+          const shieldedBalance: bigint = state.shielded?.state?.balances?.[shieldedTokenType] ?? 0n;
+          const unshieldedBalance: bigint = state.unshielded?.balances?.[unshieldedTokenType] ?? 0n;
           const dustCoins = state.dust?.availableCoins?.length ?? 0;
           
           return {

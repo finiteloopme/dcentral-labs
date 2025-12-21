@@ -1,0 +1,62 @@
+# Local Midnight services for SDK testing
+# Compatible with SDK: ledger 6.1.0-alpha.6, wallet 6bf9fe8
+#
+# Usage with podman:
+#   podman-compose -f docker-compose.local.yml up -d
+#   podman-compose -f docker-compose.local.yml down -v
+
+services:
+  node:
+    image: docker.io/midnightntwrk/midnight-node:0.18.0
+    container_name: midnight-node-local
+    ports:
+      - "9944:9944"
+    volumes:
+      - midnight-node-data:/data
+    environment:
+      CFG_PRESET: dev
+      SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  proof-server:
+    image: docker.io/midnightnetwork/proof-server:6.1.0-alpha.6
+    container_name: midnight-proof-server-local
+    ports:
+      - "6300:6300"
+    environment:
+      RUST_BACKTRACE: full
+      EXTRA_ARGS: -v
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6300/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  indexer:
+    image: docker.io/midnightntwrk/indexer-standalone:3.0.0-alpha.20
+    container_name: midnight-indexer-local
+    ports:
+      - "8088:8088"
+    environment:
+      RUST_LOG: "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,info"
+      APP__INFRA__NODE__URL: "ws://node:9944"
+      APP__APPLICATION__NETWORK_ID: "undeployed"
+      APP__INFRA__SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    depends_on:
+      node:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/api/v3/graphql -X POST -H 'Content-Type: application/json' -d '{\"query\":\"{block{height}}\"}' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  midnight-node-data:

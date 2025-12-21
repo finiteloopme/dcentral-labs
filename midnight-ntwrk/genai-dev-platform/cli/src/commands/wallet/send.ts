@@ -4,8 +4,12 @@
  * Send NIGHT tokens to another address.
  * 
  * Automatically detects address type:
- * - Shielded addresses (mn_shield-addr_...): Uses JavaScript SDK (Zswap transfer)
- * - Unshielded addresses (mn_addr_...): Uses toolkit binary (native transfer)
+ * - Shielded addresses (mn_shield-addr_...): Uses SDK shielded transfer (Zswap)
+ * - Unshielded addresses (mn_addr_...): Uses SDK unshielded transfer
+ * 
+ * Implementation:
+ * - Uses SDK 3.x by default for all transfers (shielded and unshielded)
+ * - Legacy toolkit available via --use-legacy-toolkit flag (deprecated)
  */
 
 import { Command } from 'commander';
@@ -46,11 +50,21 @@ export const sendCommand = new Command('send')
   .option('--json', 'Output as JSON')
   .option('--force-shielded', 'Force shielded transfer even for unshielded addresses')
   .option('--force-unshielded', 'Force unshielded transfer even for shielded addresses')
+  .option('--use-legacy-toolkit', 'Use legacy toolkit binary instead of SDK (deprecated)')
+  .option('--timeout <ms>', 'Timeout for wallet sync in milliseconds', '60000')
   .option('--debug', 'Show debug information including service URLs')
-  .action(async (from: string, to: string, amountStr: string, options: { json?: boolean; forceShielded?: boolean; forceUnshielded?: boolean; debug?: boolean }) => {
+  .action(async (from: string, to: string, amountStr: string, options: { 
+    json?: boolean; 
+    forceShielded?: boolean; 
+    forceUnshielded?: boolean;
+    useLegacyToolkit?: boolean;
+    timeout?: string;
+    debug?: boolean;
+  }) => {
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
+      const timeoutMs = parseInt(options.timeout || '60000', 10);
       
       // Debug: show service URLs
       if (options.debug) {
@@ -60,7 +74,13 @@ export const sendCommand = new Command('send')
         console.log(`    Indexer:      ${config.urls.indexerUrl}`);
         console.log(`    Indexer WS:   ${config.urls.indexerWsUrl}`);
         console.log(`    Proof Server: ${config.urls.proofServerUrl}`);
+        console.log(`    Using:        ${options.useLegacyToolkit ? 'Legacy Toolkit' : 'SDK 3.x'}`);
         console.log('');
+      }
+      
+      // Show legacy toolkit warning if flag is used
+      if (options.useLegacyToolkit && !options.json) {
+        logger.showLegacyToolkitWarning();
       }
       
       // Validate services
@@ -105,9 +125,9 @@ export const sendCommand = new Command('send')
         
         if (!options.json) {
           if (addrInfo.type === 'shielded') {
-            logger.info('Detected shielded address, using SDK transfer (private)');
+            logger.info('Detected shielded address, using shielded transfer (private)');
           } else if (addrInfo.type === 'unshielded') {
-            logger.info('Detected unshielded address, using toolkit transfer (public)');
+            logger.info('Detected unshielded address, using unshielded transfer (public)');
           } else {
             throw new Error(
               `Unknown address type: ${addrInfo.type}. ` +
@@ -130,17 +150,18 @@ export const sendCommand = new Command('send')
         console.log(`  To:      ${truncateAddress(to)}`);
         console.log(`  Amount:  ${formatBalance(amount)} NIGHT`);
         console.log(`  Type:    ${useShieldedTransfer ? 'Shielded (private)' : 'Unshielded (public)'}`);
+        console.log(`  Method:  ${options.useLegacyToolkit ? 'Legacy Toolkit' : 'SDK 3.x'}`);
         console.log('');
       }
       
       let txHash: string;
       
-      if (useShieldedTransfer) {
-        // Use SDK for shielded transfer
-        txHash = await sendShielded(sourceWallet, to, amount, config, options);
+      if (options.useLegacyToolkit && !useShieldedTransfer) {
+        // Legacy path: use toolkit for unshielded transfers only
+        txHash = await sendUnshieldedViaToolkit(sourceWallet, to, amount, config, options);
       } else {
-        // Use toolkit for unshielded transfer
-        txHash = await sendUnshielded(sourceWallet, to, amount, config, options);
+        // Primary path: use SDK for both shielded and unshielded
+        txHash = await sendViaSdk(sourceWallet, to, amount, useShieldedTransfer, config, { ...options, timeout: timeoutMs });
       }
       
       if (options.json) {
@@ -153,6 +174,7 @@ export const sendCommand = new Command('send')
           formatted: formatBalance(amount),
           txHash,
           transferType: useShieldedTransfer ? 'shielded' : 'unshielded',
+          method: options.useLegacyToolkit && !useShieldedTransfer ? 'toolkit' : 'sdk',
         }, null, 2));
       } else {
         logger.success('Transaction submitted!');
@@ -173,142 +195,80 @@ export const sendCommand = new Command('send')
   });
 
 /**
- * Send shielded (private) transfer using the JavaScript SDK
+ * Send transfer using SDK 3.x (supports both shielded and unshielded)
  */
-async function sendShielded(
+async function sendViaSdk(
   sourceWallet: any,
   to: string,
   amount: bigint,
+  useShieldedTransfer: boolean,
   config: any,
-  options: { json?: boolean; debug?: boolean }
+  options: { json?: boolean; debug?: boolean; timeout?: number }
 ): Promise<string> {
+  const timeoutMs = options.timeout || 60000;
+  
   // Connect to wallet
   if (!options.json) {
     logger.info('Connecting to wallet...');
   }
   
   const wallet = await createWalletProvider(sourceWallet.seed, config);
-  wallet.start();
   
   try {
-    // Wait for sync
+    // Wait for sync with progress indicator
     if (!options.json) {
-      console.log('  Syncing wallet...');
+      logger.info('Syncing wallet...');
     }
     
     const { balances, synced } = await waitForWalletSync(wallet, {
       minBalance: amount,
-      timeout: 60000,
-      onProgress: (syncState) => {
-        if (!options.json) {
-          const syncedCount = [syncState.shielded, syncState.unshielded, syncState.dust].filter(Boolean).length;
-          const pct = Math.round((syncedCount / 3) * 100);
-          process.stdout.write(`\r  Sync progress: ${pct}%   `);
-        }
-      },
+      timeout: timeoutMs,
+      onProgress: !options.json ? (progress) => {
+        logger.showSyncProgress(progress);
+      } : undefined,
     });
     
+    // Clear progress line
     if (!options.json) {
-      console.log('');
+      logger.clearSyncProgress();
     }
     
     if (!synced) {
-      throw new Error('Wallet sync timed out. Check service connectivity.');
+      if (!options.json) {
+        logger.warning(`Wallet sync timed out after ${timeoutMs}ms. Attempting transfer anyway.`);
+      }
     }
     
-    if (balances.total < amount) {
+    // Check balance based on transfer type
+    const availableBalance = useShieldedTransfer ? balances.shielded : balances.unshielded;
+    const balanceType = useShieldedTransfer ? 'shielded' : 'unshielded';
+    
+    if (availableBalance < amount) {
       throw new Error(
-        `Insufficient balance. ` +
-        `Available: ${formatBalance(balances.total)}, Requested: ${formatBalance(amount)}`
+        `Insufficient ${balanceType} balance. ` +
+        `Available: ${formatBalance(availableBalance)}, Requested: ${formatBalance(amount)}`
       );
     }
     
-    // Send transaction using the 3-step wallet API
-    if (!options.json) {
-      logger.info('Preparing shielded transfer transaction...');
-    }
-    
-    // Import nativeToken to get the NIGHT token type
-    const { nativeToken } = await import('@midnight-ntwrk/ledger');
-    const tokenType = nativeToken();
-    
-    // Step 1: Prepare the transfer transaction
-    // SDK 3.x uses a different transfer format with 'shielded' or 'unshielded' type
-    const transferRecipe = await wallet.transferTransaction([{
-      type: 'shielded',
-      outputs: [{
-        amount,
-        type: tokenType,
-        receiverAddress: to,
-      }],
-    }]);
-    
-    if (!options.json) {
-      logger.info('Signing transaction...');
-    }
-    
-    // Step 2: Sign the transaction (for unshielded parts)
-    const signedTx = await wallet.signTransaction(transferRecipe.transaction);
-    
-    if (!options.json) {
-      logger.info('Finalizing transaction...');
-    }
-    
-    // Step 3: Finalize (prove) the transaction
-    const finalizedTx = await wallet.finalizeTransaction({ ...transferRecipe, transaction: signedTx });
-    
-    if (!options.json) {
-      logger.info('Submitting transaction...');
-    }
-    
-    // Step 4: Submit the transaction
-    let txHash: string;
-    try {
-      txHash = await wallet.submitTransaction(finalizedTx);
-    } catch (submitError: any) {
-      // Extract detailed error information
-      const errorMessage = submitError?.message || 'Unknown error';
-      const errorCause = submitError?.cause;
-      const errorCode = errorCause?.code || submitError?.code;
-      const errorErrno = errorCause?.errno || submitError?.errno;
-      const errorSyscall = errorCause?.syscall || submitError?.syscall;
-      const errorAddress = errorCause?.address || submitError?.address;
-      const errorPort = errorCause?.port || submitError?.port;
-      
-      // Build detailed error message
-      let detailedMessage = `Transaction submission failed: ${errorMessage}`;
-      
-      if (errorCause) {
-        detailedMessage += `\n  Cause: ${errorCause.message || errorCause}`;
-      }
-      if (errorCode) {
-        detailedMessage += `\n  Error code: ${errorCode}`;
-      }
-      if (errorErrno) {
-        detailedMessage += `\n  Errno: ${errorErrno}`;
-      }
-      if (errorSyscall) {
-        detailedMessage += `\n  Syscall: ${errorSyscall}`;
-      }
-      if (errorAddress) {
-        detailedMessage += `\n  Address: ${errorAddress}:${errorPort || '?'}`;
-      }
-      
-      // Log full error in debug mode
-      if (options.debug) {
-        console.error('\n  [DEBUG] Full error object:');
-        console.error('  ', JSON.stringify(submitError, Object.getOwnPropertyNames(submitError), 2));
-        if (errorCause) {
-          console.error('  [DEBUG] Error cause:');
-          console.error('  ', JSON.stringify(errorCause, Object.getOwnPropertyNames(errorCause), 2));
-        }
-      }
-      
-      throw new Error(detailedMessage);
-    }
-    
-    if (!options.json) {
+    if (options.debug) {
       console.log('');
+      console.log(`  [DEBUG] ${balanceType} balance: ${formatBalance(availableBalance)}`);
+      console.log(`  [DEBUG] Transfer amount: ${formatBalance(amount)}`);
+      console.log('');
+    }
+    
+    let txHash: string;
+    
+    if (useShieldedTransfer) {
+      // Shielded transfer via SDK
+      txHash = await sendShieldedViaSdk(wallet, to, amount, options);
+    } else {
+      // Unshielded transfer via SDK (using the new sendUnshielded method)
+      if (!options.json) {
+        logger.info('Submitting unshielded transfer...');
+      }
+      
+      txHash = await wallet.sendUnshielded(to, amount);
     }
     
     return txHash;
@@ -323,9 +283,88 @@ async function sendShielded(
 }
 
 /**
- * Send unshielded (public) transfer using the toolkit binary
+ * Send shielded transfer using SDK 3.x
  */
-async function sendUnshielded(
+async function sendShieldedViaSdk(
+  wallet: any,
+  to: string,
+  amount: bigint,
+  options: { json?: boolean; debug?: boolean }
+): Promise<string> {
+  // Import shieldedToken to get the shielded NIGHT token type
+  // For shielded transfers, use shieldedToken().raw
+  // @ts-ignore - ledger-v6 available at runtime in container
+  const { shieldedToken } = await import('@midnight-ntwrk/ledger-v6');
+  const tokenType = shieldedToken().raw;
+  
+  if (!options.json) {
+    logger.info('Preparing shielded transfer transaction...');
+  }
+  
+  // Step 1: Prepare the transfer transaction
+  const transferRecipe = await wallet.transferTransaction([{
+    type: 'shielded',
+    outputs: [{
+      amount,
+      type: tokenType,
+      receiverAddress: to,
+    }],
+  }]);
+  
+  if (!options.json) {
+    logger.info('Signing transaction...');
+  }
+  
+  // Step 2: Sign the transaction
+  const signedTx = await wallet.signTransaction(transferRecipe.transaction);
+  
+  if (!options.json) {
+    logger.info('Finalizing transaction...');
+  }
+  
+  // Step 3: Finalize (prove) the transaction
+  const finalizedTx = await wallet.finalizeTransaction({ ...transferRecipe, transaction: signedTx });
+  
+  if (!options.json) {
+    logger.info('Submitting transaction...');
+  }
+  
+  // Step 4: Submit the transaction
+  let txHash: string;
+  try {
+    txHash = await wallet.submitTransaction(finalizedTx);
+  } catch (submitError: any) {
+    // Extract detailed error information
+    const errorMessage = submitError?.message || 'Unknown error';
+    const errorCause = submitError?.cause;
+    const errorCode = errorCause?.code || submitError?.code;
+    
+    // Build detailed error message
+    let detailedMessage = `Transaction submission failed: ${errorMessage}`;
+    
+    if (errorCause) {
+      detailedMessage += `\n  Cause: ${errorCause.message || errorCause}`;
+    }
+    if (errorCode) {
+      detailedMessage += `\n  Error code: ${errorCode}`;
+    }
+    
+    // Log full error in debug mode
+    if (options.debug) {
+      console.error('\n  [DEBUG] Full error object:');
+      console.error('  ', JSON.stringify(submitError, Object.getOwnPropertyNames(submitError), 2));
+    }
+    
+    throw new Error(detailedMessage);
+  }
+  
+  return txHash;
+}
+
+/**
+ * Send unshielded transfer using legacy toolkit binary (deprecated)
+ */
+async function sendUnshieldedViaToolkit(
   sourceWallet: any,
   to: string,
   amount: bigint,
@@ -336,13 +375,14 @@ async function sendUnshielded(
   const toolkitAvailable = await isToolkitAvailable();
   if (!toolkitAvailable) {
     throw new Error(
-      'Unshielded transfers require the midnight-node-toolkit binary. ' +
-      'Set MIDNIGHT_TOOLKIT_PATH or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit'
+      'Legacy toolkit binary not found. ' +
+      'Set MIDNIGHT_TOOLKIT_PATH or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit. ' +
+      'Alternatively, remove --use-legacy-toolkit to use the SDK.'
     );
   }
   
   if (!options.json) {
-    logger.info('Preparing unshielded transfer via toolkit...');
+    logger.info('Preparing unshielded transfer via legacy toolkit...');
   }
   
   const toolkit = createToolkit({

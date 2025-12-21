@@ -214,6 +214,19 @@ RUN if [ -d "/build/js/compact-js" ]; then \
         echo "Copied compact-js"; \
     fi
 
+# ------------------------------------------------------------------------------
+# Install production dependencies in vendor packages
+# This ensures each package is self-contained with its transitive deps
+# ------------------------------------------------------------------------------
+RUN echo "=== Installing production dependencies in vendor packages ===" && \
+    for pkgdir in /output/wallet/* /output/js/* /output/compact-js/*; do \
+        if [ -f "$pkgdir/package.json" ]; then \
+            echo "Installing deps in: $pkgdir"; \
+            cd "$pkgdir" && \
+            npm install --production --ignore-scripts --no-audit --no-fund 2>/dev/null || true; \
+        fi; \
+    done
+
 # Final debug: Show output structure
 RUN echo "=== Final output structure ===" && \
     find /output -maxdepth 3 -type d | sort

@@ -14,6 +14,12 @@ set -euo pipefail
 # Default to standalone if not set
 ENV_MODE="${CHAIN_ENVIRONMENT:-standalone}"
 
+# Suppress @polkadot ESM/CJS duplicate version warnings
+# These are informational warnings about detecting multiple package instances,
+# which is expected in our multi-package vendor structure (all same version)
+# See: @polkadot/util/cjs/detectPackage.js
+export POLKADOTJS_DISABLE_ESM_CJS_WARNING=1
+
 # ==============================================================================
 # Utility Functions
 # ==============================================================================

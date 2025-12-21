@@ -7,6 +7,10 @@
  * Token Model:
  * - NIGHT: Native token, can be shielded (private) or unshielded (public)
  * - DUST: Non-transferable resource for transaction fees, regenerates based on NIGHT holdings
+ * 
+ * Implementation:
+ * - Uses SDK 3.x by default for balance queries
+ * - Legacy toolkit available via --use-legacy-toolkit flag (deprecated)
  */
 
 import { Command } from 'commander';
@@ -17,6 +21,8 @@ import {
   getProviderConfig,
   createToolkit,
   isToolkitAvailable,
+  createWalletProvider,
+  waitForWalletSync,
 } from '../../lib/midnight/index.js';
 
 /**
@@ -40,11 +46,20 @@ export const balanceCommand = new Command('balance')
   .argument('[name]', 'Wallet name (uses default if not specified)')
   .option('--json', 'Output as JSON')
   .option('--include-dust', 'Show DUST resource status')
+  .option('--use-legacy-toolkit', 'Use legacy toolkit binary instead of SDK (deprecated)')
+  .option('--timeout <ms>', 'Timeout for wallet sync in milliseconds', '60000')
   .option('--debug', 'Show debug information including service URLs')
-  .action(async (name: string | undefined, options: { json?: boolean; includeDust?: boolean; debug?: boolean }) => {
+  .action(async (name: string | undefined, options: { 
+    json?: boolean; 
+    includeDust?: boolean; 
+    useLegacyToolkit?: boolean;
+    timeout?: string;
+    debug?: boolean;
+  }) => {
     try {
       const manager = new WalletManager();
       const config = getProviderConfig();
+      const timeoutMs = parseInt(options.timeout || '60000', 10);
       
       // Debug: show service URLs
       if (options.debug) {
@@ -54,7 +69,13 @@ export const balanceCommand = new Command('balance')
         console.log(`    Indexer:      ${config.urls.indexerUrl}`);
         console.log(`    Indexer WS:   ${config.urls.indexerWsUrl}`);
         console.log(`    Proof Server: ${config.urls.proofServerUrl}`);
+        console.log(`    Using:        ${options.useLegacyToolkit ? 'Legacy Toolkit' : 'SDK 3.x'}`);
         console.log('');
+      }
+      
+      // Show legacy toolkit warning if flag is used
+      if (options.useLegacyToolkit && !options.json) {
+        logger.showLegacyToolkitWarning();
       }
       
       // Resolve wallet (auto-create if needed)
@@ -93,72 +114,138 @@ export const balanceCommand = new Command('balance')
         console.log('');
       }
       
-      // Check if toolkit is available
-      const toolkitAvailable = await isToolkitAvailable();
-      
-      if (!toolkitAvailable) {
-        throw new Error(
-          'Balance queries require the midnight-node-toolkit binary. ' +
-          'Set MIDNIGHT_TOOLKIT_PATH or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit'
-        );
-      }
-      
       // Initialize balances
       let shieldedBalance = 0n;
       let unshieldedBalance = 0n;
       let dustBalance = 0n;
+      let method = 'sdk';
       
-      // Get all balances via toolkit
-      if (!options.json) {
-        logger.info('Querying wallet balance via toolkit...');
-      }
-      
-      const toolkit = createToolkit({
-        nodeWsUrl: config.urls.nodeWsUrl || 'ws://localhost:9944',
-        network: wallet.network,
-      });
-      
-      try {
-        const balanceInfo = await toolkit.getWalletBalance(wallet.seed);
+      if (options.useLegacyToolkit) {
+        // Legacy path: use toolkit binary
+        method = 'toolkit';
+        const toolkitAvailable = await isToolkitAvailable();
         
-        shieldedBalance = balanceInfo.shieldedBalance;
-        unshieldedBalance = balanceInfo.unshieldedBalance;
-        dustBalance = balanceInfo.dustBalance;
-        
-        if (options.debug && balanceInfo.rawState) {
-          console.log('');
-          console.log('  [DEBUG] Raw wallet state:');
-          console.log(`    ${JSON.stringify(balanceInfo.rawState, null, 2).split('\n').join('\n    ')}`);
-          console.log('');
+        if (!toolkitAvailable) {
+          throw new Error(
+            'Legacy toolkit binary not found. ' +
+            'Set MIDNIGHT_TOOLKIT_PATH or ensure the binary is installed at /usr/local/bin/midnight-node-toolkit. ' +
+            'Alternatively, remove --use-legacy-toolkit to use the SDK.'
+          );
         }
         
-      } catch (toolkitError) {
         if (!options.json) {
-          logger.error(`Toolkit query failed: ${(toolkitError as Error).message}`);
+          logger.info('Querying wallet balance via legacy toolkit...');
         }
-        throw toolkitError;
-      }
-      
-      // Get separate DUST status if requested and not already retrieved
-      if (options.includeDust && dustBalance === 0n) {
+        
+        const toolkit = createToolkit({
+          nodeWsUrl: config.urls.nodeWsUrl || 'ws://localhost:9944',
+          network: wallet.network,
+        });
+        
         try {
-          if (!options.json) {
-            logger.info('Querying DUST resource status...');
-          }
+          const balanceInfo = await toolkit.getWalletBalance(wallet.seed);
           
-          const dustStatus = await toolkit.getDustStatus(wallet.seed);
-          dustBalance = dustStatus.balance;
+          shieldedBalance = balanceInfo.shieldedBalance;
+          unshieldedBalance = balanceInfo.unshieldedBalance;
+          dustBalance = balanceInfo.dustBalance;
           
-          if (options.debug && dustStatus.rawOutput) {
+          if (options.debug && balanceInfo.rawState) {
             console.log('');
-            console.log('  [DEBUG] DUST balance raw output:');
-            console.log(`    ${dustStatus.rawOutput.split('\n').join('\n    ')}`);
+            console.log('  [DEBUG] Raw wallet state:');
+            console.log(`    ${JSON.stringify(balanceInfo.rawState, null, 2).split('\n').join('\n    ')}`);
+            console.log('');
           }
-        } catch (dustError) {
+          
+        } catch (toolkitError) {
+          if (!options.json) {
+            logger.error(`Toolkit query failed: ${(toolkitError as Error).message}`);
+          }
+          throw toolkitError;
+        }
+        
+        // Get separate DUST status if requested and not already retrieved
+        if (options.includeDust && dustBalance === 0n) {
+          try {
+            if (!options.json) {
+              logger.info('Querying DUST resource status...');
+            }
+            
+            const dustStatus = await toolkit.getDustStatus(wallet.seed);
+            dustBalance = dustStatus.balance;
+            
+            if (options.debug && dustStatus.rawOutput) {
+              console.log('');
+              console.log('  [DEBUG] DUST balance raw output:');
+              console.log(`    ${dustStatus.rawOutput.split('\n').join('\n    ')}`);
+            }
+          } catch (dustError) {
+            if (options.debug) {
+              console.log(`  [DEBUG] DUST query failed: ${(dustError as Error).message}`);
+            }
+            // DUST query failed, but continue with balance display
+          }
+        }
+        
+      } else {
+        // Primary path: use SDK 3.x
+        if (!options.json) {
+          logger.info('Syncing wallet via SDK...');
+        }
+        
+        let sdkWallet;
+        try {
+          sdkWallet = await createWalletProvider(wallet.seed, config);
+          
+          // Wait for sync with progress indicator
+          const syncResult = await waitForWalletSync(sdkWallet, {
+            timeout: timeoutMs,
+            onProgress: !options.json ? (progress) => {
+              logger.showSyncProgress(progress);
+            } : undefined,
+          });
+          
+          // Clear progress line
+          if (!options.json) {
+            logger.clearSyncProgress();
+          }
+          
+          if (!syncResult.synced) {
+            if (!options.json) {
+              logger.warning(`Wallet sync timed out after ${timeoutMs}ms. Showing partial balances.`);
+            }
+          }
+          
+          // Get balances
+          const balances = await sdkWallet.getBalances();
+          shieldedBalance = balances.shielded;
+          unshieldedBalance = balances.unshielded;
+          dustBalance = balances.dust;
+          
           if (options.debug) {
-            console.log(`  [DEBUG] DUST query failed: ${(dustError as Error).message}`);
+            console.log('');
+            console.log('  [DEBUG] SDK wallet state:');
+            console.log(`    Synced: ${syncResult.synced}`);
+            console.log(`    Shielded: ${shieldedBalance}`);
+            console.log(`    Unshielded: ${unshieldedBalance}`);
+            console.log(`    DUST: ${dustBalance}`);
+            console.log('');
           }
-          // DUST query failed, but continue with balance display
+          
+        } catch (sdkError) {
+          if (!options.json) {
+            logger.clearSyncProgress();
+            logger.error(`SDK query failed: ${(sdkError as Error).message}`);
+          }
+          throw sdkError;
+        } finally {
+          // Always close wallet connection
+          if (sdkWallet) {
+            try {
+              await sdkWallet.close();
+            } catch {
+              // Ignore close errors
+            }
+          }
         }
       }
       
@@ -170,6 +257,7 @@ export const balanceCommand = new Command('balance')
           name: wallet.name,
           network: wallet.network,
           address: wallet.addresses.unshielded,
+          method,
           balances: {
             shielded: {
               NIGHT: shieldedBalance.toString(),
@@ -184,7 +272,6 @@ export const balanceCommand = new Command('balance')
               formatted: formatBalance(totalBalance),
             },
           },
-          toolkitAvailable,
         };
         
         if (options.includeDust) {
