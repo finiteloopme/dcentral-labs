@@ -1,0 +1,61 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "vertex/gemini-2.5-pro",
+  "small_model": "vertex/gemini-2.0-flash",
+  "autoupdate": false,
+  "share": "manual",
+  "instructions": [
+    "AGENTS.md",
+    "README.md",
+    "WALLET-HOW-TO.md"
+  ],
+  "provider": {
+    "vertex": {
+      "name": "Google Vertex AI",
+      "models": {
+        "gemini-2.5-pro": {
+          "name": "Gemini 2.5 Pro",
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          }
+        },
+        "gemini-2.0-flash": {
+          "name": "Gemini 2.0 Flash",
+          "limit": {
+            "context": 1048576,
+            "output": 8192
+          }
+        },
+        "gemini-2.5-flash": {
+          "name": "Gemini 2.5 Flash",
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          }
+        },
+        "claude-sonnet-4@20250514": {
+          "name": "Claude Sonnet 4",
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          }
+        },
+        "claude-3-5-sonnet-v2@20241022": {
+          "name": "Claude 3.5 Sonnet v2",
+          "limit": {
+            "context": 200000,
+            "output": 8192
+          }
+        },
+        "claude-3-5-haiku@20241022": {
+          "name": "Claude 3.5 Haiku",
+          "limit": {
+            "context": 200000,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}

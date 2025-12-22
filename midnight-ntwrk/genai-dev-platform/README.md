@@ -5,6 +5,7 @@ A cloud-native development environment for building applications on the [Midnigh
 ## Features
 
 - **Browser-based IDE** - VS Code (Code OSS) accessible from anywhere
+- **OpenCode AI Agent** - AI-powered coding assistant with Midnight context (Gemini 2.5 Pro via Vertex AI)
 - **Compact Compiler** - Pre-installed Midnight smart contract toolchain
 - **Midnight CLI** - Project scaffolding, compilation, and service management
 - **Managed Services** - Blockchain node, proof server, and indexer running on GKE Autopilot
@@ -253,7 +254,7 @@ midnightctl wallet send my-wallet <destination-address> 100
 midnightctl wallet register-dust
 ```
 
-See [FUNDING.md](FUNDING.md) for detailed wallet operations.
+See [WALLET-HOW-TO.md](WALLET-HOW-TO.md) for detailed wallet operations.
 
 ## Configuration
 
@@ -393,6 +394,107 @@ All services run in the `midnight-services` namespace and are exposed via Extern
 
 Infrastructure is managed via Terraform and deployed through Cloud Build.
 
+## GenAI Assistant
+
+The platform includes [OpenCode](https://opencode.ai), an AI coding agent pre-configured for Midnight blockchain development. It uses Google Vertex AI for model access, with zero configuration required.
+
+### Quick Start
+
+```bash
+# Launch OpenCode interactive TUI
+opencode
+
+# Run a one-off command
+opencode run "explain the wallet balance command"
+
+# Get help with Compact contracts
+opencode run "help me write a counter contract in Compact"
+
+# Switch models (in TUI)
+/models
+```
+
+### Available Models
+
+All models are accessed via **Google Vertex AI** using workstation service account authentication (ADC). No API keys required.
+
+| Model | ID | Use Case |
+|-------|-----|----------|
+| **Gemini 2.5 Pro** | `vertex/gemini-2.5-pro` | Default - complex coding tasks |
+| Gemini 2.5 Flash | `vertex/gemini-2.5-flash` | Fast responses |
+| Gemini 2.0 Flash | `vertex/gemini-2.0-flash` | Lightweight tasks |
+| **Claude Sonnet 4** | `vertex/claude-sonnet-4@20250514` | Alternative for complex tasks |
+| Claude 3.5 Sonnet v2 | `vertex/claude-3-5-sonnet-v2@20241022` | Balanced performance |
+| Claude 3.5 Haiku | `vertex/claude-3-5-haiku@20241022` | Fast, cost-effective |
+
+**Note:** Claude models require enabling in Google Cloud's [Model Garden](https://console.cloud.google.com/vertex-ai/model-garden). Gemini models are available by default.
+
+### Midnight Context
+
+OpenCode is pre-loaded with Midnight-specific knowledge via `AGENTS.md`:
+
+- **`midnightctl` CLI** - Complete command reference for wallet, contract, and service management
+- **Compact language** - Smart contract language guidance and patterns
+- **Token model** - NIGHT (shielded/unshielded) and DUST explanations
+- **Development workflows** - Project creation, compilation, deployment steps
+- **Troubleshooting** - Common issues and solutions
+
+### Customization
+
+#### Project-Specific Instructions
+
+Create an `AGENTS.md` file in your project root to add custom context:
+
+```markdown
+# My DApp Project
+
+## Architecture
+This is a token transfer DApp using...
+
+## Coding Standards
+- Use TypeScript strict mode
+- Follow existing patterns in src/contracts/
+```
+
+OpenCode will automatically include this alongside the global Midnight context.
+
+#### Custom Instructions via Config
+
+Add additional instruction files in your project's `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "docs/API.md",
+    "CONTRIBUTING.md"
+  ]
+}
+```
+
+#### Change Default Model
+
+Override the default model in your project or user config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "vertex/claude-sonnet-4@20250514"
+}
+```
+
+### Configuration Locations
+
+| Location | Purpose |
+|----------|---------|
+| `~/.config/opencode/opencode.json` | Global user settings |
+| `./opencode.json` | Project-specific settings |
+| `~/.config/opencode/AGENTS.md` | Global custom instructions |
+| `./AGENTS.md` | Project-specific instructions |
+
+For more details, see [OpenCode Documentation](https://opencode.ai/docs/).
+
 ## Midnight SDK 3.x Dependency
 
 The Midnight CLI requires SDK 3.x packages which are currently only available via a private GitHub npm registry. Until they are published to public npm, we build them from source as a separate container image.
@@ -469,9 +571,9 @@ See [vendor/README.md](vendor/README.md) for detailed documentation.
 
 ## Development
 
-- [GenAI-Dev.md](GenAI-Dev.md) - Detailed technical documentation
 - [WALLET-HOW-TO.md](WALLET-HOW-TO.md) - Wallet creation and funding guide
 - [WALLET-INTEGRATION-REQ.md](WALLET-INTEGRATION-REQ.md) - Wallet CLI integration requirements
+- [vendor/README.md](vendor/README.md) - SDK 3.x build process
 
 ## License
 

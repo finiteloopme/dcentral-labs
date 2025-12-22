@@ -46,6 +46,11 @@ ENV CHAIN_ENVIRONMENT="standalone"
 ENV MIDNIGHT_NETWORK="standalone"
 ENV MIDNIGHT_TOOLKIT_PATH="/usr/local/bin/midnight-node-toolkit"
 
+# OpenCode configuration
+# Uses Vertex AI with workstation service account for authentication (ADC)
+# GOOGLE_CLOUD_PROJECT is set by Cloud Workstations automatically
+ENV VERTEX_LOCATION="global"
+
 # Copy toolkit binary from the toolkit image
 COPY --from=toolkit /midnight-node-toolkit ${MIDNIGHT_TOOLKIT_PATH}
 RUN chmod +x ${MIDNIGHT_TOOLKIT_PATH}
