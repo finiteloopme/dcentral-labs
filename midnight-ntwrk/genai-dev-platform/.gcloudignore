@@ -1,16 +1,54 @@
-# Exclude files that aren't needed for container build
-.git
+# Exclude files that aren't needed for Cloud Build
+# This reduces upload from ~200MB to ~2MB
+
+# Git
+.git/
 .gitignore
+
+# Environment files
 .env
 .env.*
+
+# Logs and temp files
 *.log
 test-*
 .DS_Store
-node_modules
-terraform/.terraform
+
+# Node modules (anywhere in tree)
+**/node_modules/
+
+# Terraform local state/cache
+terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/terraform.tfplan
 terraform/terraform.tfplan.*
+.terraform.lock.hcl
+
+# Archives
 *.tar.gz
+*.tar
 *.zip
+*.tgz
+
+# Vendor source repos (cloned locally, built from source in Dockerfile.sdk)
+vendor/midnight-js/
+vendor/midnight-wallet/
+vendor/ledger/
+vendor/wallet/
+vendor/js/
+vendor/compact-js/
+
+# CLI build artifacts (not needed for container build)
+cli/node_modules/
+cli/dist/
+
+# Planning/documentation (not needed for deploy)
+todos/
+
+# IDE
+.vscode/
+.idea/
+
+# Private keys/wallets (safety)
+cli/.private/
