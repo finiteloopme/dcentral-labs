@@ -109,7 +109,7 @@ resource "helm_release" "midnight_services" {
   name             = "midnight-services"
   namespace        = "midnight-services"
   create_namespace = true
-  chart = "./charts/midnight-services"
+  chart = "${path.root}/charts/midnight-services"
 
   values = [
     file("${path.module}/charts/midnight-services/values.yaml"),
