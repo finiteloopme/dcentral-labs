@@ -420,14 +420,42 @@ All models are accessed via **Google Vertex AI** using workstation service accou
 
 | Model | ID | Use Case |
 |-------|-----|----------|
-| **Gemini 2.5 Pro** | `vertex/gemini-2.5-pro` | Default - complex coding tasks |
-| Gemini 2.5 Flash | `vertex/gemini-2.5-flash` | Fast responses |
-| Gemini 2.0 Flash | `vertex/gemini-2.0-flash` | Lightweight tasks |
-| **Claude Sonnet 4** | `vertex/claude-sonnet-4@20250514` | Alternative for complex tasks |
-| Claude 3.5 Sonnet v2 | `vertex/claude-3-5-sonnet-v2@20241022` | Balanced performance |
-| Claude 3.5 Haiku | `vertex/claude-3-5-haiku@20241022` | Fast, cost-effective |
+| **Gemini 2.5 Pro** | `google-vertex/gemini-2.5-pro` | Default - complex coding tasks |
+| Gemini 2.5 Flash | `google-vertex/gemini-2.5-flash` | Fast responses |
+| Gemini 2.0 Flash | `google-vertex/gemini-2.0-flash` | Lightweight tasks |
 
-**Note:** Claude models require enabling in Google Cloud's [Model Garden](https://console.cloud.google.com/vertex-ai/model-garden). Gemini models are available by default.
+### Local Development Setup
+
+When running the container locally via `make run`, OpenCode is pre-configured for Vertex AI:
+
+1. **Authentication**: Your local gcloud ADC credentials (`~/.config/gcloud/`) are automatically mounted
+2. **Project**: Auto-detected from `gcloud config get-value project`
+3. **Location**: Set to `global` for optimal availability
+
+**Prerequisites for local development:**
+
+```bash
+# 1. Authenticate with Google Cloud (one-time)
+gcloud auth application-default login
+
+# 2. Set your project
+gcloud config set project YOUR_PROJECT_ID
+
+# 3. Run the container
+make run
+
+# 4. Test OpenCode inside container
+opencode run "hello"
+```
+
+### Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Could not load the default credentials` | Missing ADC | Run `gcloud auth application-default login` |
+| `GOOGLE_CLOUD_PROJECT not set` | Project not configured | Run `gcloud config set project YOUR_PROJECT_ID` |
+| `Model not found` | Wrong provider prefix | Use `google-vertex/model-name` format |
+| `Publisher Model was not found` | Claude not enabled | Claude requires Model Garden access; use Gemini models instead |
 
 ### Midnight Context
 
@@ -480,7 +508,7 @@ Override the default model in your project or user config:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "vertex/claude-sonnet-4@20250514"
+  "model": "google-vertex/gemini-2.5-flash"
 }
 ```
 

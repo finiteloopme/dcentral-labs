@@ -126,7 +126,8 @@ main() {
 
     if [[ -f "$gcloud_adc_file" ]]; then
         log_info "Mounting gcloud ADC for Vertex AI access"
-        run_args+=("-v" "${gcloud_config_dir}:/home/ubuntu/.config/gcloud:ro")
+        run_args+=("-v" "${gcloud_config_dir}:/home/user/.config/gcloud:ro")
+        run_args+=("-e" "GOOGLE_APPLICATION_CREDENTIALS=/home/user/.config/gcloud/application_default_credentials.json")
         
         # Auto-detect project from gcloud config if not already set
         if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
