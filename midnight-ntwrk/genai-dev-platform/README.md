@@ -386,9 +386,9 @@ The platform deploys:
 1. **Cloud Workstations** - Managed dev environment with persistent storage
 2. **Artifact Registry** - Private Docker repository for container images
 3. **GKE Autopilot Cluster** (`midnight-dev-gke`) with Kubernetes services:
-   - `midnight-node` - Blockchain node (StatefulSet, port 9944)
+   - `midnight-node` - Blockchain node (Deployment, port 9944)
    - `proof-server` - Zero-knowledge proof generation (Deployment, port 6300)
-   - `indexer` - Blockchain data indexer with SQLite (StatefulSet, port 8088)
+   - `indexer` - Blockchain data indexer (Deployment, port 8088)
 
 All services run in the `midnight-services` namespace and are exposed via External Load Balancers.
 
