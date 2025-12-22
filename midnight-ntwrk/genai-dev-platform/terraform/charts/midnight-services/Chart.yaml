@@ -1,0 +1,12 @@
+apiVersion: v2
+name: midnight-services
+description: Midnight blockchain services (node, proof-server, indexer)
+type: application
+version: 0.1.0
+appVersion: "node-0.18.0_proof-6.1.0_indexer-3.0.0"
+maintainers:
+  - name: Midnight Team
+keywords:
+  - midnight
+  - blockchain
+  - zk-proofs

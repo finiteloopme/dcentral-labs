@@ -1,0 +1,140 @@
+# Default values for midnight-services
+# This file contains defaults that apply to all environments
+
+global:
+  labels: {}
+
+namespace:
+  name: midnight-services
+  create: true
+
+# Midnight Node
+node:
+  enabled: true
+  image: midnightntwrk/midnight-node:0.18.0
+  replicas: 1
+  
+  # Dev mode settings (overridden in values-standalone.yaml)
+  devMode: false
+  args: []
+  env: {}
+  
+  service:
+    type: LoadBalancer
+    port: 9944
+  
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  probes:
+    liveness:
+      enabled: true
+      path: /health
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    startup:
+      enabled: true
+      path: /health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
+
+# Proof Server
+proofServer:
+  enabled: true
+  image: midnightnetwork/proof-server:6.1.0-alpha.6
+  replicas: 1
+  
+  service:
+    type: LoadBalancer
+    port: 6300
+  
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  
+  probes:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    startup:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 60  # 10 min for ZK key download
+
+# Indexer
+indexer:
+  enabled: true
+  image: midnightntwrk/indexer-standalone:3.0.0-alpha.20
+  replicas: 1
+  
+  # Required: 32-byte hex secret for encryption
+  secret: ""
+  
+  # Network ID for indexer config
+  networkId: "undeployed"
+  
+  # Clear SQLite DB on pod start (for dev environments)
+  clearDbOnStart: false
+  
+  service:
+    type: LoadBalancer
+    port: 8088
+  
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  probes:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    startup:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30

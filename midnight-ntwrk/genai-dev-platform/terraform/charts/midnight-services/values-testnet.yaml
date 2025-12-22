@@ -1,0 +1,10 @@
+# Testnet environment overrides
+
+node:
+  devMode: false
+  args: []
+  env: {}
+
+indexer:
+  networkId: "testnet"
+  clearDbOnStart: false

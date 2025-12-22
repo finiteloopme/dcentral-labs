@@ -1,0 +1,94 @@
+{{- if .Values.node.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: midnight-node
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: midnight-node
+spec:
+  replicas: {{ .Values.node.replicas }}
+  selector:
+    matchLabels:
+      app: midnight-node
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-services.labels" . | nindent 8 }}
+        app: midnight-node
+    spec:
+      containers:
+        - name: midnight-node
+          image: {{ .Values.node.image }}
+          {{- if .Values.node.args }}
+          args:
+            {{- toYaml .Values.node.args | nindent 12 }}
+          {{- end }}
+          {{- if .Values.node.env }}
+          env:
+            {{- range $key, $value := .Values.node.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: rpc
+              containerPort: 9944
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.node.resources.requests.cpu }}
+              memory: {{ .Values.node.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.node.resources.limits.cpu }}
+              memory: {{ .Values.node.resources.limits.memory }}
+          {{- if .Values.node.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.node.probes.liveness.path }}
+              port: 9944
+            initialDelaySeconds: {{ .Values.node.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.node.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.node.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.node.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.node.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.node.probes.readiness.path }}
+              port: 9944
+            initialDelaySeconds: {{ .Values.node.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.node.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.node.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.node.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.node.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.node.probes.startup.path }}
+              port: 9944
+            initialDelaySeconds: {{ .Values.node.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.node.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.node.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.node.probes.startup.failureThreshold }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: midnight-node
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: midnight-node
+spec:
+  type: {{ .Values.node.service.type }}
+  selector:
+    app: midnight-node
+  ports:
+    - name: rpc
+      port: {{ .Values.node.service.port }}
+      targetPort: 9944
+      protocol: TCP
+{{- end }}

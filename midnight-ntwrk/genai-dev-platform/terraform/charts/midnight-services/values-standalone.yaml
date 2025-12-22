@@ -1,0 +1,18 @@
+# Standalone/development environment overrides
+
+node:
+  devMode: true
+  args:
+    - "--dev"
+    - "--rpc-external"
+    - "--rpc-cors=all"
+    - "--rpc-methods=unsafe"
+    - "--state-pruning=archive"
+  env:
+    USE_MAIN_CHAIN_FOLLOWER_MOCK: "true"
+    MOCK_REGISTRATIONS_FILE: "res/mock-bridge-data/default-registrations.json"
+    SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+
+indexer:
+  networkId: "undeployed"
+  clearDbOnStart: true

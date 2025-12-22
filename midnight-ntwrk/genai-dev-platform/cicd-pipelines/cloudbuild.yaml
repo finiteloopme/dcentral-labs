@@ -1,13 +1,20 @@
 # Cloud Build configuration for Midnight GenAI Development Platform
 #
 # This pipeline:
-# 1. Builds the dev container image
-# 2. Pushes to Artifact Registry
-# 3. Runs Terraform to deploy infrastructure
+# 1. Creates Artifact Registry via Terraform
+# 2. Builds SDK image from source (if _BUILD_SDK=true)
+# 3. Builds the dev container image
+# 4. Pushes to Artifact Registry
+# 5. Runs Terraform to deploy infrastructure
 #
 # Usage:
+#   # Full deploy with SDK build (default)
 #   gcloud builds submit --config=cloudbuild.yaml \
 #     --substitutions=_PROJECT_ID=$PROJECT_ID,_STATE_BUCKET=$STATE_BUCKET,...
+#
+#   # Skip SDK build (faster, when SDK already exists)
+#   gcloud builds submit --config=cloudbuild.yaml \
+#     --substitutions=_BUILD_SDK=false,...
 
 substitutions:
   _PROJECT_ID: ${PROJECT_ID}
@@ -16,6 +23,7 @@ substitutions:
   _STATE_PREFIX: terraform/state
   _CLUSTER_NAME: midnight-dev
   _GKE_CLUSTER_NAME: midnight-dev-gke
+  _REGISTRY_NAME: midnight-images
   _IMAGE_NAME: midnight-dev-platform
   _IMAGE_TAG: latest
   _SDK_IMAGE_NAME: midnight-sdk
@@ -29,13 +37,25 @@ substitutions:
   _MACHINE_TYPE: e2-standard-4
   _PERSISTENT_DISK_SIZE_GB: "100"
   _CLOUDBUILD_SA_EMAIL: ""
+  # Build control flags
+  _BUILD_SDK: "true"    # Set to false to skip SDK build (use existing)
+  _BUILD_IMAGE: "true"  # Set to false to skip platform image build (Terraform-only)
+  # SDK versions - update these to upgrade
+  _LEDGER_TAG: ledger-6.1.0-alpha.6
+  _WALLET_COMMIT: 6bf9fe8
+  _JS_TAG: v3.0.0-alpha.11
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
+  # Use high-CPU machine for SDK/Nix build
+  machineType: E2_HIGHCPU_32
+  # Increase disk for Nix store
+  diskSizeGb: 100
 
 steps:
-  # Step 1: Initialize Terraform and create base infrastructure (APIs, Artifact Registry)
+  # ===========================================================================
+  # Step 1: Initialize Terraform and create base infrastructure
+  # ===========================================================================
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-init'
     entrypoint: 'sh'
@@ -57,7 +77,7 @@ steps:
           -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
           -var="environment=${_ENVIRONMENT}" \
           -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
-          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}" \
           -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
           -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
           -var="indexer_image=${_INDEXER_IMAGE}" \
@@ -66,81 +86,156 @@ steps:
           -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
           -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}" \
           -target=google_project_service.apis \
+          -target=google_project_iam_member.cloudbuild_sa \
           -target=module.artifact_registry
     waitFor: ['-']  # Start immediately
 
-  # Step 2: Pull SDK image (must exist - run cloudbuild-sdk.yaml first)
+  # ===========================================================================
+  # Step 2: Build SDK image (conditional - only if _BUILD_SDK=true)
+  # ===========================================================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        
+        if [ "${_BUILD_SDK}" != "true" ]; then
+          echo "=== Skipping SDK build (_BUILD_SDK=${_BUILD_SDK}) ==="
+          echo "Will pull existing SDK image in next step."
+          exit 0
+        fi
+        
+        echo "=== Building SDK Image ==="
+        echo "Ledger:  ${_LEDGER_TAG}"
+        echo "Wallet:  ${_WALLET_COMMIT}"
+        echo "JS:      ${_JS_TAG}"
+        echo ""
+        
+        # Generate composite tag from versions
+        LEDGER_CLEAN=$(echo "${_LEDGER_TAG}" | sed 's/ledger-//')
+        WALLET_CLEAN=$(echo "${_WALLET_COMMIT}" | cut -c1-7)
+        JS_CLEAN=$(echo "${_JS_TAG}" | sed 's/v//')
+        COMPOSITE_TAG="ledger-$${LEDGER_CLEAN}_wallet-$${WALLET_CLEAN}_js-$${JS_CLEAN}"
+        
+        echo "Composite Tag: $${COMPOSITE_TAG}"
+        echo ""
+        
+        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}"
+        
+        docker build \
+          -f Dockerfile.sdk \
+          --build-arg "LEDGER_TAG=${_LEDGER_TAG}" \
+          --build-arg "WALLET_COMMIT=${_WALLET_COMMIT}" \
+          --build-arg "JS_TAG=${_JS_TAG}" \
+          -t "$${SDK_IMAGE}:${_SDK_IMAGE_TAG}" \
+          -t "$${SDK_IMAGE}:$${COMPOSITE_TAG}" \
+          .
+        
+        echo ""
+        echo "=== Pushing SDK Image ==="
+        docker push --all-tags "$${SDK_IMAGE}"
+        
+        echo ""
+        echo "=== SDK Build Complete ==="
+    timeout: 3600s  # 1 hour for Nix build
+    waitFor: ['tf-init']
+
+  # ===========================================================================
+  # Step 3: Pull SDK image (if not built in previous step)
+  # ===========================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'pull-sdk'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
-        echo "Pulling SDK image: $${SDK_IMAGE}"
+        if [ "${_BUILD_IMAGE}" != "true" ]; then
+          echo "=== Skipping SDK pull (_BUILD_IMAGE=${_BUILD_IMAGE}) ==="
+          exit 0
+        fi
+        
+        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        
+        if [ "${_BUILD_SDK}" = "true" ]; then
+          echo "=== SDK was built in previous step ==="
+          echo "Image: $${SDK_IMAGE}"
+          exit 0
+        fi
+        
+        echo "=== Pulling existing SDK image ==="
+        echo "Image: $${SDK_IMAGE}"
         docker pull "$${SDK_IMAGE}" || {
           echo ""
           echo "ERROR: SDK image not found!"
-          echo "Run cloudbuild-sdk.yaml first to build the SDK image."
+          echo ""
+          echo "The SDK image must exist in the registry when _BUILD_SDK=false."
+          echo "Either:"
+          echo "  1. Run with _BUILD_SDK=true to build the SDK"
+          echo "  2. Or ensure the SDK image exists: $${SDK_IMAGE}"
           echo ""
           exit 1
         }
-    waitFor: ['tf-init']
+        echo ""
+        echo "=== SDK image pulled successfully ==="
+    waitFor: ['tf-init', 'build-sdk']
 
-  # Step 3: Build the dev container image
-  # Use BUILD_ID as fallback when SHORT_SHA is not available (manual builds)
+  # ===========================================================================
+  # Step 4: Build the dev container image
+  # ===========================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        if [ "${_BUILD_IMAGE}" != "true" ]; then
+          echo "=== Skipping image build (_BUILD_IMAGE=${_BUILD_IMAGE}) ==="
+          echo "Will use existing image from registry."
+          exit 0
+        fi
+        
         TAG="${SHORT_SHA:-$BUILD_ID}"
-        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        SDK_IMAGE="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_SDK_IMAGE_NAME}:${_SDK_IMAGE_TAG}"
+        
+        echo "=== Building Platform Image ==="
+        echo "SDK Image: $${SDK_IMAGE}"
+        echo "Tag: $${TAG}"
+        echo ""
         
         docker build \
           --build-arg "SDK_IMAGE=$${SDK_IMAGE}" \
-          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
-          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:$${TAG}" \
+          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+          -t "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:$${TAG}" \
           .
+        
+        echo ""
+        echo "=== Platform Image Built ==="
     waitFor: ['pull-sdk']
 
-  # Step 4: Push image to Artifact Registry
+  # ===========================================================================
+  # Step 5: Push image to Artifact Registry
+  # ===========================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
-    args:
-      - 'push'
-      - '--all-tags'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}'
-    waitFor: ['build-image']
-
-  # Step 5: Terraform Plan
-  - name: 'hashicorp/terraform:1.14'
-    id: 'tf-plan'
-    entrypoint: 'sh'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
-        cd terraform
-        terraform plan \
-          -var="project_id=${_PROJECT_ID}" \
-          -var="region=${_REGION}" \
-          -var="cluster_name=${_CLUSTER_NAME}" \
-          -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
-          -var="environment=${_ENVIRONMENT}" \
-          -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
-          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
-          -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
-          -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
-          -var="indexer_image=${_INDEXER_IMAGE}" \
-          -var="indexer_secret=${_INDEXER_SECRET}" \
-          -var="machine_type=${_MACHINE_TYPE}" \
-          -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
-          -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}" \
-          -out=tfplan
-    waitFor: ['tf-init', 'push-image']
+        if [ "${_BUILD_IMAGE}" != "true" ]; then
+          echo "=== Skipping image push (_BUILD_IMAGE=${_BUILD_IMAGE}) ==="
+          exit 0
+        fi
+        
+        docker push --all-tags "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}"
+    waitFor: ['build-image']
 
+  # ===========================================================================
   # Step 6: Terraform Apply
+  # Combined plan+apply in single step to ensure Helm provider resolves
+  # local chart paths correctly (saved plans don't preserve working directory)
+  # ===========================================================================
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-apply'
     entrypoint: 'sh'
@@ -148,10 +243,39 @@ steps:
       - '-c'
       - |
         cd terraform
-        terraform apply -auto-approve tfplan
-    waitFor: ['tf-plan']
+        
+        # Debug: verify chart files exist
+        echo "=== Debug: Verifying chart location ==="
+        echo "PWD: $(pwd)"
+        echo "Checking charts/midnight-services/Chart.yaml:"
+        ls -la charts/midnight-services/Chart.yaml || echo "NOT FOUND"
+        echo ""
+        
+        # Re-initialize in this step (workspace is shared but .terraform may need refresh)
+        terraform init -reconfigure \
+          -backend-config="bucket=${_STATE_BUCKET}" \
+          -backend-config="prefix=${_STATE_PREFIX}"
+        
+        terraform apply -auto-approve \
+          -var="project_id=${_PROJECT_ID}" \
+          -var="region=${_REGION}" \
+          -var="cluster_name=${_CLUSTER_NAME}" \
+          -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
+          -var="environment=${_ENVIRONMENT}" \
+          -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
+          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+          -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
+          -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
+          -var="indexer_image=${_INDEXER_IMAGE}" \
+          -var="indexer_secret=${_INDEXER_SECRET}" \
+          -var="machine_type=${_MACHINE_TYPE}" \
+          -var="persistent_disk_size_gb=${_PERSISTENT_DISK_SIZE_GB}" \
+          -var="cloudbuild_sa_email=${_CLOUDBUILD_SA_EMAIL}"
+    waitFor: ['tf-init', 'push-image']
 
+  # ===========================================================================
   # Step 7: Output service URLs
+  # ===========================================================================
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-output'
     entrypoint: 'sh'
@@ -165,9 +289,9 @@ steps:
         terraform output -json
     waitFor: ['tf-apply']
 
-# Build timeout (45 minutes - allows for GKE cluster creation/recreation)
-timeout: 2700s
+# Build timeout (2.5 hours - allows for SDK build + GKE cluster creation)
+timeout: 9000s
 
-# Images to be pushed (only the :latest tag, BUILD_ID tag is pushed in step 2)
+# Images to be pushed
 images:
-  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'

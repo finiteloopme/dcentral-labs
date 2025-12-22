@@ -1,0 +1,156 @@
+{{- if .Values.indexer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: indexer-config
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: indexer
+data:
+  config.yaml: |
+    run_migrations: true
+
+    application:
+      network_id: {{ .Values.indexer.networkId | quote }}
+      blocks_buffer: 10
+      save_ledger_state_after: 1000
+      caught_up_max_distance: 10
+      caught_up_leeway: 5
+      active_wallets_query_delay: "500ms"
+      active_wallets_ttl: "30m"
+      transaction_batch_size: 50
+
+    infra:
+      secret: {{ .Values.indexer.secret | quote }}
+      
+      storage:
+        cnn_url: "/data/indexer.sqlite"
+
+      node:
+        url: "ws://midnight-node.{{ include "midnight-services.namespace" . }}.svc.cluster.local:9944"
+        reconnect_max_delay: "10s"
+        reconnect_max_attempts: 30
+        subscription_recovery_timeout: "30s"
+
+      api:
+        address: "0.0.0.0"
+        port: 8088
+        request_body_limit: "1MiB"
+        max_complexity: 200
+        max_depth: 15
+
+    telemetry:
+      tracing:
+        enabled: false
+        service_name: "indexer"
+        otlp_exporter_endpoint: "http://localhost:4317"
+      metrics:
+        enabled: false
+        address: "0.0.0.0"
+        port: 9000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: indexer
+spec:
+  replicas: {{ .Values.indexer.replicas }}
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-services.labels" . | nindent 8 }}
+        app: indexer
+    spec:
+      {{- if .Values.indexer.clearDbOnStart }}
+      initContainers:
+        - name: clear-db
+          image: busybox:latest
+          command: ["sh", "-c", "rm -rf /data/indexer.sqlite* && echo 'Cleared indexer database'"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- end }}
+      containers:
+        - name: indexer
+          image: {{ .Values.indexer.image }}
+          ports:
+            - name: http
+              containerPort: 8088
+              protocol: TCP
+            - name: metrics
+              containerPort: 9000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.indexer.resources.requests.cpu }}
+              memory: {{ .Values.indexer.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.indexer.resources.limits.cpu }}
+              memory: {{ .Values.indexer.resources.limits.memory }}
+          volumeMounts:
+            - name: config
+              mountPath: /opt/indexer-standalone/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: data
+              mountPath: /data
+          {{- if .Values.indexer.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: {{ .Values.indexer.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.indexer.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.indexer.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.indexer.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.indexer.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: {{ .Values.indexer.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.indexer.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.indexer.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.indexer.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.indexer.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: 8088
+            initialDelaySeconds: {{ .Values.indexer.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.indexer.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.indexer.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.indexer.probes.startup.failureThreshold }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: indexer-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: indexer
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: indexer
+spec:
+  type: {{ .Values.indexer.service.type }}
+  selector:
+    app: indexer
+  ports:
+    - name: http
+      port: {{ .Values.indexer.service.port }}
+      targetPort: 8088
+      protocol: TCP
+{{- end }}

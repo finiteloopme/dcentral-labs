@@ -1,0 +1,10 @@
+# Mainnet environment overrides
+
+node:
+  devMode: false
+  args: []
+  env: {}
+
+indexer:
+  networkId: "mainnet"
+  clearDbOnStart: false

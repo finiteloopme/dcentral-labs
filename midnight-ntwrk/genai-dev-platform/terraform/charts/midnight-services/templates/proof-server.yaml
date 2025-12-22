@@ -1,0 +1,80 @@
+{{- if .Values.proofServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proof-server
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: proof-server
+spec:
+  replicas: {{ .Values.proofServer.replicas }}
+  selector:
+    matchLabels:
+      app: proof-server
+  template:
+    metadata:
+      labels:
+        {{- include "midnight-services.labels" . | nindent 8 }}
+        app: proof-server
+    spec:
+      containers:
+        - name: proof-server
+          image: {{ .Values.proofServer.image }}
+          ports:
+            - name: grpc
+              containerPort: 6300
+              protocol: TCP
+          resources:
+            requests:
+              cpu: {{ .Values.proofServer.resources.requests.cpu }}
+              memory: {{ .Values.proofServer.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.proofServer.resources.limits.cpu }}
+              memory: {{ .Values.proofServer.resources.limits.memory }}
+          {{- if .Values.proofServer.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: 6300
+            initialDelaySeconds: {{ .Values.proofServer.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.proofServer.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.proofServer.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.proofServer.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.proofServer.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: 6300
+            initialDelaySeconds: {{ .Values.proofServer.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.proofServer.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.proofServer.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.proofServer.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.proofServer.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: 6300
+            initialDelaySeconds: {{ .Values.proofServer.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.proofServer.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.proofServer.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.proofServer.probes.startup.failureThreshold }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proof-server
+  namespace: {{ include "midnight-services.namespace" . }}
+  labels:
+    {{- include "midnight-services.labels" . | nindent 4 }}
+    app: proof-server
+spec:
+  type: {{ .Values.proofServer.service.type }}
+  selector:
+    app: proof-server
+  ports:
+    - name: grpc
+      port: {{ .Values.proofServer.service.port }}
+      targetPort: 6300
+      protocol: TCP
+{{- end }}

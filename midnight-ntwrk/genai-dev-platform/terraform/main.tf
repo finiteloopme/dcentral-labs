@@ -102,22 +102,66 @@ module "gke_cluster" {
 }
 
 # ===========================================
-# MIDNIGHT KUBERNETES SERVICES
+# MIDNIGHT KUBERNETES SERVICES (via Helm)
 # ===========================================
 
-module "midnight_k8s_services" {
-  source = "./modules/midnight-k8s-services"
+resource "helm_release" "midnight_services" {
+  name             = "midnight-services"
+  namespace        = "midnight-services"
+  create_namespace = true
+  chart = "./charts/midnight-services"
 
-  midnight_node_image = var.midnight_node_image
-  proof_server_image  = var.proof_server_image
-  indexer_image       = var.indexer_image
-  indexer_secret      = var.indexer_secret
-  chain_environment   = var.chain_environment
-  labels              = local.labels
+  values = [
+    file("${path.module}/charts/midnight-services/values.yaml"),
+    file("${path.module}/charts/midnight-services/values-${var.chain_environment}.yaml")
+  ]
 
-  # This module depends on the GKE cluster being ready
-  # The kubernetes provider is configured in versions.tf using the cluster outputs
+  set {
+    name  = "node.image"
+    value = var.midnight_node_image
+  }
+
+  set {
+    name  = "proofServer.image"
+    value = var.proof_server_image
+  }
+
+  set {
+    name  = "indexer.image"
+    value = var.indexer_image
+  }
+
+  set_sensitive {
+    name  = "indexer.secret"
+    value = var.indexer_secret
+  }
+
   depends_on = [module.gke_cluster]
+}
+
+# Data sources to get LoadBalancer IPs for outputs
+data "kubernetes_service_v1" "midnight_node" {
+  metadata {
+    name      = "midnight-node"
+    namespace = "midnight-services"
+  }
+  depends_on = [helm_release.midnight_services]
+}
+
+data "kubernetes_service_v1" "proof_server" {
+  metadata {
+    name      = "proof-server"
+    namespace = "midnight-services"
+  }
+  depends_on = [helm_release.midnight_services]
+}
+
+data "kubernetes_service_v1" "indexer" {
+  metadata {
+    name      = "indexer"
+    namespace = "midnight-services"
+  }
+  depends_on = [helm_release.midnight_services]
 }
 
 # ===========================================
@@ -137,9 +181,9 @@ module "workstations" {
 
   # Pass GKE service URLs as environment variables
   service_urls = {
-    MIDNIGHT_NODE_URL = module.midnight_k8s_services.node_url
-    PROOF_SERVER_URL  = module.midnight_k8s_services.proof_server_url
-    INDEXER_URL       = module.midnight_k8s_services.indexer_url
+    MIDNIGHT_NODE_URL = "ws://${data.kubernetes_service_v1.midnight_node.status[0].load_balancer[0].ingress[0].ip}:9944"
+    PROOF_SERVER_URL  = "http://${data.kubernetes_service_v1.proof_server.status[0].load_balancer[0].ingress[0].ip}:6300"
+    INDEXER_URL       = "http://${data.kubernetes_service_v1.indexer.status[0].load_balancer[0].ingress[0].ip}:8088"
     CHAIN_ENVIRONMENT = var.chain_environment
   }
 
@@ -147,6 +191,6 @@ module "workstations" {
     google_project_service.apis,
     google_project_iam_member.cloudbuild_sa,
     module.artifact_registry,
-    module.midnight_k8s_services,
+    helm_release.midnight_services,
   ]
 }
