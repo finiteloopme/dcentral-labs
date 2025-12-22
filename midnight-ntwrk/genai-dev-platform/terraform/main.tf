@@ -105,17 +105,22 @@ module "gke_cluster" {
 # MIDNIGHT KUBERNETES SERVICES (via Helm)
 # ===========================================
 
+locals {
+  # Construct absolute chart path - works in both local and Cloud Build environments
+  chart_path = abspath("${path.module}/charts/midnight-services")
+}
+
 resource "helm_release" "midnight_services" {
   name             = "midnight-services"
   namespace        = "midnight-services"
   create_namespace = true
   
-  # Local chart path - relative to working directory (terraform/)
-  chart = "./charts/midnight-services"
+  # Use absolute path to ensure Helm provider finds the chart
+  chart = local.chart_path
 
-  # Environment-specific values override (base values.yaml is loaded from chart automatically)
+  # Environment-specific values override
   values = [
-    file("./charts/midnight-services/values-${var.chain_environment}.yaml")
+    file("${path.module}/charts/midnight-services/values-${var.chain_environment}.yaml")
   ]
 
   set {

@@ -247,6 +247,8 @@ steps:
         # Debug: verify chart files exist
         echo "=== Debug: Chart location ==="
         echo "PWD: $(pwd)"
+        echo "path.module will resolve to: $(pwd)"
+        echo "abspath chart_path will be: $(pwd)/charts/midnight-services"
         ls -la charts/midnight-services/ || echo "Chart dir NOT FOUND"
         echo ""
         
