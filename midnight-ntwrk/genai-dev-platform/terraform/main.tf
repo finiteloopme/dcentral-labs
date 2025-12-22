@@ -14,18 +14,8 @@ locals {
     managed_by        = "terraform"
   }
 
-  # Roles required by Cloud Build service account
-  cloudbuild_sa_roles = var.cloudbuild_sa_email != "" ? toset([
-    "roles/artifactregistry.admin",     # Push/pull container images, manage repository IAM
-    "roles/compute.viewer",             # Read GKE cluster compute resources (instance groups)
-    "roles/container.admin",            # GKE cluster management
-    "roles/container.clusterAdmin",     # GKE cluster admin operations
-    "roles/iam.serviceAccountCreator",  # Create service accounts for workloads
-    "roles/iam.serviceAccountUser",     # Act as service accounts
-    "roles/logging.logWriter",          # Write build logs
-    "roles/storage.admin",              # Access Terraform state and build artifacts
-    "roles/workstations.admin",         # Manage Cloud Workstations
-  ]) : toset([])
+  # Roles required by Cloud Build service account (from variable)
+  cloudbuild_sa_roles = var.cloudbuild_sa_email != "" ? toset(var.cloudbuild_sa_roles) : toset([])
 }
 
 # Enable required APIs
@@ -105,24 +95,19 @@ module "gke_cluster" {
 # MIDNIGHT KUBERNETES SERVICES (via Helm)
 # ===========================================
 
-locals {
-  # Construct absolute chart path - works in both local and Cloud Build environments
-  chart_path = abspath("${path.module}/charts/midnight-services")
-}
-
 resource "helm_release" "midnight_services" {
   name             = "midnight-services"
   namespace        = "midnight-services"
   create_namespace = true
-  
-  # Use absolute path to ensure Helm provider finds the chart
-  chart = local.chart_path
+  chart            = "${path.module}/charts/midnight-services"
 
-  # Environment-specific values override
+  # Values files - base + environment-specific
   values = [
-    file("${path.module}/charts/midnight-services/values-${var.chain_environment}.yaml")
+    file("${path.module}/charts/midnight-services/values.yaml"),
+    file("${path.module}/charts/midnight-services/values-${var.chain_environment}.yaml"),
   ]
 
+  # Image overrides
   set {
     name  = "node.image"
     value = var.midnight_node_image
@@ -142,6 +127,10 @@ resource "helm_release" "midnight_services" {
     name  = "indexer.secret"
     value = var.indexer_secret
   }
+
+  # Wait for resources to be ready
+  wait    = true
+  timeout = 600 # 10 minutes
 
   depends_on = [module.gke_cluster]
 }
@@ -185,6 +174,15 @@ module "workstations" {
   machine_type            = var.machine_type
   persistent_disk_size_gb = var.persistent_disk_size_gb
   labels                  = local.labels
+
+  # Workstation instances and access control
+  workstations       = var.workstations
+  workstation_admins = var.workstation_admins
+
+  # Service account roles
+  sa_roles       = var.workstation_sa_roles
+  sa_vertex_role = var.workstation_sa_vertex_role
+  vertex_ai_project = var.vertex_ai_project
 
   # Pass GKE service URLs as environment variables
   service_urls = {

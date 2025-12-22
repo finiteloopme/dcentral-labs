@@ -16,9 +16,9 @@ substitutions:
   _IMAGE_TAG: latest
   _ENVIRONMENT: dev
   _CHAIN_ENVIRONMENT: standalone
-  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:latest-main
-  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:4.0.0
-  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:latest
+  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.1.0-alpha.6
+  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:3.0.0-alpha.20
   _MACHINE_TYPE: e2-standard-4
   _PERSISTENT_DISK_SIZE_GB: "100"
   _INDEXER_SECRET: ""
@@ -41,6 +41,7 @@ steps:
           -backend-config="prefix=${_STATE_PREFIX}"
 
   # Terraform Destroy
+  # Note: workstations.auto.tfvars is auto-loaded by Terraform if present
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-destroy'
     entrypoint: 'sh'
@@ -55,7 +56,7 @@ steps:
           -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
           -var="environment=${_ENVIRONMENT}" \
           -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
-          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+          -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_IMAGE_NAME}:${_IMAGE_TAG}" \
           -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
           -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
           -var="indexer_image=${_INDEXER_IMAGE}" \

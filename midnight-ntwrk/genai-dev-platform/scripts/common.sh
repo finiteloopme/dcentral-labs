@@ -97,3 +97,40 @@ require_image() {
         exit 1
     fi
 }
+
+require_helm() {
+    if ! command -v helm &> /dev/null; then
+        log_error "helm is not installed. Please install Helm 3.x"
+        log_info "Install: https://helm.sh/docs/intro/install/"
+        exit 1
+    fi
+}
+
+require_kubectl() {
+    if ! command -v kubectl &> /dev/null; then
+        log_error "kubectl is not installed"
+        log_info "Install: https://kubernetes.io/docs/tasks/tools/"
+        exit 1
+    fi
+}
+
+require_gcloud() {
+    if ! command -v gcloud &> /dev/null; then
+        log_error "gcloud is not installed"
+        log_info "Install: https://cloud.google.com/sdk/docs/install"
+        exit 1
+    fi
+}
+
+# ==============================================================================
+# Project Paths
+# ==============================================================================
+
+# Get the project root directory
+# Works by finding the caller script's directory, then going up one level
+get_project_dir() {
+    local caller_script="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
+    local caller_dir
+    caller_dir="$(cd "$(dirname "$caller_script")" && pwd)"
+    echo "$(cd "${caller_dir}/.." && pwd)"
+}

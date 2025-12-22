@@ -30,11 +30,11 @@ substitutions:
   _SDK_IMAGE_TAG: latest
   _ENVIRONMENT: dev
   _CHAIN_ENVIRONMENT: standalone
-  _MIDNIGHT_NODE_IMAGE: midnightnetwork/midnight-node:0.12.1
-  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:4.0.0
-  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:2.1.4
-  _INDEXER_SECRET: ""
-  _MACHINE_TYPE: e2-standard-4
+  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.1.0-alpha.6
+  _INDEXER_IMAGE: midnightntwrk/indexer-standalone:3.0.0-alpha.20
+  _INDEXER_SECRET: "0000000000000000000000000000000000000000000000000000000000000001"
+  _MACHINE_TYPE: n2-standard-8
   _PERSISTENT_DISK_SIZE_GB: "100"
   _CLOUDBUILD_SA_EMAIL: ""
   # Build control flags
@@ -69,6 +69,7 @@ steps:
         
         # First, apply only the APIs and Artifact Registry to enable docker push
         # This uses -target to create just the prerequisites
+        # Note: workstations.auto.tfvars is auto-loaded by Terraform if present
         echo "=== Creating Artifact Registry (if needed) ==="
         terraform apply -auto-approve \
           -var="project_id=${_PROJECT_ID}" \
@@ -233,8 +234,7 @@ steps:
 
   # ===========================================================================
   # Step 6: Terraform Apply
-  # Combined plan+apply in single step to ensure Helm provider resolves
-  # local chart paths correctly (saved plans don't preserve working directory)
+  # Uses helm_release provider for K8s services deployment
   # ===========================================================================
   - name: 'hashicorp/terraform:1.14'
     id: 'tf-apply'
@@ -244,15 +244,8 @@ steps:
       - |
         cd terraform
         
-        # Debug: verify chart files exist
-        echo "=== Debug: Chart location ==="
-        echo "PWD: $(pwd)"
-        echo "path.module will resolve to: $(pwd)"
-        echo "abspath chart_path will be: $(pwd)/charts/midnight-services"
-        ls -la charts/midnight-services/ || echo "Chart dir NOT FOUND"
-        echo ""
-        
-        # Re-initialize in this step
+        # Initialize Terraform
+        # Note: workstations.auto.tfvars is auto-loaded by Terraform if present
         terraform init -reconfigure \
           -backend-config="bucket=${_STATE_BUCKET}" \
           -backend-config="prefix=${_STATE_PREFIX}"
@@ -293,6 +286,5 @@ steps:
 # Build timeout (2.5 hours - allows for SDK build + GKE cluster creation)
 timeout: 9000s
 
-# Images to be pushed
-images:
-  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REGISTRY_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+# Note: Images are pushed explicitly in the 'push-image' step.
+# The 'images:' declaration is omitted to avoid validation errors when BUILD_IMAGE=false.

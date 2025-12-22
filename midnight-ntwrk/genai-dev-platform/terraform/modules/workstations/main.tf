@@ -2,6 +2,42 @@
 #
 # Creates a workstation cluster, configuration, and optionally workstations.
 
+# ==============================================================================
+# WORKSTATION SERVICE ACCOUNT
+# ==============================================================================
+
+locals {
+  vertex_project = var.vertex_ai_project != "" ? var.vertex_ai_project : var.project_id
+}
+
+# Service account for workstation VMs
+resource "google_service_account" "workstation_sa" {
+  project      = var.project_id
+  account_id   = "${var.cluster_name}-dev-sa"
+  display_name = "Workstation Dev SA for ${var.cluster_name}"
+  description  = "Service account used by Cloud Workstation VMs to access GCP services"
+}
+
+# Grant roles to workstation SA (main project)
+resource "google_project_iam_member" "ws_sa_roles" {
+  for_each = toset(var.sa_roles)
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.workstation_sa.email}"
+}
+
+# Vertex AI - User access (may be in different project)
+resource "google_project_iam_member" "ws_sa_vertex" {
+  project = local.vertex_project
+  role    = var.sa_vertex_role
+  member  = "serviceAccount:${google_service_account.workstation_sa.email}"
+}
+
+# ==============================================================================
+# WORKSTATION CLUSTER
+# ==============================================================================
+
 # Workstation Cluster
 resource "google_workstations_workstation_cluster" "cluster" {
   provider = google-beta
@@ -34,6 +70,7 @@ resource "google_workstations_workstation_config" "config" {
       machine_type                 = var.machine_type
       boot_disk_size_gb            = 50
       disable_public_ip_addresses  = false
+      service_account              = google_service_account.workstation_sa.email
       
       # Confidential compute not needed for dev
       confidential_instance_config {
@@ -73,4 +110,72 @@ resource "google_workstations_workstation_config" "config" {
   running_timeout = "43200s"
 }
 
+# ==============================================================================
+# WORKSTATION INSTANCES
+# ==============================================================================
 
+resource "google_workstations_workstation" "instances" {
+  for_each = var.workstations
+
+  provider               = google-beta
+  project                = var.project_id
+  location               = var.region
+  workstation_cluster_id = google_workstations_workstation_cluster.cluster.workstation_cluster_id
+  workstation_config_id  = google_workstations_workstation_config.config.workstation_config_id
+  workstation_id         = "midnight-workstation-${each.key}"
+  display_name           = "${title(each.key)}'s Midnight Workstation"
+
+  labels = merge(var.labels, {
+    owner = each.key
+  })
+
+  # Auto-start when user connects via browser/gcloud
+  annotations = {
+    "workstations.googleapis.com/start-on-connect" = "true"
+  }
+
+  depends_on = [google_workstations_workstation_config.config]
+}
+
+# ==============================================================================
+# WORKSTATION IAM - OWNER ACCESS
+# ==============================================================================
+
+resource "google_workstations_workstation_iam_member" "owner_access" {
+  for_each = var.workstations
+
+  provider               = google-beta
+  project                = var.project_id
+  location               = var.region
+  workstation_cluster_id = google_workstations_workstation_cluster.cluster.workstation_cluster_id
+  workstation_config_id  = google_workstations_workstation_config.config.workstation_config_id
+  workstation_id         = google_workstations_workstation.instances[each.key].workstation_id
+
+  role   = "roles/workstations.user"
+  member = "user:${each.value}"
+}
+
+# ==============================================================================
+# WORKSTATION IAM - ADMIN ACCESS
+# ==============================================================================
+
+resource "google_workstations_workstation_iam_member" "admin_access" {
+  for_each = {
+    for pair in setproduct(keys(var.workstations), var.workstation_admins) :
+    "${pair[0]}-${replace(pair[1], "@", "_at_")}" => {
+      workstation = pair[0]
+      admin       = pair[1]
+    }
+    if length(var.workstation_admins) > 0 && length(var.workstations) > 0
+  }
+
+  provider               = google-beta
+  project                = var.project_id
+  location               = var.region
+  workstation_cluster_id = google_workstations_workstation_cluster.cluster.workstation_cluster_id
+  workstation_config_id  = google_workstations_workstation_config.config.workstation_config_id
+  workstation_id         = google_workstations_workstation.instances[each.value.workstation].workstation_id
+
+  role   = "roles/workstations.user"
+  member = "user:${each.value.admin}"
+}

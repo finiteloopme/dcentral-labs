@@ -16,6 +16,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 3.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.17"
+    }
   }
 }
 
@@ -37,4 +41,13 @@ provider "kubernetes" {
   host                   = "https://${module.gke_cluster.cluster_endpoint}"
   token                  = data.google_client_config.default.access_token
   cluster_ca_certificate = base64decode(module.gke_cluster.cluster_ca_certificate)
+}
+
+# Helm provider - uses same credentials as Kubernetes provider
+provider "helm" {
+  kubernetes {
+    host                   = "https://${module.gke_cluster.cluster_endpoint}"
+    token                  = data.google_client_config.default.access_token
+    cluster_ca_certificate = base64decode(module.gke_cluster.cluster_ca_certificate)
+  }
 }

@@ -13,6 +13,5 @@
 tests/
 # CI files
 .github/
-# Documentation (except README)
+# Documentation
 *.md
-!README.md

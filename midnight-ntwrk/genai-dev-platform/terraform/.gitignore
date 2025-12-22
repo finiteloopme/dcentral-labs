@@ -1,0 +1,8 @@
+# User-specific configuration (auto-loaded by Terraform)
+workstations.auto.tfvars
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

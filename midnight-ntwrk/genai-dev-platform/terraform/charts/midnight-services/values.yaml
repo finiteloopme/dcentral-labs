@@ -6,7 +6,7 @@ global:
 
 namespace:
   name: midnight-services
-  create: true
+  create: false  # Helm manages namespace via --create-namespace flag
 
 # Midnight Node
 node:
@@ -99,7 +99,9 @@ indexer:
   replicas: 1
   
   # Required: 32-byte hex secret for encryption
-  secret: ""
+  # This default is for development only - generate a secure secret for production!
+  # Generate with: openssl rand -hex 32
+  secret: "0000000000000000000000000000000000000000000000000000000000000001"
   
   # Network ID for indexer config
   networkId: "undeployed"

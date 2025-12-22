@@ -28,8 +28,8 @@ substitutions:
   _CHAIN_ENVIRONMENT: standalone
   _IMAGE_NAME: midnight-dev-platform
   _IMAGE_TAG: latest
-  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0-rc.9
-  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.2.0-rc.1
+  _MIDNIGHT_NODE_IMAGE: midnightntwrk/midnight-node:0.18.0
+  _PROOF_SERVER_IMAGE: midnightnetwork/proof-server:6.1.0-alpha.6
   _INDEXER_IMAGE: midnightntwrk/indexer-standalone:3.0.0-alpha.20
   _INDEXER_SECRET: ''
   _MACHINE_TYPE: e2-standard-4
@@ -69,6 +69,7 @@ steps:
         echo "Dry Run:  ${_DRY_RUN}"
         echo "Delete:   ${_DELETE}"
         echo ""
+        # Note: workstations.auto.tfvars is auto-loaded by Terraform if present
         
         echo "=== Current Terraform State ==="
         terraform state list || true
@@ -129,7 +130,7 @@ steps:
               -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
               -var="environment=${_ENVIRONMENT}" \
               -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
-              -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+              -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_IMAGE_NAME}:${_IMAGE_TAG}" \
               -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
               -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
               -var="indexer_image=${_INDEXER_IMAGE}" \
@@ -163,7 +164,7 @@ steps:
                 -var="gke_cluster_name=${_GKE_CLUSTER_NAME}" \
                 -var="environment=${_ENVIRONMENT}" \
                 -var="chain_environment=${_CHAIN_ENVIRONMENT}" \
-                -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-dev/${_IMAGE_NAME}:${_IMAGE_TAG}" \
+                -var="container_image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/midnight-images/${_IMAGE_NAME}:${_IMAGE_TAG}" \
                 -var="midnight_node_image=${_MIDNIGHT_NODE_IMAGE}" \
                 -var="proof_server_image=${_PROOF_SERVER_IMAGE}" \
                 -var="indexer_image=${_INDEXER_IMAGE}" \

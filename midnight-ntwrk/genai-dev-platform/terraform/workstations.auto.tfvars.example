@@ -1,0 +1,20 @@
+# Workstation Configuration
+#
+# Copy this file to workstations.auto.tfvars and customize:
+#   cp workstations.auto.tfvars.example workstations.auto.tfvars
+#
+# Terraform automatically loads *.auto.tfvars files.
+# This file is gitignored (contains user-specific configuration).
+
+# Workstation instances to create
+# Format: { "name" = "user@email.com" }
+# Creates workstation named "midnight-workstation-<name>" for each entry
+workstations = {
+  # "alice" = "alice@company.com"
+  # "bob"   = "bob@company.com"
+}
+
+# Admin users with access to ALL workstations
+workstation_admins = [
+  # "admin@company.com"
+]

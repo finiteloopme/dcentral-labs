@@ -1,4 +1,4 @@
-.PHONY: build build-sdk deploy-sdk run run-detach clean clean-all deploy plan destroy state-cleanup check-env help test-integration
+.PHONY: build build-sdk run run-detach clean clean-all deploy plan destroy state-cleanup check-env help test-integration helm-upgrade helm-status helm-rollback helm-logs
 
 # Load environment variables from .env if present
 -include .env
@@ -10,6 +10,8 @@ IMAGE_TAG ?= latest
 CONTAINER_NAME ?= midnight-dev
 SDK_IMAGE_NAME ?= midnight-sdk
 SDK_IMAGE_TAG ?= latest
+BUILD_SDK ?= true
+BUILD_IMAGE ?= true
 
 # ==============================================================================
 # Help
@@ -31,11 +33,19 @@ help:
 	@echo "  3. make run          # Run container"
 	@echo ""
 	@echo "Cloud Deployment (GCP):"
-	@echo "  make deploy-sdk      Build and push SDK image to Artifact Registry"
-	@echo "  make deploy          Deploy to GCP via Cloud Build"
-	@echo "  make plan            Preview deployment changes"
-	@echo "  make destroy         Destroy cloud infrastructure"
-	@echo "  make check-env       Validate GCP configuration"
+	@echo "  make deploy                              Deploy to GCP (full build)"
+	@echo "  make deploy BUILD_SDK=false              Skip SDK build"
+	@echo "  make deploy BUILD_IMAGE=false            Skip image build"
+	@echo "  make deploy BUILD_SDK=false BUILD_IMAGE=false  Terraform only (fastest)"
+	@echo "  make plan                                Preview deployment changes"
+	@echo "  make destroy                             Destroy cloud infrastructure"
+	@echo "  make check-env                           Validate GCP configuration"
+	@echo ""
+	@echo "Helm Operations (K8s services - fast iteration):"
+	@echo "  make helm-upgrade            Upgrade K8s services via Helm"
+	@echo "  make helm-status             Show Helm release status"
+	@echo "  make helm-rollback           Rollback to previous release"
+	@echo "  make helm-logs SERVICE=node  Show logs for a service"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test-integration    Run CLI integration tests"
@@ -70,10 +80,6 @@ clean-all:
 # Cloud Deployment
 # ==============================================================================
 
-deploy-sdk:
-	@gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml \
-    --substitutions=_PROJECT_ID=${PROJECT_ID}
-
 check-env:
 	@./scripts/cloud.sh check
 
@@ -82,7 +88,7 @@ clean-deploy:
 	@./scripts/cloud.sh deploy
 
 deploy:
-	@./scripts/cloud.sh deploy
+	@BUILD_SDK=$(BUILD_SDK) BUILD_IMAGE=$(BUILD_IMAGE) ./scripts/cloud.sh deploy
 
 plan:
 	@./scripts/cloud.sh plan
@@ -92,6 +98,22 @@ destroy:
 
 state-cleanup:
 	@./scripts/cloud.sh state-cleanup "$(PATTERN)" "$(DELETE)"
+
+# ==============================================================================
+# Helm Operations (K8s services)
+# ==============================================================================
+
+helm-upgrade:
+	@./scripts/helm.sh upgrade
+
+helm-status:
+	@./scripts/helm.sh status
+
+helm-rollback:
+	@./scripts/helm.sh rollback
+
+helm-logs:
+	@./scripts/helm.sh logs $(SERVICE)
 
 # ==============================================================================
 # Testing

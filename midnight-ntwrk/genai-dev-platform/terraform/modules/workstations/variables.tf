@@ -43,3 +43,38 @@ variable "service_urls" {
   type        = map(string)
   default     = {}
 }
+
+variable "workstations" {
+  description = "Map of workstation name to user email"
+  type        = map(string)
+  default     = {}
+}
+
+variable "workstation_admins" {
+  description = "List of admin emails with access to all workstations"
+  type        = list(string)
+  default     = []
+}
+
+variable "vertex_ai_project" {
+  description = "Project ID for Vertex AI access (defaults to project_id if empty)"
+  type        = string
+  default     = ""
+}
+
+variable "sa_roles" {
+  description = "IAM roles to grant to the workstation service account (on main project)"
+  type        = list(string)
+  default = [
+    "roles/artifactregistry.reader",
+    "roles/container.developer",
+    "roles/logging.viewer",
+    "roles/monitoring.viewer",
+  ]
+}
+
+variable "sa_vertex_role" {
+  description = "IAM role for Vertex AI access (applied to vertex_ai_project or project_id)"
+  type        = string
+  default     = "roles/aiplatform.user"
+}

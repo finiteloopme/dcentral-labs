@@ -146,17 +146,20 @@ After the first successful `make deploy`, Terraform will manage the complete set
 │   └── cloud.sh                  # GCP deployment
 │
 ├── cicd-pipelines/               # Cloud Build configs
-│   ├── cloudbuild.yaml           # Full deployment
-│   ├── cloudbuild-plan.yaml      # Terraform plan
-│   └── cloudbuild-destroy.yaml   # Infrastructure teardown
+│   ├── cloudbuild.yaml           # Full deployment pipeline
+│   ├── cloudbuild-plan.yaml      # Terraform plan only
+│   ├── cloudbuild-destroy.yaml   # Infrastructure teardown
+│   └── cloudbuild-state-cleanup.yaml  # State management
+│
+├── charts/                       # Helm charts
+│   └── midnight-services/        # K8s services (node, proof-server, indexer)
 │
 ├── terraform/                    # Infrastructure as Code
 │   ├── modules/
 │   │   ├── artifact-registry/    # Container registry
 │   │   ├── gke-cluster/          # GKE Autopilot cluster
-│   │   ├── midnight-k8s-services/# Kubernetes services (node, proof, indexer)
 │   │   └── workstations/         # Cloud Workstations
-│   └── *.tf                      # Root module
+│   └── *.tf                      # Root module (includes helm_release)
 │
 └── .devcontainer/                # VS Code devcontainer
     ├── devcontainer.json
@@ -178,6 +181,30 @@ After the first successful `make deploy`, Terraform will manage the complete set
 | `make plan` | Preview deployment changes |
 | `make destroy` | Tear down cloud infrastructure |
 | `make check-env` | Validate GCP configuration |
+
+### Build Flags
+
+Control what gets built during cloud deployment:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `BUILD_SDK` | `true` | Build the Midnight SDK image from source (~30 min) |
+| `BUILD_IMAGE` | `true` | Build the platform container image (~5 min) |
+
+**Examples:**
+
+```bash
+# Full build (default)
+make deploy
+
+# Skip SDK build (use existing SDK image from registry)
+make deploy BUILD_SDK=false
+
+# Skip both builds (Terraform-only, fastest)
+make deploy BUILD_SDK=false BUILD_IMAGE=false
+```
+
+**Note:** When `BUILD_IMAGE=false`, the platform image must already exist in the Artifact Registry.
 
 ### Midnight CLI
 
@@ -244,7 +271,52 @@ REGION=us-central1
 CLUSTER_NAME=midnight-dev
 GKE_CLUSTER_NAME=midnight-dev-gke
 CHAIN_ENVIRONMENT=standalone
-MACHINE_TYPE=e2-standard-4
+MACHINE_TYPE=n2-standard-8
+```
+
+### Workstation Management
+
+Workstation instances are configured via Terraform variables file:
+
+```bash
+# Copy the example file
+cp terraform/workstations.auto.tfvars.example terraform/workstations.auto.tfvars
+
+# Edit with your workstation configuration
+```
+
+Example `terraform/workstations.auto.tfvars`:
+```hcl
+# Create workstations (name = email)
+workstations = {
+  "alice" = "alice@company.com"
+  "bob"   = "bob@company.com"
+}
+
+# Admin access to all workstations
+workstation_admins = [
+  "admin@company.com"
+]
+```
+
+This creates:
+
+| Workstation ID | Owner | Access |
+|----------------|-------|--------|
+| `midnight-workstation-alice` | alice@company.com | alice@, admin@ |
+| `midnight-workstation-bob` | bob@company.com | bob@, admin@ |
+
+**Features:**
+- **Auto-start**: Workstations automatically start when users connect
+- **Consistent config**: All workstations use the same machine type and container image
+- **IAM-based access**: Users can only access their assigned workstation(s)
+
+**Manual workstation creation** (if not using tfvars):
+```bash
+gcloud workstations create my-workstation \
+  --cluster=midnight-dev \
+  --config=midnight-dev-config \
+  --region=us-central1
 ```
 
 ## Chain Environments
@@ -271,7 +343,7 @@ The `chain_environment` setting is mapped to service-specific configurations:
 
 **Component Versions (0.18.0 stack):**
 - Node: `midnightntwrk/midnight-node:0.18.0`
-- Proof Server: `midnightnetwork/proof-server:6.2.0-rc.2`
+- Proof Server: `midnightnetwork/proof-server:6.1.0-alpha.6`
 - Indexer: `midnightntwrk/indexer-standalone:3.0.0-alpha.20`
 
 ### Switching Environments
@@ -364,11 +436,14 @@ make run
 ### Cloud Deployment Workflow
 
 ```bash
-# 1. Build and push SDK image (one-time per SDK version)
-gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml
-
-# 2. Deploy (uses SDK image from Artifact Registry)
+# Full deployment (builds SDK and platform image)
 make deploy
+
+# Skip SDK build (faster, uses existing SDK image)
+make deploy BUILD_SDK=false
+
+# Terraform-only (fastest, uses existing images)
+make deploy BUILD_SDK=false BUILD_IMAGE=false
 ```
 
 ### Upgrading SDK Versions
@@ -378,9 +453,8 @@ make deploy
 3. Rebuild container: `make build`
 
 For cloud deployment:
-1. Edit versions in `cicd-pipelines/cloudbuild-sdk.yaml`
-2. Run SDK pipeline: `gcloud builds submit --config=cicd-pipelines/cloudbuild-sdk.yaml`
-3. Run main deploy: `make deploy`
+1. Edit versions in `cicd-pipelines/cloudbuild.yaml` (substitutions section)
+2. Run full deploy: `make deploy` (or `make deploy BUILD_SDK=true` to force SDK rebuild)
 
 ### When SDK 3.x is Published
 
@@ -388,7 +462,8 @@ Once the SDK is available on public npm:
 
 1. Update `cli/package.json` - replace `file:/opt/vendor/...` with `^3.0.0`
 2. Update `Dockerfile` - remove `COPY --from=sdk` and SDK_IMAGE ARG
-3. Delete `Dockerfile.sdk` and `cicd-pipelines/cloudbuild-sdk.yaml`
+3. Delete `Dockerfile.sdk`
+4. Remove SDK build steps from `cicd-pipelines/cloudbuild.yaml`
 
 See [vendor/README.md](vendor/README.md) for detailed documentation.
 

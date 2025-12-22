@@ -11,14 +11,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Source common utilities
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-# Load environment
-if [[ -f "${PROJECT_DIR}/.env" ]]; then
-    # shellcheck source=/dev/null
-    source "${PROJECT_DIR}/.env"
-fi
+# Get project directory and load environment
+PROJECT_DIR="$(get_project_dir)"
+load_env
 
 # ==============================================================================
 # Configuration
@@ -37,23 +35,25 @@ ENVIRONMENT="${ENVIRONMENT:-dev}"
 CHAIN_ENVIRONMENT="${CHAIN_ENVIRONMENT:-standalone}"
 IMAGE_NAME="${IMAGE_NAME:-midnight-dev-platform}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-MACHINE_TYPE="${MACHINE_TYPE:-e2-standard-4}"
+MACHINE_TYPE="${MACHINE_TYPE:-n2-standard-8}"
 PERSISTENT_DISK_SIZE_GB="${PERSISTENT_DISK_SIZE_GB:-100}"
-MIDNIGHT_NODE_IMAGE="${MIDNIGHT_NODE_IMAGE:-midnightntwrk/midnight-node:0.18.0-rc.9}"
-PROOF_SERVER_IMAGE="${PROOF_SERVER_IMAGE:-midnightnetwork/proof-server:6.2.0-rc.1}"
+MIDNIGHT_NODE_IMAGE="${MIDNIGHT_NODE_IMAGE:-midnightntwrk/midnight-node:0.18.0}"
+PROOF_SERVER_IMAGE="${PROOF_SERVER_IMAGE:-midnightnetwork/proof-server:6.1.0-alpha.6}"
 INDEXER_IMAGE="${INDEXER_IMAGE:-midnightntwrk/indexer-standalone:3.0.0-alpha.20}"
 INDEXER_SECRET="${INDEXER_SECRET:-}"
 CLOUDBUILD_SA_EMAIL="${CLOUDBUILD_SA_EMAIL:-}"
+BUILD_SDK="${BUILD_SDK:-true}"
+BUILD_IMAGE="${BUILD_IMAGE:-true}"
+
+
 
 # ==============================================================================
 # Helpers
 # ==============================================================================
 
-log_info() { echo "[INFO] $1"; }
-log_error() { echo "[ERROR] $1" >&2; }
-log_success() { echo "[OK] $1"; }
-
-get_substitutions() {
+# Core substitutions used by ALL pipelines (plan, destroy, state-cleanup)
+# Note: Workstation config is now in terraform/workstations.tfvars (not passed via substitutions)
+get_core_substitutions() {
     echo "_PROJECT_ID=${PROJECT_ID},\
 _STATE_BUCKET=${STATE_BUCKET},\
 _STATE_PREFIX=${STATE_PREFIX},\
@@ -71,6 +71,11 @@ _PROOF_SERVER_IMAGE=${PROOF_SERVER_IMAGE},\
 _INDEXER_IMAGE=${INDEXER_IMAGE},\
 _INDEXER_SECRET=${INDEXER_SECRET},\
 _CLOUDBUILD_SA_EMAIL=${CLOUDBUILD_SA_EMAIL}"
+}
+
+# Full substitutions for deploy pipeline (includes build flags)
+get_substitutions() {
+    echo "$(get_core_substitutions),_BUILD_SDK=${BUILD_SDK},_BUILD_IMAGE=${BUILD_IMAGE}"
 }
 
 # ==============================================================================
@@ -152,7 +157,7 @@ cmd_plan() {
     
     gcloud beta builds submit \
         --config="${PROJECT_DIR}/cicd-pipelines/cloudbuild-plan.yaml" \
-        --substitutions="$(get_substitutions)" \
+        --substitutions="$(get_core_substitutions)" \
         --service-account="projects/${PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA_EMAIL}" \
         --project="$PROJECT_ID" \
         "$PROJECT_DIR"
@@ -168,7 +173,7 @@ cmd_destroy() {
     
     gcloud beta builds submit \
         --config="${PROJECT_DIR}/cicd-pipelines/cloudbuild-destroy.yaml" \
-        --substitutions="$(get_substitutions)" \
+        --substitutions="$(get_core_substitutions)" \
         --service-account="projects/${PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA_EMAIL}" \
         --project="$PROJECT_ID" \
         "$PROJECT_DIR"
@@ -218,7 +223,7 @@ cmd_state_cleanup() {
     
     gcloud beta builds submit \
         --config="${PROJECT_DIR}/cicd-pipelines/cloudbuild-state-cleanup.yaml" \
-        --substitutions="$(get_substitutions),_STATE_BUCKET=${STATE_BUCKET},_STATE_PREFIX=${STATE_PREFIX},_RESOURCE_PATTERN=${pattern},_DRY_RUN=${dry_run},_DELETE=${delete}" \
+        --substitutions="$(get_core_substitutions),_RESOURCE_PATTERN=${pattern},_DRY_RUN=${dry_run},_DELETE=${delete}" \
         --service-account="projects/${PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA_EMAIL}" \
         --project="$PROJECT_ID" \
         "$PROJECT_DIR"
@@ -258,12 +263,17 @@ Configuration:
       CLOUDBUILD_SA_EMAIL Cloud Build service account email
     
     Optional:
-      STATE_PREFIX      Prefix path in bucket (default: terraform/state)
-      REGION            GCP region (default: us-central1)
-      CLUSTER_NAME      Workstation cluster name (default: midnight-dev)
-      GKE_CLUSTER_NAME  GKE Autopilot cluster name (default: midnight-dev-gke)
-      CHAIN_ENVIRONMENT Chain environment (default: standalone)
-      ENVIRONMENT       Environment label (default: dev)
+      STATE_PREFIX        Prefix path in bucket (default: terraform/state)
+      REGION              GCP region (default: us-central1)
+      CLUSTER_NAME        Workstation cluster name (default: midnight-dev)
+      GKE_CLUSTER_NAME    GKE Autopilot cluster name (default: midnight-dev-gke)
+      CHAIN_ENVIRONMENT   Chain environment (default: standalone)
+      ENVIRONMENT         Environment label (default: dev)
+
+    Workstation Configuration:
+      Copy terraform/workstations.auto.tfvars.example to terraform/workstations.auto.tfvars
+      and customize with your workstation instances and admin users.
+      Terraform automatically loads *.auto.tfvars files.
 
 Examples:
     $(basename "$0") check                    # Validate config

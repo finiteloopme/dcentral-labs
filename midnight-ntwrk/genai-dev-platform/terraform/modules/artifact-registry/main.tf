@@ -7,8 +7,8 @@ resource "google_artifact_registry_repository" "dev_container" {
 
   project       = var.project_id
   location      = var.region
-  repository_id = "midnight-dev"
-  description   = "Docker repository for Midnight development container images"
+  repository_id = "midnight-images"
+  description   = "Docker repository for Midnight SDK and platform images"
   format        = "DOCKER"
   labels        = var.labels
 
