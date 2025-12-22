@@ -245,25 +245,15 @@ steps:
         cd terraform
         
         # Debug: verify chart files exist
-        echo "=== Debug: Verifying chart location ==="
+        echo "=== Debug: Chart location ==="
         echo "PWD: $(pwd)"
-        echo "Checking charts/midnight-services/Chart.yaml:"
-        ls -la charts/midnight-services/Chart.yaml || echo "NOT FOUND"
-        echo "Full path check:"
-        ls -la /workspace/terraform/charts/midnight-services/Chart.yaml || echo "NOT FOUND at /workspace"
+        ls -la charts/midnight-services/ || echo "Chart dir NOT FOUND"
         echo ""
         
-        # Re-initialize in this step (workspace is shared but .terraform may need refresh)
+        # Re-initialize in this step
         terraform init -reconfigure \
           -backend-config="bucket=${_STATE_BUCKET}" \
           -backend-config="prefix=${_STATE_PREFIX}"
-        
-        # Debug: Show terraform path variables
-        echo "=== Terraform path debug ==="
-        terraform console <<< "path.root"
-        terraform console <<< "path.module"
-        terraform console <<< "path.cwd"
-        echo ""
         
         terraform apply -auto-approve \
           -var="project_id=${_PROJECT_ID}" \

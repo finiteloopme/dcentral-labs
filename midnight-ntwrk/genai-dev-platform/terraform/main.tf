@@ -109,11 +109,13 @@ resource "helm_release" "midnight_services" {
   name             = "midnight-services"
   namespace        = "midnight-services"
   create_namespace = true
-  chart = "${path.root}/charts/midnight-services"
+  
+  # Local chart path - relative to working directory (terraform/)
+  chart = "./charts/midnight-services"
 
+  # Environment-specific values override (base values.yaml is loaded from chart automatically)
   values = [
-    file("${path.module}/charts/midnight-services/values.yaml"),
-    file("${path.module}/charts/midnight-services/values-${var.chain_environment}.yaml")
+    file("./charts/midnight-services/values-${var.chain_environment}.yaml")
   ]
 
   set {
