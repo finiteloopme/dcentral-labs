@@ -106,6 +106,45 @@ main() {
         "-e" "CHAIN_ENVIRONMENT=standalone"
     )
 
+    # Pass Midnight service URLs if configured in .env
+    if [[ -n "${MIDNIGHT_NODE_URL:-}" ]]; then
+        log_info "MIDNIGHT_NODE_URL=$MIDNIGHT_NODE_URL"
+        run_args+=("-e" "MIDNIGHT_NODE_URL=$MIDNIGHT_NODE_URL")
+    fi
+    if [[ -n "${INDEXER_URL:-}" ]]; then
+        log_info "INDEXER_URL=$INDEXER_URL"
+        run_args+=("-e" "INDEXER_URL=$INDEXER_URL")
+    fi
+    if [[ -n "${PROOF_SERVER_URL:-}" ]]; then
+        log_info "PROOF_SERVER_URL=$PROOF_SERVER_URL"
+        run_args+=("-e" "PROOF_SERVER_URL=$PROOF_SERVER_URL")
+    fi
+
+    # Mount gcloud ADC credentials if available (for OpenCode Vertex AI integration)
+    local gcloud_config_dir="${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}"
+    local gcloud_adc_file="${gcloud_config_dir}/application_default_credentials.json"
+
+    if [[ -f "$gcloud_adc_file" ]]; then
+        log_info "Mounting gcloud ADC for Vertex AI access"
+        run_args+=("-v" "${gcloud_config_dir}:/home/ubuntu/.config/gcloud:ro")
+        
+        # Auto-detect project from gcloud config if not already set
+        if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
+            local detected_project
+            detected_project=$(gcloud config get-value project 2>/dev/null || true)
+            if [[ -n "$detected_project" ]]; then
+                log_info "GOOGLE_CLOUD_PROJECT=$detected_project"
+                run_args+=("-e" "GOOGLE_CLOUD_PROJECT=$detected_project")
+            fi
+        else
+            log_info "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"
+            run_args+=("-e" "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT")
+        fi
+    else
+        log_warning "gcloud ADC not found. OpenCode Vertex AI integration will not work."
+        log_info "Run: gcloud auth application-default login"
+    fi
+
     # Port mappings for local development
     run_args+=("-p" "8080:8080")   # Code OSS
     run_args+=("-p" "9944:9944")   # Node WebSocket (if running local node)

@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+// Suppress Polkadot.js ESM/CJS duplicate warnings when versions match
+// These warnings are noise when both ESM and CJS packages have identical versions
+// See: https://github.com/polkadot-js/common/pull/1890
+process.env.POLKADOTJS_DISABLE_ESM_CJS_WARNING = '1';
+
 // Load environment variables from .env file (if present)
 // This must be done before any other imports that might use process.env
 import dotenv from 'dotenv';
