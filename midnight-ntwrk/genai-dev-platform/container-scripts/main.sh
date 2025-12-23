@@ -111,13 +111,8 @@ if [[ -d "${SCRIPT_DIR}/opencode" ]]; then
     echo "  Installed: AGENTS.md (Midnight context)"
 fi
 
-# Create symlinks in user home for OpenCode to discover
-# OpenCode looks in ~/.config/opencode/ for global config
-USER_CONFIG_DIR="/home/ubuntu/.config/opencode"
-mkdir -p "${USER_CONFIG_DIR}"
-ln -sf "${OPENCODE_GLOBAL_CONFIG}/opencode.json" "${USER_CONFIG_DIR}/opencode.json"
-ln -sf "${OPENCODE_GLOBAL_CONFIG}/AGENTS.md" "${USER_CONFIG_DIR}/AGENTS.md"
-chown -R ubuntu:ubuntu /home/ubuntu/.config
+# User config symlinks are created at login time via /etc/profile.d/opencode.sh
+# This handles any user (including 'user' created by Cloud Workstations at runtime)
 
 echo ""
 

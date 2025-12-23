@@ -121,13 +121,22 @@ main() {
     fi
 
     # Mount gcloud ADC credentials if available (for OpenCode Vertex AI integration)
+    # Mount only the ADC file to a neutral location to avoid interfering with /home/user
+    # which is created by Cloud Workstations startup scripts at runtime
+    # Copy to temp with readable permissions so container 'user' can access it
     local gcloud_config_dir="${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}"
     local gcloud_adc_file="${gcloud_config_dir}/application_default_credentials.json"
+    local temp_adc_file=""
 
     if [[ -f "$gcloud_adc_file" ]]; then
         log_info "Mounting gcloud ADC for Vertex AI access"
-        run_args+=("-v" "${gcloud_config_dir}:/home/user/.config/gcloud:ro")
-        run_args+=("-e" "GOOGLE_APPLICATION_CREDENTIALS=/home/user/.config/gcloud/application_default_credentials.json")
+        temp_adc_file=$(mktemp)
+        cp "$gcloud_adc_file" "$temp_adc_file"
+        chmod 644 "$temp_adc_file"
+        # shellcheck disable=SC2064
+        trap "rm -f '$temp_adc_file'" EXIT
+        run_args+=("-v" "${temp_adc_file}:/etc/gcloud-adc/application_default_credentials.json:ro")
+        run_args+=("-e" "GOOGLE_APPLICATION_CREDENTIALS=/etc/gcloud-adc/application_default_credentials.json")
         
         # Auto-detect project from gcloud config if not already set
         if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then

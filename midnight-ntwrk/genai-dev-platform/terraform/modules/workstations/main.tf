@@ -71,6 +71,7 @@ resource "google_workstations_workstation_config" "config" {
       boot_disk_size_gb            = 50
       disable_public_ip_addresses  = false
       service_account              = google_service_account.workstation_sa.email
+      service_account_scopes       = ["https://www.googleapis.com/auth/cloud-platform"]
       
       # Confidential compute not needed for dev
       confidential_instance_config {

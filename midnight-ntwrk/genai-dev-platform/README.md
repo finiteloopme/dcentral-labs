@@ -423,12 +423,13 @@ All models are accessed via **Google Vertex AI** using workstation service accou
 | **Gemini 2.5 Pro** | `google-vertex/gemini-2.5-pro` | Default - complex coding tasks |
 | Gemini 2.5 Flash | `google-vertex/gemini-2.5-flash` | Fast responses |
 | Gemini 2.0 Flash | `google-vertex/gemini-2.0-flash` | Lightweight tasks |
+| Claude Opus 4.1 | `google-vertex-anthropic/claude-opus-4-1@20250805` | Advanced reasoning |
 
 ### Local Development Setup
 
 When running the container locally via `make run`, OpenCode is pre-configured for Vertex AI:
 
-1. **Authentication**: Your local gcloud ADC credentials (`~/.config/gcloud/`) are automatically mounted
+1. **Authentication**: Your local gcloud ADC file (`application_default_credentials.json`) is mounted read-only to `/etc/gcloud-adc/`
 2. **Project**: Auto-detected from `gcloud config get-value project`
 3. **Location**: Set to `global` for optimal availability
 
@@ -455,7 +456,7 @@ opencode run "hello"
 | `Could not load the default credentials` | Missing ADC | Run `gcloud auth application-default login` |
 | `GOOGLE_CLOUD_PROJECT not set` | Project not configured | Run `gcloud config set project YOUR_PROJECT_ID` |
 | `Model not found` | Wrong provider prefix | Use `google-vertex/model-name` format |
-| `Publisher Model was not found` | Claude not enabled | Claude requires Model Garden access; use Gemini models instead |
+| `Publisher Model was not found` | Model not enabled | Enable the model in Vertex AI Model Garden |
 
 ### Midnight Context
 
