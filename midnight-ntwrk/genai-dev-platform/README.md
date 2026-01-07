@@ -24,6 +24,17 @@ A cloud-native development environment for building applications on the [Midnigh
 
 For details, see [WALLET-HOW-TO.md](WALLET-HOW-TO.md).
 
+## New to Midnight?
+
+If you're new to Midnight development, start with the **[Getting Started Guide](docs/GETTING-STARTED.md)**. This hands-on tutorial walks you through:
+
+- Using the `midnightctl` CLI
+- Creating and managing wallets
+- Building and deploying smart contracts
+- Using the OpenCode AI assistant
+
+**Estimated time:** 30-45 minutes
+
 ## Quick Start
 
 ### Prerequisites
