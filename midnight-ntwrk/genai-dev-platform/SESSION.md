@@ -1,17 +1,18 @@
 # SESSION.md
 
-> **Last Updated:** 2025-01-07  
+> **Last Updated:** 2025-01-08  
 > **Purpose:** Track project status, outstanding work, and session context for continuity
 
 ---
 
 ## Current Session Focus
 
-**Session Date:** 2025-01-07
+**Session Date:** 2025-01-08
 
-Working on developer documentation and platform improvements:
-- Created getting started guide for new Midnight developers
-- Consolidated planning documents into this SESSION.md
+Fixed Cloud Build IAM permissions blocking `make deploy`:
+- Added `roles/iam.serviceAccountAdmin` to Cloud Build SA roles
+- Added workstation user IAM bindings for service account access
+- Updated session timeouts (idle: 12h, running: 24h)
 
 ---
 
@@ -67,21 +68,25 @@ Working on developer documentation and platform improvements:
 
 ## Completed Work
 
-### This Session (2025-01-07)
+### This Session (2025-01-08)
+
+- [x] Fixed Cloud Build SA IAM permissions for workstation user bindings
+  - Added `roles/iam.serviceAccountAdmin` to `cloudbuild_sa_roles`
+  - Required for `google_service_account_iam_binding` on workstation SA
+- [x] Added workstation user/admin IAM bindings on workstation service account
+  - Grants `roles/iam.serviceAccountUser` to all workstation users
+  - Required for connecting to workstations
+- [x] Updated README with bootstrap command for new IAM role
+- [x] Increased workstation session timeouts (idle: 4h→12h, running: 12h→24h)
+
+### 2025-01-07
 
 - [x] Created `docs/GETTING-STARTED.md` - Hands-on tutorial (35-45 min)
-  - Part 1: Development environment setup
-  - Part 2: AI assistant (OpenCode) introduction
-  - Part 3: midnightctl CLI overview
-  - Part 4: Wallet operations workflow
-  - Part 5: Smart contract development (deploy marked as coming soon)
-  - Part 6: Service management
-  - Quick reference card
-- [x] Updated `README.md` with "New to Midnight?" section linking to guide
+- [x] Updated `README.md` with "New to Midnight?" section
 - [x] Consolidated planning docs into SESSION.md
 - [x] Removed duplicate `todos/` directory
 
-### Previous Work
+### Earlier Work
 
 - [x] SDK 3.x wallet integration (all core commands)
 - [x] HD derivation fix (BIP44 paths match toolkit)
@@ -226,6 +231,8 @@ make deploy BUILD_SDK=false
 
 | Date | Decision | Choice | Rationale |
 |------|----------|--------|-----------|
+| 2025-01-08 | Cloud Build SA IAM | Add `serviceAccountAdmin` role | Required for workstation user bindings |
+| 2025-01-08 | Workstation timeouts | 12h idle, 24h running | Longer dev sessions without interruption |
 | 2025-01-07 | Getting started guide format | Markdown (`docs/GETTING-STARTED.md`) | Simple, works in IDE |
 | 2025-01-07 | Wallet quick start approach | Use genesis wallet `0x01` | Faster for new devs |
 | 2025-01-07 | Shielded transfer in docs | Removed example | Genesis wallets don't have shielded tokens |
@@ -298,6 +305,20 @@ make deploy BUILD_SDK=false
 ---
 
 ## Session Archive
+
+### 2025-01-08
+
+**Focus:** Fix Cloud Build IAM permissions blocking deployment
+
+**Completed:**
+- Added `roles/iam.serviceAccountAdmin` to Cloud Build SA roles
+- Added workstation user IAM bindings (`roles/iam.serviceAccountUser` on workstation SA)
+- Updated README bootstrap docs with new IAM role
+- Increased workstation timeouts (idle: 12h, running: 24h)
+
+**Root Cause:** `google_service_account_iam_binding` requires `iam.serviceAccounts.getIamPolicy` permission, which wasn't granted to Cloud Build SA.
+
+---
 
 ### 2025-01-07
 
