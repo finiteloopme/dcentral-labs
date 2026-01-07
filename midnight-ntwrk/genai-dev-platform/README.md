@@ -122,6 +122,10 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/resourcemanager.projectIamAdmin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:midnight-cloudbuild-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountAdmin"
 ```
 
 After the first successful `make deploy`, Terraform will manage the complete set of IAM roles for the service account. The bootstrap roles above are the minimum required to:

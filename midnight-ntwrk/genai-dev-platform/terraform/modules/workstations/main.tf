@@ -8,6 +8,12 @@
 
 locals {
   vertex_project = var.vertex_ai_project != "" ? var.vertex_ai_project : var.project_id
+
+  # All users who need to act as the workstation service account
+  all_workstation_users = concat(
+    [for email in values(var.workstations) : "user:${email}"],
+    [for email in var.workstation_admins : "user:${email}"]
+  )
 }
 
 # Service account for workstation VMs
@@ -32,6 +38,18 @@ resource "google_project_iam_member" "ws_sa_vertex" {
   project = local.vertex_project
   role    = var.sa_vertex_role
   member  = "serviceAccount:${google_service_account.workstation_sa.email}"
+}
+
+# ==============================================================================
+# SERVICE ACCOUNT USER ACCESS
+# ==============================================================================
+# Allow workstation users to act as the workstation service account.
+# Required for generating access tokens when connecting to workstations.
+
+resource "google_service_account_iam_binding" "workstation_users" {
+  service_account_id = google_service_account.workstation_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  members            = local.all_workstation_users
 }
 
 # ==============================================================================
@@ -104,11 +122,11 @@ resource "google_workstations_workstation_config" "config" {
     )
   }
 
-  # Idle timeout (4 hours)
-  idle_timeout = "14400s"
+  # Idle timeout (12 hours)
+  idle_timeout = "43200s"
 
-  # Running timeout (12 hours)
-  running_timeout = "43200s"
+  # Running timeout (24 hours)
+  running_timeout = "86400s"
 }
 
 # ==============================================================================
