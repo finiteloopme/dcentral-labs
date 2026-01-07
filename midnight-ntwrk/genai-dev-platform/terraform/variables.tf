@@ -149,6 +149,7 @@ variable "cloudbuild_sa_roles" {
     "roles/compute.viewer",             # Read GKE cluster compute resources (instance groups)
     "roles/container.admin",            # GKE cluster management
     "roles/container.clusterAdmin",     # GKE cluster admin operations
+    "roles/iam.serviceAccountAdmin",    # Manage service account IAM policies (for workstation user bindings)
     "roles/iam.serviceAccountCreator",  # Create service accounts for workloads
     "roles/iam.serviceAccountUser",     # Act as service accounts
     "roles/logging.logWriter",          # Write build logs
