@@ -1,0 +1,38 @@
+# Workstation Configuration
+#
+# Copy this file to workstations.auto.tfvars and customize.
+# Terraform automatically loads *.auto.tfvars files.
+#
+# This file is gitignored - each deployment maintains its own user list.
+
+# =============================================================================
+# Workstation Instances
+# =============================================================================
+# Map of workstation name to owner email.
+# Creates workstations named: {chain}-dev-{name}
+# Example: somnia-dev-alice, somnia-dev-bob
+
+workstations = {
+  # "alice" = "alice@company.com"
+  # "bob"   = "bob@company.com"
+}
+
+# =============================================================================
+# Admin Access
+# =============================================================================
+# Admins get access to ALL workstations in the cluster.
+# Useful for team leads, ops, or support staff.
+
+workstation_admins = [
+  # "admin@company.com"
+  # "ops@company.com"
+]
+
+# =============================================================================
+# Optional: Override Defaults
+# =============================================================================
+# Uncomment to override sane defaults from variables.tf
+
+# machine_type      = "e2-standard-8"   # Upgrade machine size
+# home_disk_size_gb = 200               # Larger persistent disk
+# idle_timeout      = "21600s"          # 6 hours instead of 12

@@ -1,0 +1,125 @@
+VERSION 0.8
+
+IMPORT ../../core AS core
+
+# =============================================================================
+# EVM Chain Type
+# =============================================================================
+# Provides Foundry toolchain and EVM CLI for all EVM-compatible chains
+# =============================================================================
+
+# Foundry toolchain installation
+foundry:
+    FROM core+dev-base
+    
+    ARG FOUNDRY_VERSION=nightly
+    
+    # Install Foundry
+    COPY scripts/install/foundry.sh /tmp/
+    RUN chmod +x /tmp/foundry.sh && /tmp/foundry.sh "${FOUNDRY_VERSION}"
+    
+    # Add to PATH and verify
+    ENV PATH="/root/.foundry/bin:${PATH}"
+    RUN forge --version && cast --version && anvil --version
+    
+    SAVE IMAGE --cache-hint
+
+# EVM CLI build
+cli-build:
+    FROM node:20-slim
+    WORKDIR /build
+    
+    # Copy pre-built core CLI
+    COPY core+cli-build/dist ./core-cli/dist
+    COPY core+cli-build/node_modules ./core-cli/node_modules
+    COPY core+cli-build/package.json ./core-cli/
+    
+    # Copy EVM CLI package files
+    COPY cli/package.json cli/package-lock.json ./
+    RUN npm ci
+    
+    # Copy and build EVM CLI
+    COPY cli/ ./
+    RUN npm run build
+    
+    SAVE ARTIFACT dist /dist
+    SAVE ARTIFACT node_modules /node_modules
+    SAVE ARTIFACT package.json /package.json
+
+# EVM CLI tests
+cli-test:
+    FROM node:20-slim
+    WORKDIR /build
+    
+    # Copy pre-built core CLI
+    COPY core+cli-build/dist ./core-cli/dist
+    COPY core+cli-build/node_modules ./core-cli/node_modules
+    COPY core+cli-build/package.json ./core-cli/
+    
+    # Install and test EVM CLI
+    COPY cli/package.json cli/package-lock.json ./
+    RUN npm ci
+    
+    COPY cli/ ./
+    RUN npm run test
+
+# EVM base image (Foundry + CLI framework)
+evm-base:
+    FROM +foundry
+    
+    # Copy built CLI
+    COPY +cli-build/dist /opt/evm-cli/dist
+    COPY +cli-build/node_modules /opt/evm-cli/node_modules
+    COPY +cli-build/package.json /opt/evm-cli/
+    
+    # Copy project templates
+    COPY templates/ /opt/evm-cli/templates/
+    
+    SAVE IMAGE --cache-hint
+
+# Chain-specific image builder (called with ARGs from chain config)
+chain-image:
+    FROM +evm-base
+    
+    # Chain configuration (from TOML via build script)
+    ARG CLI_NAME=evmctl
+    ARG CHAIN_NAME=EVM
+    ARG CHAIN_ID=1
+    ARG RPC_URL=http://localhost:8545
+    ARG EXPLORER_URL=
+    ARG FAUCET_URL=
+    ARG NATIVE_CURRENCY=ETH
+    ARG NATIVE_DECIMALS=18
+    
+    # Create CLI wrapper script with chain-specific name
+    RUN printf '#!/bin/bash\nCHAIN_CONFIG_DIR=/etc/chain node /opt/evm-cli/dist/index.js "$@"\n' \
+        > /usr/local/bin/${CLI_NAME} \
+        && chmod +x /usr/local/bin/${CLI_NAME}
+    
+    # Create chain config directory and file
+    RUN mkdir -p /etc/chain \
+        && printf '%s\n' \
+            "CLI_NAME=${CLI_NAME}" \
+            "CHAIN_NAME=${CHAIN_NAME}" \
+            "CHAIN_ID=${CHAIN_ID}" \
+            "RPC_URL=${RPC_URL}" \
+            "EXPLORER_URL=${EXPLORER_URL}" \
+            "FAUCET_URL=${FAUCET_URL}" \
+            "NATIVE_CURRENCY=${NATIVE_CURRENCY}" \
+            "NATIVE_DECIMALS=${NATIVE_DECIMALS}" \
+        > /etc/chain/config.env
+    
+    # Profile script to export chain environment
+    RUN printf '%s\n' \
+            '# Chain environment variables' \
+            'set -a' \
+            'source /etc/chain/config.env' \
+            'set +a' \
+        > /etc/profile.d/50-chain-env.sh
+    
+    # Create OpenCode config directory
+    RUN mkdir -p /etc/opencode
+
+# Run all EVM tests
+test:
+    BUILD +cli-test

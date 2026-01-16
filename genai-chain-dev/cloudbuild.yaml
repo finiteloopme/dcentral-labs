@@ -1,0 +1,96 @@
+# Cloud Build - Build container image and deploy infrastructure
+#
+# Usage:
+#   Invoked via ./scripts/cloud.sh <chain> deploy
+#
+# Substitutions are passed from scripts/cloud.sh
+
+substitutions:
+  _CHAIN: somnia
+  _REGION: us-central1
+  _TAG: latest
+  _STATE_BUCKET: ""
+  _STATE_PREFIX: terraform/state
+  # Chain config (from chain.config.toml via scripts)
+  _CHAIN_NAME: ""
+  _CLI_NAME: ""
+  _CHAIN_ID: ""
+  _RPC_URL: ""
+  _EXPLORER_URL: ""
+  _FAUCET_URL: ""
+  _NATIVE_CURRENCY: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # =============================================================================
+  # Step 1: Install Earthly
+  # =============================================================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'install-earthly'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        curl -fsSL https://github.com/earthly/earthly/releases/latest/download/earthly-linux-amd64 \
+          -o /workspace/earthly
+        chmod +x /workspace/earthly
+
+  # =============================================================================
+  # Step 2: Build and push container image
+  # =============================================================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        /workspace/earthly --ci --push +all \
+          --REGISTRY=${_REGION}-docker.pkg.dev \
+          --PROJECT_ID=$PROJECT_ID \
+          --TAG=${_TAG}
+    dir: 'chains/${_CHAIN}'
+    waitFor: ['install-earthly']
+
+  # =============================================================================
+  # Step 3: Terraform init
+  # =============================================================================
+  - name: 'hashicorp/terraform:1.5'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${_STATE_BUCKET}" \
+          -backend-config="prefix=${_STATE_PREFIX}"
+    dir: 'terraform'
+    waitFor: ['build-image']
+
+  # =============================================================================
+  # Step 4: Terraform apply
+  # =============================================================================
+  - name: 'hashicorp/terraform:1.5'
+    id: 'tf-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="chain=${_CHAIN}" \
+          -var="chain_name=${_CHAIN_NAME}" \
+          -var="cli_name=${_CLI_NAME}" \
+          -var="chain_id=${_CHAIN_ID}" \
+          -var="rpc_url=${_RPC_URL}" \
+          -var="explorer_url=${_EXPLORER_URL}" \
+          -var="faucet_url=${_FAUCET_URL}" \
+          -var="native_currency=${_NATIVE_CURRENCY}" \
+          -var="image_tag=${_TAG}"
+    dir: 'terraform'
+    waitFor: ['tf-init']
+
+timeout: 2400s  # 40 minutes

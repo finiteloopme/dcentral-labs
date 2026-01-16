@@ -1,0 +1,68 @@
+VERSION 0.8
+
+IMPORT ../evm AS evm
+
+# =============================================================================
+# Somnia Chain
+# =============================================================================
+# High-performance EVM-compatible L1 for gaming and metaverse
+# =============================================================================
+
+# Development build (no push)
+dev:
+    FROM evm+chain-image \
+        --CLI_NAME=somniactl \
+        --CHAIN_NAME=Somnia \
+        --CHAIN_ID=50311 \
+        --RPC_URL=https://dream-rpc.somnia.network \
+        --EXPLORER_URL=https://somnia-testnet.socialscan.io \
+        --FAUCET_URL=https://faucet.somnia.network \
+        --NATIVE_CURRENCY=STT \
+        --NATIVE_DECIMALS=18
+    
+    # Somnia-specific AI context
+    COPY AGENTS.md /etc/opencode/AGENTS.md
+    
+    # Welcome message
+    RUN printf '%s\n' \
+        'welcome() {' \
+        'cat << '\''WELCOME'\''' \
+        '================================================================================' \
+        '                    Somnia Development Environment' \
+        '================================================================================' \
+        '' \
+        'Tools:' \
+        '  forge, cast, anvil    Foundry toolchain' \
+        '  somniactl             Somnia development CLI' \
+        '  opencode              AI coding assistant (Gemini/Claude via Vertex AI)' \
+        '' \
+        'Networks:' \
+        '  Testnet RPC:  https://dream-rpc.somnia.network' \
+        '  Chain ID:     50311' \
+        '  Explorer:     https://somnia-testnet.socialscan.io' \
+        '  Faucet:       https://faucet.somnia.network' \
+        '' \
+        'Quick Commands:' \
+        '  somniactl init <name>       Create a new Foundry project' \
+        '  somniactl node start        Start local Anvil node' \
+        '  somniactl wallet create     Create a new wallet' \
+        '  somniactl compile           Compile contracts' \
+        '  somniactl deploy            Deploy contracts' \
+        '' \
+        'Run '\''somniactl --help'\'' for all commands.' \
+        '================================================================================' \
+        'WELCOME' \
+        '}' \
+        'welcome' \
+        > /etc/profile.d/99-welcome.sh
+    
+    SAVE IMAGE somnia-dev:latest
+
+# Production build with push
+all:
+    ARG REGISTRY=us-central1-docker.pkg.dev
+    ARG PROJECT_ID
+    ARG TAG=latest
+    
+    FROM +dev
+    SAVE IMAGE --push ${REGISTRY}/${PROJECT_ID}/dev-images/somnia-dev:${TAG}

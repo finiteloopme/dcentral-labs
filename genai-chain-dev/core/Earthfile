@@ -1,0 +1,92 @@
+VERSION 0.8
+
+# =============================================================================
+# Core Framework - Base Targets
+# =============================================================================
+# These targets are imported by chain-specific Earthfiles
+# =============================================================================
+
+# Google Cloud Workstations base image with Code OSS
+workstation-base:
+    FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
+    
+    # Install common tools
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        jq \
+        curl \
+        wget \
+        git \
+        unzip \
+        && rm -rf /var/lib/apt/lists/*
+    
+    # Run build-time configure scripts (Code OSS port fix)
+    COPY scripts/configure/codeoss-port.sh /tmp/configure/
+    RUN chmod +x /tmp/configure/*.sh && \
+        /tmp/configure/codeoss-port.sh && \
+        rm -rf /tmp/configure
+    
+    # Install runtime startup scripts (run after user creation, before Code OSS)
+    # 015 = after 010_add-user.sh, before 110_start-code-oss.sh
+    COPY scripts/configure/user-dirs.sh /etc/workstation-startup.d/015_user-dirs.sh
+    RUN chmod +x /etc/workstation-startup.d/015_user-dirs.sh
+    
+    # Copy profile scripts
+    COPY scripts/profile.d/ /etc/profile.d/
+    
+    SAVE IMAGE --cache-hint
+
+# OpenCode AI agent installation
+opencode:
+    FROM +workstation-base
+    
+    ARG OPENCODE_VERSION=latest
+    
+    # Install OpenCode via npm
+    COPY scripts/install/opencode.sh /tmp/
+    RUN chmod +x /tmp/opencode.sh && /tmp/opencode.sh "${OPENCODE_VERSION}"
+    
+    # Install global OpenCode config (Vertex AI models)
+    # User symlinks are created by /etc/profile.d/opencode.sh at login
+    RUN mkdir -p /etc/opencode
+    COPY opencode/opencode.json /etc/opencode/opencode.json
+    RUN chmod 644 /etc/opencode/opencode.json
+    
+    SAVE IMAGE --cache-hint
+
+# CLI framework build
+cli-build:
+    FROM node:20-slim
+    WORKDIR /build
+    
+    # Install dependencies
+    COPY cli/package.json cli/package-lock.json ./
+    RUN npm ci
+    
+    # Build CLI
+    COPY cli/ ./
+    RUN npm run build
+    
+    SAVE ARTIFACT dist /dist
+    SAVE ARTIFACT node_modules /node_modules
+    SAVE ARTIFACT package.json /package.json
+
+# CLI tests
+cli-test:
+    FROM node:20-slim
+    WORKDIR /build
+    
+    COPY cli/package.json cli/package-lock.json ./
+    RUN npm ci
+    
+    COPY cli/ ./
+    RUN npm run test
+
+# Combined dev base (base + opencode)
+dev-base:
+    FROM +opencode
+    
+    SAVE IMAGE --cache-hint
+
+# Run all core tests
+test:
+    BUILD +cli-test

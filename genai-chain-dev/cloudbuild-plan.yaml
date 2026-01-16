@@ -1,0 +1,62 @@
+# Cloud Build - Terraform plan only (dry run)
+#
+# Usage:
+#   Invoked via ./scripts/cloud.sh <chain> plan
+
+substitutions:
+  _CHAIN: somnia
+  _REGION: us-central1
+  _TAG: latest
+  _STATE_BUCKET: ""
+  _STATE_PREFIX: terraform/state
+  _CHAIN_NAME: ""
+  _CLI_NAME: ""
+  _CHAIN_ID: ""
+  _RPC_URL: ""
+  _EXPLORER_URL: ""
+  _FAUCET_URL: ""
+  _NATIVE_CURRENCY: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # =============================================================================
+  # Step 1: Terraform init
+  # =============================================================================
+  - name: 'hashicorp/terraform:1.5'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${_STATE_BUCKET}" \
+          -backend-config="prefix=${_STATE_PREFIX}"
+    dir: 'terraform'
+
+  # =============================================================================
+  # Step 2: Terraform plan
+  # =============================================================================
+  - name: 'hashicorp/terraform:1.5'
+    id: 'tf-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform plan \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="chain=${_CHAIN}" \
+          -var="chain_name=${_CHAIN_NAME}" \
+          -var="cli_name=${_CLI_NAME}" \
+          -var="chain_id=${_CHAIN_ID}" \
+          -var="rpc_url=${_RPC_URL}" \
+          -var="explorer_url=${_EXPLORER_URL}" \
+          -var="faucet_url=${_FAUCET_URL}" \
+          -var="native_currency=${_NATIVE_CURRENCY}" \
+          -var="image_tag=${_TAG}"
+    dir: 'terraform'
+    waitFor: ['tf-init']
+
+timeout: 600s  # 10 minutes

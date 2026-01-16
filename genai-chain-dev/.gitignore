@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Earthly
+.earthly/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Container artifacts
+*.tar
+*.tar.gz
+
+# Podman/Docker
+*.containerignore
+
+# Secrets and credentials
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# Cloud Build
+cloudbuild-local.yaml
+
+# OpenCode
+.opencode/
+
+# Local workspace
+workspace/

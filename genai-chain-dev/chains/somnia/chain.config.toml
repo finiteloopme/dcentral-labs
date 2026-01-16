@@ -1,0 +1,61 @@
+# Somnia Chain Configuration
+# High-performance EVM-compatible L1 for gaming and metaverse
+
+[chain]
+name = "Somnia"
+type = "evm"
+id = "somnia"
+
+[cli]
+name = "somniactl"
+description = "Somnia development CLI"
+
+[networks.testnet]
+name = "Somnia Testnet"
+chain_id = 50311
+rpc_url = "https://dream-rpc.somnia.network"
+explorer_url = "https://somnia-testnet.socialscan.io"
+faucet_url = "https://faucet.somnia.network"
+native_currency = "STT"
+native_decimals = 18
+is_default = true
+
+[networks.local]
+name = "Local (Anvil)"
+chain_id = 31337
+rpc_url = "http://localhost:8545"
+native_currency = "ETH"
+native_decimals = 18
+is_default = false
+
+# Mainnet config (placeholder for future)
+# [networks.mainnet]
+# name = "Somnia Mainnet"
+# chain_id = TBD
+# rpc_url = "https://rpc.somnia.network"
+# explorer_url = "https://explorer.somnia.network"
+# native_currency = "SOMNIA"
+# native_decimals = 18
+
+[image]
+name = "somnia-dev"
+base = "evm"
+
+[gcp]
+project_id_suffix = "somnia-dev"
+region = "us-central1"
+artifact_registry = "dev-images"
+
+[workstation]
+machine_type = "e2-standard-4"
+boot_disk_size_gb = 50
+home_disk_size_gb = 100
+idle_timeout = "43200s"      # 12 hours
+running_timeout = "86400s"   # 24 hours
+
+[features]
+# Feature flags for chain-specific functionality
+anvil = true           # Local EVM node
+foundry = true         # Foundry toolchain
+opencode = true        # AI coding assistant
+wallet_plaintext = true # Plaintext wallet storage (dev only)

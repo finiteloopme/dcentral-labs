@@ -1,0 +1,39 @@
+VERSION 0.8
+
+# =============================================================================
+# genai-chain-dev - Root Earthfile
+# =============================================================================
+# Orchestrates builds across all chains
+#
+# Usage:
+#   earthly +all                    # Build all chains
+#   earthly +somnia                 # Build Somnia only
+#   earthly +test                   # Run all tests
+#   earthly +dev --CHAIN=somnia     # Local dev build
+# =============================================================================
+
+IMPORT ./core AS core
+IMPORT ./chains/evm AS evm
+IMPORT ./chains/somnia AS somnia
+
+# Build all chain images
+all:
+    BUILD +somnia
+
+# Individual chain targets
+somnia:
+    BUILD somnia+all
+
+# Run all tests
+test:
+    BUILD core+test
+    BUILD evm+test
+
+# Local development - build without push
+dev:
+    ARG CHAIN=somnia
+    IF [ "$CHAIN" = "somnia" ]
+        BUILD somnia+dev
+    ELSE
+        RUN echo "Unknown chain: $CHAIN" && exit 1
+    END
