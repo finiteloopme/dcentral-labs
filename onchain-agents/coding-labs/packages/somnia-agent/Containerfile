@@ -49,15 +49,17 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Set environment
 ENV NODE_ENV=production
-ENV SOMNIA_AGENT_PORT=4001
+# PORT is set by Cloud Run, default to 4001 for local development
+ENV PORT=4001
 ENV SOMNIA_AGENT_HOST=0.0.0.0
 
-# Expose port
+# Expose port (Cloud Run uses $PORT, default 4001 for local)
 EXPOSE 4001
+EXPOSE 8080
 
-# Health check
+# Health check (uses PORT env var)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:4001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 4001) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-# Run
-CMD ["node", "packages/somnia-agent/dist/index.js"]
+# Run - use shell form to allow $PORT expansion
+CMD node packages/somnia-agent/dist/index.js

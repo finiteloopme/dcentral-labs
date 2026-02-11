@@ -21,11 +21,18 @@ export type SkillEvent =
 
 /**
  * Extract text content from a message
+ * Handles both A2A SDK format (kind: 'text') and raw JSON format (type: 'text')
  */
 export function extractTextFromMessage(message: Message): string {
   return message.parts
-    .filter((p): p is { kind: 'text'; text: string } => p.kind === 'text')
-    .map((p) => p.text)
+    .filter((p) => {
+      const part = p as { kind?: string; type?: string };
+      return part.kind === 'text' || part.type === 'text';
+    })
+    .map((p) => {
+      const part = p as { text?: string };
+      return part.text ?? '';
+    })
     .join('\n');
 }
 

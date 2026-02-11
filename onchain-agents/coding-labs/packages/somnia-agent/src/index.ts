@@ -8,7 +8,8 @@ import { A2AExpressApp } from '@a2a-js/sdk/server/express';
 import { somniaAgentCard } from './agent-card.js';
 import { SomniaAgentExecutor } from './executor.js';
 
-const PORT = parseInt(process.env.SOMNIA_AGENT_PORT || '4001', 10);
+// Support both PORT (Cloud Run) and SOMNIA_AGENT_PORT (local dev)
+const PORT = parseInt(process.env.PORT || process.env.SOMNIA_AGENT_PORT || '4001', 10);
 
 async function main() {
   console.log('[SomniaAgent] Starting Somnia Agent...');
@@ -35,11 +36,16 @@ async function main() {
     res.json({ status: 'healthy', agent: 'somnia-agent', version: '0.1.0' });
   });
 
-  // 6. Start the server
+  // 6. Add A2A spec-compliant agent.json route (alias for agent-card.json)
+  expressApp.get('/.well-known/agent.json', (_req, res) => {
+    res.json(somniaAgentCard);
+  });
+
+  // 7. Start the server
   expressApp.listen(PORT, () => {
     console.log(`[SomniaAgent] Server started on http://localhost:${PORT}`);
     console.log(
-      `[SomniaAgent] Agent Card: http://localhost:${PORT}/.well-known/agent-card.json`
+      `[SomniaAgent] Agent Card: http://localhost:${PORT}/.well-known/agent.json`
     );
     console.log(`[SomniaAgent] Health: http://localhost:${PORT}/health`);
     console.log('[SomniaAgent] Press Ctrl+C to stop the server');

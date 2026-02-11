@@ -1,0 +1,68 @@
+# Coding Labs - Docker Compose
+# Local development and testing for containerized services
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up somnia-agent    # Start only Somnia Agent
+#   docker-compose logs -f            # Follow logs
+#   docker-compose down               # Stop all services
+#
+# For Cloud Run deployment, each service is deployed separately.
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Somnia Agent - A2A blockchain agent for Somnia network
+  # ============================================================================
+  somnia-agent:
+    build:
+      context: .
+      dockerfile: packages/somnia-agent/Containerfile
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+      - NODE_ENV=development
+      # GCP credentials for Vertex AI
+      - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
+    volumes:
+      # Mount GCP credentials for local development
+      - ${HOME}/.config/gcloud:/creds:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # OpenCode - Coding agent with A2A plugin
+  # ============================================================================
+  opencode:
+    build:
+      context: ./opencode
+      dockerfile: Containerfile.web
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - OPENCODE_STATIC_DIR=/opt/frontend
+      # Point to Somnia Agent (use service name for Docker networking)
+      - SOMNIA_AGENT_URL=http://somnia-agent:4001
+    depends_on:
+      somnia-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/global/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+# Networks (optional, Docker creates a default one)
+networks:
+  default:
+    name: coding-labs-network
