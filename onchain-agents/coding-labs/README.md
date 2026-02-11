@@ -10,12 +10,20 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    OpenCode Web (Future)                            │
-│              User Interface + Wallet Connection                     │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │ A2A Protocol
-          ┌───────────────────────┼───────────────────────────────┐
-          ▼                       ▼                               ▼
+│           Container: opencode-web (port 3000)                       │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    OpenCode Web                               │  │
+│  │              (Primary User Interface)                         │  │
+│  │                                                               │  │
+│  │  - Browser-based coding session                               │  │
+│  │  - Wallet connection (MetaMask / injected provider)           │  │
+│  │  - A2A Client integrated                                      │  │
+│  │  - Routes to chain agents based on user intent                │  │
+│  └───────────────────────────┬───────────────────────────────────┘  │
+└──────────────────────────────┼──────────────────────────────────────┘
+                               │ A2A Protocol (HTTP+JSON)
+          ┌────────────────────┼────────────────────────────────┐
+          ▼                    ▼                                ▼
 ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
 │   Somnia Agent    │   │   Sonic Agent     │   │  Midnight Agent   │
 │   (port 4001)     │   │   (future)        │   │  (future)         │
@@ -59,7 +67,7 @@ make install
 make build
 ```
 
-### Run Locally
+### Run Locally (Agent Only)
 
 ```bash
 # Start the agent in dev mode
@@ -74,6 +82,29 @@ make agent-card
 # Send a message
 make send MSG="Create an ERC-20 token called TestCoin with symbol TST"
 ```
+
+### Run with OpenCode Web UI (Full Integration)
+
+Run in 3 separate terminals:
+
+```bash
+# Terminal 1: Start Somnia Agent
+make dev
+
+# Terminal 2: Start OpenCode server (backend with A2A plugin)
+make opencode-server
+
+# Terminal 3: Start OpenCode frontend (web UI with wallet)
+make opencode-frontend
+```
+
+Then open http://localhost:3000 in your browser.
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Somnia Agent | 4001 | A2A server for blockchain operations |
+| OpenCode Server | 4097 | Backend API with A2A plugin |
+| OpenCode Frontend | 3000 | Web UI with wallet integration |
 
 ### Run with Containers
 
@@ -124,6 +155,19 @@ coding-labs/
 │           ├── executor.ts     # Request handler
 │           └── skills/         # Skill implementations
 │               └── solidity-gen.ts
+│
+└── opencode/                   # Forked OpenCode (branch: feature/a2a-wallet-integration)
+    └── packages/
+        ├── opencode/src/plugin/a2a/  # A2A plugin
+        │   ├── agents.ts             # Agent registry
+        │   ├── router.ts             # Intent routing
+        │   └── index.ts              # Plugin with tools
+        └── app/                      # Web frontend
+            ├── config.toml           # Frontend configuration
+            └── src/
+                ├── lib/config.ts     # Config loader
+                ├── context/wallet.tsx # Wallet context
+                └── components/wallet-button.tsx
 ```
 
 ### Available Make Targets
@@ -167,6 +211,13 @@ make help  # Show all available targets
 | `agent-card` | Show agent card |
 | `skills` | List agent skills |
 | `send MSG="..."` | Send message to agent |
+
+#### OpenCode (Forked)
+| Target | Description |
+|--------|-------------|
+| `opencode-server` | Run OpenCode backend (port 4097) |
+| `opencode-frontend` | Run OpenCode web UI (port 3000) |
+| `opencode-typecheck` | Typecheck OpenCode fork |
 
 ### Adding a New Skill
 
@@ -250,6 +301,37 @@ describe('somniaAgentCard', () => {
 | `SOMNIA_AGENT_HOST` | `localhost` | Agent host |
 | `GOOGLE_CLOUD_PROJECT` | `kunal-scratch` | GCP project for Vertex AI |
 | `GOOGLE_CLOUD_LOCATION` | `global` | GCP region |
+
+### OpenCode Frontend Configuration
+
+The frontend uses `config.toml` for configuration with environment-specific sections:
+
+```toml
+# opencode/packages/app/config.toml
+
+[default.server]
+host = "localhost"
+port = 4097
+
+[production.server]
+host = "0.0.0.0"
+port = 443
+```
+
+**Config resolution order** (later overrides earlier):
+1. `config.toml` `[default]` section
+2. `config.toml` `[env]` section (dev/test/production)
+3. CLI environment variables
+
+**Override via Makefile:**
+```bash
+# Change backend port
+make opencode-server OPENCODE_PORT=4098
+make opencode-frontend PORT=4098
+
+# Switch environment
+make opencode-frontend ENV=production
+```
 
 ### Vertex AI Setup
 

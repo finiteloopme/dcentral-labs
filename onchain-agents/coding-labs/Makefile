@@ -6,7 +6,14 @@
         container-build container-build-opencode up down compose-up compose-down \
         logs shell container-status container-clean \
         health agent-card skills send send-stream \
-        opencode-server opencode-web opencode-dev opencode-typecheck opencode-build-frontend
+        opencode-server opencode-frontend opencode-typecheck
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+# Default ports - override via CLI: make opencode-server OPENCODE_PORT=4098
+OPENCODE_PORT ?= 4097
 
 # Default target
 .DEFAULT_GOAL := help
@@ -99,20 +106,17 @@ container-clean: ## Stop containers and remove images
 # OpenCode (Forked)
 # ============================================================================
 
-opencode-server: ## Run OpenCode server (API only, for development)
-	@cd opencode && bun run dev
+opencode-server: ## Run OpenCode server (default port 4097, override with OPENCODE_PORT=)
+	@cd opencode && bun run dev -- web --hostname 0.0.0.0 --port $(OPENCODE_PORT)
 
-opencode-web: ## Run OpenCode frontend dev server (requires opencode-server)
-	@cd opencode && bun run dev:web
-
-opencode-dev: ## Run OpenCode server with web UI (proxies from app.opencode.ai)
-	@cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4096
+opencode-frontend: ## Run OpenCode frontend (config.toml defaults, override with PORT=/ENV=)
+	@cd opencode/packages/app && \
+	  $(if $(PORT),VITE_OPENCODE_SERVER_PORT=$(PORT)) \
+	  $(if $(ENV),VITE_APP_ENV=$(ENV)) \
+	  bun run dev
 
 opencode-typecheck: ## Typecheck OpenCode
 	@cd opencode && bun run typecheck
-
-opencode-build-frontend: ## Build OpenCode frontend
-	@cd opencode/packages/app && bun run build
 
 # ============================================================================
 # A2A Agent
@@ -148,11 +152,17 @@ help: ## Show this help
 	@echo "  make install              # Install dependencies"
 	@echo "  make dev                  # Start somnia-agent in dev mode"
 	@echo "  make opencode-server      # Start OpenCode server (API with A2A plugin)"
-	@echo "  make opencode-dev         # Start OpenCode with web UI"
+	@echo "  make opencode-frontend    # Start OpenCode web frontend"
 	@echo "  make compose-up           # Start all containers"
 	@echo "  make send MSG=\"Create an ERC-20 token\"  # Send message to agent"
 	@echo ""
-	@echo "Development workflow:"
-	@echo "  Terminal 1: make dev              # Start Somnia Agent on :4001"
-	@echo "  Terminal 2: make opencode-server  # Start OpenCode server on :4096"
-	@echo "  Then test A2A tools in OpenCode CLI"
+	@echo "Local integration testing (3 terminals):"
+	@echo "  Terminal 1: make dev               # Somnia Agent on :4001"
+	@echo "  Terminal 2: make opencode-server   # OpenCode backend on :4097"
+	@echo "  Terminal 3: make opencode-frontend # OpenCode web UI on :3000"
+	@echo "  Then open http://localhost:3000 in browser"
+	@echo ""
+	@echo "Configuration overrides:"
+	@echo "  make opencode-server OPENCODE_PORT=4098  # Use custom server port"
+	@echo "  make opencode-frontend PORT=4098         # Connect to custom server port"
+	@echo "  make opencode-frontend ENV=production    # Use production config"
