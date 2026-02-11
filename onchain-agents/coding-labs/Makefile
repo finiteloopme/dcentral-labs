@@ -3,8 +3,10 @@
 
 .PHONY: help install build dev typecheck lint lint-fix format clean clean-all \
         test test-unit test-unit-watch test-coverage test-integration \
-        container-build up down logs shell container-status container-clean \
-        health agent-card skills send send-stream
+        container-build container-build-opencode up down compose-up compose-down \
+        logs shell container-status container-clean \
+        health agent-card skills send send-stream \
+        opencode-dev opencode-typecheck
 
 # Default target
 .DEFAULT_GOAL := help
@@ -63,14 +65,23 @@ test-integration: ## Run integration tests (requires running agent)
 # Containers (Podman)
 # ============================================================================
 
-container-build: ## Build container images
+container-build: ## Build all container images
 	@./scripts/container.sh build
 
-up: ## Start containers
+container-build-opencode: ## Build OpenCode web container only
+	@./scripts/container.sh build-opencode
+
+up: ## Start somnia-agent container
 	@./scripts/container.sh up
 
 down: ## Stop containers
 	@./scripts/container.sh down
+
+compose-up: ## Start all containers with compose
+	@./scripts/container.sh compose-up
+
+compose-down: ## Stop all containers with compose
+	@./scripts/container.sh compose-down
 
 logs: ## View container logs (follow)
 	@./scripts/container.sh logs
@@ -83,6 +94,16 @@ container-status: ## Show container and image status
 
 container-clean: ## Stop containers and remove images
 	@./scripts/container.sh clean
+
+# ============================================================================
+# OpenCode (Forked)
+# ============================================================================
+
+opencode-dev: ## Run OpenCode web console in dev mode
+	@cd opencode && bun run dev:web
+
+opencode-typecheck: ## Typecheck OpenCode
+	@cd opencode && bun run typecheck
 
 # ============================================================================
 # A2A Agent
@@ -116,5 +137,7 @@ help: ## Show this help
 	@echo ""
 	@echo "Examples:"
 	@echo "  make install              # Install dependencies"
-	@echo "  make dev                  # Start agent in dev mode"
+	@echo "  make dev                  # Start somnia-agent in dev mode"
+	@echo "  make opencode-dev         # Start OpenCode web console in dev mode"
+	@echo "  make compose-up           # Start all containers"
 	@echo "  make send MSG=\"Create an ERC-20 token\"  # Send message to agent"

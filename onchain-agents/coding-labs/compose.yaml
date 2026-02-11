@@ -29,17 +29,25 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # OpenCode Web container (Phase 2)
-  # opencode-web:
-  #   build:
-  #     context: ./containers/opencode-web
-  #   container_name: opencode-web
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - SOMNIA_AGENT_URL=http://somnia-agent:4001
-  #   depends_on:
-  #     - somnia-agent
+  # OpenCode Web console with wallet connection and A2A routing
+  opencode-web:
+    build:
+      context: ./opencode
+      dockerfile: Containerfile.web
+    container_name: opencode-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - HOST=0.0.0.0
+      - A2A_SOMNIA_URL=http://somnia-agent:4001
+      - A2A_SONIC_URL=http://sonic-agent:4002
+      - A2A_MIDNIGHT_URL=http://midnight-agent:4003
+    depends_on:
+      - somnia-agent
+    restart: unless-stopped
 
 # For local development without containers, use:
-# pnpm somnia-agent
+# pnpm dev (for somnia-agent)
+# cd opencode && bun run dev:web (for OpenCode console)

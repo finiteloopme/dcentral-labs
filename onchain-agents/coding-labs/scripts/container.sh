@@ -8,6 +8,7 @@ require_podman
 
 # Container names
 readonly SOMNIA_AGENT_CONTAINER="somnia-agent"
+readonly OPENCODE_WEB_CONTAINER="opencode-web"
 
 cmd_build() {
   log_header "Building container images"
@@ -18,8 +19,30 @@ cmd_build() {
     -f packages/somnia-agent/Containerfile \
     .
   
+  log_info "Building opencode-web..."
+  podman build \
+    -t opencode-web:latest \
+    -f opencode/Containerfile.web \
+    opencode/
+  
   log_success "Container images built"
-  podman images | grep -E "^(REPOSITORY|somnia-agent)"
+  podman images | grep -E "^(REPOSITORY|somnia-agent|opencode-web)"
+}
+
+cmd_build_opencode() {
+  log_header "Building OpenCode web container"
+  
+  if [ ! -d "opencode" ]; then
+    log_error "OpenCode directory not found. Clone it first."
+    exit 1
+  fi
+  
+  podman build \
+    -t opencode-web:latest \
+    -f opencode/Containerfile.web \
+    opencode/
+  
+  log_success "OpenCode web container built"
 }
 
 cmd_up() {
@@ -91,11 +114,11 @@ cmd_status() {
   
   echo ""
   echo "Running containers:"
-  podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|somnia)" || echo "  (none)"
+  podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|somnia|opencode)" || echo "  (none)"
   
   echo ""
   echo "Images:"
-  podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(REPOSITORY|somnia)" || echo "  (none)"
+  podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(REPOSITORY|somnia|opencode)" || echo "  (none)"
 }
 
 cmd_clean() {
@@ -116,16 +139,37 @@ cmd_clean() {
   log_success "Container cleanup complete"
 }
 
+cmd_compose_up() {
+  log_header "Starting all containers with compose"
+  podman-compose up -d
+  log_success "All containers started"
+}
+
+cmd_compose_down() {
+  log_header "Stopping all containers with compose"
+  podman-compose down
+  log_success "All containers stopped"
+}
+
 # Main
 case "${1:-}" in
   build)
     cmd_build
+    ;;
+  build-opencode)
+    cmd_build_opencode
     ;;
   up)
     cmd_up
     ;;
   down)
     cmd_down
+    ;;
+  compose-up)
+    cmd_compose_up
+    ;;
+  compose-down)
+    cmd_compose_down
     ;;
   logs)
     cmd_logs
@@ -141,13 +185,16 @@ case "${1:-}" in
     ;;
   *)
     show_usage "container.sh" "
-  build    Build container images
-  up       Start containers
-  down     Stop containers
-  logs     View container logs (follow)
-  shell    Shell into somnia-agent container
-  status   Show container and image status
-  clean    Stop containers and remove images"
+  build           Build all container images
+  build-opencode  Build OpenCode web container only
+  up              Start somnia-agent container
+  down            Stop containers
+  compose-up      Start all containers with compose
+  compose-down    Stop all containers with compose
+  logs            View container logs (follow)
+  shell           Shell into somnia-agent container
+  status          Show container and image status
+  clean           Stop containers and remove images"
     exit 1
     ;;
 esac
