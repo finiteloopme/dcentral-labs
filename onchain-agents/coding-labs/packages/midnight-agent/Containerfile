@@ -35,6 +35,21 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
+# Install required tools: curl, xz for extracting .tar.xz
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    xz-utils \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Compact compiler (compactc v0.29.0 - latest)
+# Downloads pre-built binary for x64 Linux (musl)
+ENV COMPACT_VERSION=0.4.0
+RUN curl -LsSf "https://github.com/midnightntwrk/compact/releases/download/compact-v${COMPACT_VERSION}/compact-x86_64-unknown-linux-musl.tar.xz" \
+    | tar -xJf - -C /usr/local/bin --strip-components=1 \
+    && chmod +x /usr/local/bin/compact \
+    && compact --version
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -56,16 +71,17 @@ COPY config.toml ./
 RUN pnpm install --frozen-lockfile --prod
 
 # Set environment
+# Note: Cloud Run sets PORT=8080 automatically
 ENV NODE_ENV=production
 ENV MIDNIGHT_AGENT_HOST=0.0.0.0
-ENV MIDNIGHT_AGENT_PORT=4003
+ENV MIDNIGHT_AGENT_PORT=8080
 
-EXPOSE 4003
+EXPOSE 8080
 
 WORKDIR /app/packages/midnight-agent
 
-# Health check
+# Health check - uses PORT env var (8080 for Cloud Run, 4003 for local)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:4003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 8080) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 CMD ["node", "dist/index.js"]

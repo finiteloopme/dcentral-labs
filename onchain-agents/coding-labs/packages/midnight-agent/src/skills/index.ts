@@ -6,6 +6,11 @@
 
 import type { Message } from '@a2a-js/sdk';
 import { generateCompact } from './compact-gen.js';
+import { compileCompact } from './compile.js';
+import { queryState } from './query-state.js';
+import { deployContract } from './deploy.js';
+import { callCircuit } from './call.js';
+import { managePrivateState } from './private-state.js';
 
 /**
  * Events emitted by skill handlers during execution
@@ -28,12 +33,11 @@ export type SkillHandler = (
  */
 export const skillHandlers: Record<string, SkillHandler> = {
   'compact-gen': generateCompact,
-  // Future skills:
-  // 'compile': compileCompact,
-  // 'deploy': deployContract,
-  // 'call': callCircuit,
-  // 'query-state': queryState,
-  // 'private-state': managePrivateState,
+  compile: compileCompact,
+  'query-state': queryState,
+  deploy: deployContract,
+  call: callCircuit,
+  'private-state': managePrivateState,
 };
 
 /**
@@ -62,25 +66,15 @@ export function detectSkill(userText: string): string {
   // Compile skill detection
   if (
     text.includes('compile') ||
-    text.includes('build') ||
+    (text.includes('build') && text.includes('compact')) ||
     text.includes('.compact file')
   ) {
-    // Check if compile skill exists, otherwise fall back to compact-gen
-    if (skillHandlers['compile']) {
-      return 'compile';
-    }
+    return 'compile';
   }
 
   // Deploy skill detection
-  if (
-    text.includes('deploy') ||
-    text.includes('publish contract') ||
-    text.includes('to preview') ||
-    text.includes('to preprod')
-  ) {
-    if (skillHandlers['deploy']) {
-      return 'deploy';
-    }
+  if (text.includes('deploy') || text.includes('publish contract')) {
+    return 'deploy';
   }
 
   // Call circuit detection
@@ -88,11 +82,9 @@ export function detectSkill(userText: string): string {
     text.includes('call circuit') ||
     text.includes('execute circuit') ||
     text.includes('run circuit') ||
-    text.includes('invoke')
+    text.includes('invoke circuit')
   ) {
-    if (skillHandlers['call']) {
-      return 'call';
-    }
+    return 'call';
   }
 
   // Query state detection
@@ -100,22 +92,20 @@ export function detectSkill(userText: string): string {
     text.includes('query') ||
     text.includes('get state') ||
     text.includes('read ledger') ||
-    text.includes('current value')
+    text.includes('current value') ||
+    text.includes('ledger state')
   ) {
-    if (skillHandlers['query-state']) {
-      return 'query-state';
-    }
+    return 'query-state';
   }
 
   // Private state detection
   if (
     text.includes('private state') ||
     text.includes('private key') ||
-    text.includes('witness')
+    text.includes('witness') ||
+    text.includes('local state')
   ) {
-    if (skillHandlers['private-state']) {
-      return 'private-state';
-    }
+    return 'private-state';
   }
 
   // Default to code generation for anything else
