@@ -15,9 +15,19 @@ readonly NC='\033[0m' # No Color
 # Project root (parent of scripts directory)
 readonly PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Default ports
+# Agent Registry
+readonly AGENT_REGISTRY_HOST="${AGENT_REGISTRY_HOST:-localhost}"
+readonly AGENT_REGISTRY_PORT="${AGENT_REGISTRY_PORT:-4000}"
+readonly AGENT_REGISTRY_URL="${AGENT_REGISTRY_URL:-http://${AGENT_REGISTRY_HOST}:${AGENT_REGISTRY_PORT}}"
+
+# Default agent ports (used when registry is not available)
 readonly SOMNIA_AGENT_PORT="${SOMNIA_AGENT_PORT:-4001}"
 readonly SOMNIA_AGENT_HOST="${SOMNIA_AGENT_HOST:-localhost}"
+readonly MIDNIGHT_AGENT_PORT="${MIDNIGHT_AGENT_PORT:-4003}"
+readonly MIDNIGHT_AGENT_HOST="${MIDNIGHT_AGENT_HOST:-localhost}"
+
+# Default agent (for scripts that target a single agent)
+readonly DEFAULT_AGENT="${AGENT:-somnia}"
 
 # Logging functions
 log_info() {
@@ -80,34 +90,78 @@ require_podman() {
   fi
 }
 
-# Check if agent is running
+# Get agent URL by ID (tries registry first, falls back to static config)
+get_agent_url() {
+  local agent_id="${1:-$DEFAULT_AGENT}"
+  
+  # If AGENT_URL is explicitly set, use it
+  if [ -n "${AGENT_URL:-}" ]; then
+    echo "$AGENT_URL"
+    return
+  fi
+  
+  # Try to get from registry first
+  local url
+  url=$(curl -s "${AGENT_REGISTRY_URL}/agents" 2>/dev/null | jq -r ".agents[] | select(.id == \"${agent_id}\") | .url" 2>/dev/null || echo "")
+  
+  if [ -n "$url" ] && [ "$url" != "null" ]; then
+    echo "$url"
+    return
+  fi
+  
+  # Fallback to static config based on agent_id
+  case "$agent_id" in
+    somnia)
+      echo "http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
+      ;;
+    midnight)
+      echo "http://${MIDNIGHT_AGENT_HOST}:${MIDNIGHT_AGENT_PORT}"
+      ;;
+    *)
+      log_warn "Unknown agent: $agent_id, falling back to somnia"
+      echo "http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
+      ;;
+  esac
+}
+
+# List all enabled agents from registry
+list_agents() {
+  curl -s "${AGENT_REGISTRY_URL}/agents" 2>/dev/null | jq -r '.agents[] | "\(.id): \(.url)"' 2>/dev/null || {
+    log_warn "Could not reach registry, using static agent list"
+    echo "somnia: http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
+    echo "midnight: http://${MIDNIGHT_AGENT_HOST}:${MIDNIGHT_AGENT_PORT}"
+  }
+}
+
+# Check if a specific agent is running
 is_agent_running() {
-  curl -s "http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}/health" > /dev/null 2>&1
+  local agent_id="${1:-$DEFAULT_AGENT}"
+  local url
+  url=$(get_agent_url "$agent_id")
+  curl -s "${url}/health" > /dev/null 2>&1
 }
 
 # Wait for agent to be ready
 wait_for_agent() {
-  local max_attempts="${1:-30}"
+  local agent_id="${1:-$DEFAULT_AGENT}"
+  local max_attempts="${2:-30}"
   local attempt=0
+  local url
+  url=$(get_agent_url "$agent_id")
   
-  log_info "Waiting for agent to be ready..."
+  log_info "Waiting for ${agent_id} agent to be ready at ${url}..."
   
   while [ $attempt -lt $max_attempts ]; do
-    if is_agent_running; then
-      log_success "Agent is ready!"
+    if is_agent_running "$agent_id"; then
+      log_success "${agent_id} agent is ready!"
       return 0
     fi
     attempt=$((attempt + 1))
     sleep 1
   done
   
-  log_error "Agent did not become ready within ${max_attempts} seconds"
+  log_error "${agent_id} agent did not become ready within ${max_attempts} seconds"
   return 1
-}
-
-# Get agent base URL
-get_agent_url() {
-  echo "http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
 }
 
 # Change to project root

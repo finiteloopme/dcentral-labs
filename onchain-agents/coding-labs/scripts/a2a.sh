@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # A2A operations: health, agent-card, send
+# Usage: AGENT=midnight ./scripts/a2a.sh send "your message"
+#        Default agent: somnia (controlled by AGENT env var)
 
 source "$(dirname "$0")/common.sh"
 
-readonly AGENT_URL="$(get_agent_url)"
+# Get agent URL based on AGENT env var (default: somnia)
+readonly CURRENT_AGENT="${AGENT:-somnia}"
+readonly AGENT_URL="$(get_agent_url "$CURRENT_AGENT")"
+
+log_info "Targeting agent: ${CURRENT_AGENT} at ${AGENT_URL}"
 
 cmd_health() {
   log_header "Health Check"
@@ -176,7 +182,15 @@ case "${1:-}" in
   agent-card    Fetch and display agent card
   skills        List agent skills
   send \"msg\"    Send a message to the agent
-  send-stream \"msg\"  Send a message with streaming response"
+  send-stream \"msg\"  Send a message with streaming response
+
+Environment Variables:
+  AGENT         Target agent (default: somnia, options: somnia, midnight)
+
+Examples:
+  ./scripts/a2a.sh health                          # Check somnia agent
+  AGENT=midnight ./scripts/a2a.sh health           # Check midnight agent
+  AGENT=midnight ./scripts/a2a.sh send \"Generate a counter contract\""
     exit 1
     ;;
 esac

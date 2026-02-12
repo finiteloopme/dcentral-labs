@@ -82,6 +82,42 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Midnight Agent - A2A server for Midnight Network (ZK blockchain)
+  # ---------------------------------------------------------------------------
+  midnight-agent:
+    build:
+      context: .
+      dockerfile: packages/midnight-agent/Containerfile
+    container_name: midnight-agent
+    ports:
+      - '${MIDNIGHT_AGENT_PORT:-4003}:${MIDNIGHT_AGENT_PORT:-4003}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - MIDNIGHT_AGENT_HOST=0.0.0.0
+      # For local dev with gcloud auth
+      - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
+    volumes:
+      # Mount gcloud credentials for Vertex AI
+      - ${HOME}/.config/gcloud:/creds:ro
+      # Mount config.toml (optional, env vars take precedence)
+      - ./config.toml:/app/config.toml:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # OpenCode Web - Frontend + Backend with wallet connection and A2A routing
   # ---------------------------------------------------------------------------
   # Runs both the OpenCode server (with A2A plugin) and serves the static frontend.
@@ -113,6 +149,7 @@ services:
     depends_on:
       - agent-registry
       - somnia-agent
+      - midnight-agent
     healthcheck:
       test:
         ['CMD', 'wget', '-q', '--spider', 'http://localhost:8080/global/health']

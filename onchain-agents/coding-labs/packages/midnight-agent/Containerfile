@@ -1,0 +1,71 @@
+# Midnight Agent - Container Build
+# Multi-stage build for smaller final image
+
+# ==============================================================================
+# Stage 1: Build
+# ==============================================================================
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace configuration
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
+
+# Copy shared package
+COPY packages/shared ./packages/shared
+
+# Copy midnight-agent package
+COPY packages/midnight-agent ./packages/midnight-agent
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build shared package first, then midnight-agent
+RUN pnpm --filter @coding-labs/shared build
+RUN pnpm --filter @coding-labs/midnight-agent build
+
+# ==============================================================================
+# Stage 2: Production
+# ==============================================================================
+FROM node:20-slim AS production
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+
+# Copy built packages
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+
+COPY --from=builder /app/packages/midnight-agent/package.json ./packages/midnight-agent/
+COPY --from=builder /app/packages/midnight-agent/dist ./packages/midnight-agent/dist
+COPY --from=builder /app/packages/midnight-agent/SKILLS.md ./packages/midnight-agent/
+
+# Copy config.toml for configuration loading
+COPY config.toml ./
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Set environment
+ENV NODE_ENV=production
+ENV MIDNIGHT_AGENT_HOST=0.0.0.0
+ENV MIDNIGHT_AGENT_PORT=4003
+
+EXPOSE 4003
+
+WORKDIR /app/packages/midnight-agent
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:4003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+CMD ["node", "dist/index.js"]

@@ -22,17 +22,17 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 │  └───────────────────────────┬───────────────────────────────────┘  │
 └──────────────────────────────┼──────────────────────────────────────┘
                                │ A2A Protocol (HTTP+JSON)
-          ┌────────────────────┼────────────────────────────────┐
-          ▼                    ▼                                ▼
+          ┌────────────────────┼────────────────────────────────────┐
+          ▼                    ▼                                    ▼
 ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
-│   Somnia Agent    │   │   Sonic Agent     │   │  Midnight Agent   │
-│   (port 4001)     │   │   (future)        │   │  (future)         │
+│   Somnia Agent    │   │  Midnight Agent   │   │   Sonic Agent     │
+│   (port 4001)     │   │  (port 4003)      │   │   (future)        │
 ├───────────────────┤   ├───────────────────┤   ├───────────────────┤
-│ - Solidity Gen    │   │ - Solidity Gen    │   │ - Compact Gen     │
-│ - Deploy          │   │ - FeeM Optimize   │   │ - ZK Proofs       │
-│ - Query State     │   │ - Deploy          │   │ - Privacy         │
-│ - Reactivity      │   │                   │   │                   │
-│ - Data Streams    │   │                   │   │                   │
+│ - Solidity Gen    │   │ - Compact Gen     │   │ - Solidity Gen    │
+│ - Deploy          │   │ - (compile)       │   │ - FeeM Optimize   │
+│ - Query State     │   │ - (deploy)        │   │ - Deploy          │
+│ - Reactivity      │   │ - (call)          │   │                   │
+│ - Data Streams    │   │ - (query-state)   │   │                   │
 └───────────────────┘   └───────────────────┘   └───────────────────┘
 ```
 
@@ -41,8 +41,8 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | Agent | Chain | Status | Description |
 |-------|-------|--------|-------------|
 | **Somnia Agent** | [Somnia](https://somnia.network) | Active | High-performance EVM L1 (1M+ TPS) |
+| **Midnight Agent** | [Midnight](https://midnight.network) | Active | Privacy-focused blockchain with Compact language |
 | Sonic Agent | Sonic | Planned | - |
-| Midnight Agent | Midnight | Planned | Privacy-focused, Compact language |
 
 ### Somnia Agent Skills
 
@@ -96,7 +96,8 @@ Then open http://localhost:3000 in your browser.
 | Service | Port | Description |
 |---------|------|-------------|
 | Agent Registry | 4000 | Central directory of agents |
-| Somnia Agent | 4001 | A2A server for blockchain operations |
+| Somnia Agent | 4001 | A2A server for Somnia blockchain |
+| Midnight Agent | 4003 | A2A server for Midnight blockchain |
 | OpenCode | 4097 | Backend API with A2A plugin + web UI |
 
 ### Run with Containers
@@ -119,6 +120,7 @@ make down
 |-----------|------|-------------|
 | agent-registry | 4000 | Central directory of agents |
 | somnia-agent | 4001 | A2A server for Somnia blockchain |
+| midnight-agent | 4003 | A2A server for Midnight blockchain |
 | opencode-web | 3000 | Web UI with wallet integration |
 
 #### When to Rebuild
@@ -273,10 +275,13 @@ export const skillHandlers: Record<string, SkillHandler> = {
 
 ### Adding a New Agent
 
+See [ADDING-NEW-AGENT.md](./ADDING-NEW-AGENT.md) for a comprehensive step-by-step guide.
+
+Quick overview:
 1. Create new package: `packages/<chain>-agent/`
-2. Copy structure from `somnia-agent`
-3. Update `SKILLS.md` with chain-specific capabilities
-4. Add to `compose.yaml`
+2. Copy structure from `somnia-agent` or `midnight-agent`
+3. Create `SKILLS.md` with chain-specific LLM context
+4. Add to `config.toml`, `compose.yaml`, and scripts
 5. Update this README
 
 ## Testing

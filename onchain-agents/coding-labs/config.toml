@@ -75,7 +75,7 @@ description = "Privacy-preserving blockchain with zero-knowledge proofs and Comp
 service = "midnight-agent"
 chain_id = 0
 keywords = ["midnight", "privacy", "zk", "zero-knowledge", "compact", "confidential"]
-enabled = false
+enabled = true
 
 # -----------------------------------------------------------------------------
 # Networks (blockchain configurations)
@@ -114,6 +114,34 @@ name = "Sonic"
 symbol = "S"
 decimals = 18
 
+# Midnight Networks (Preview and Preprod environments)
+# Note: Midnight uses different infrastructure than EVM chains
+[default.networks.midnight-preview]
+name = "Midnight Preview"
+node_rpc = "https://rpc.preview.midnight.network"
+indexer_graphql = "https://indexer.preview.midnight.network/api/v3/graphql"
+proof_server = "https://lace-proof-pub.preview.midnight.network"
+faucet = "https://faucet.preview.midnight.network/"
+explorer = "https://explorer.preview.midnight.network/"
+
+[default.networks.midnight-preprod]
+name = "Midnight Preprod"
+node_rpc = "https://rpc.preprod.midnight.network"
+indexer_graphql = "https://indexer.preprod.midnight.network/api/v3/graphql"
+proof_server = "https://lace-proof-pub.preprod.midnight.network"
+faucet = "https://faucet.preprod.midnight.network/"
+explorer = "https://explorer.preprod.midnight.network/"
+
+# Midnight version compatibility (v1.0)
+[default.midnight]
+compact_compiler = "0.28.0"
+compact_language = "0.20"
+compact_runtime = "0.14.0"
+midnight_js = "3.0.0"
+ledger = "7.0.0"
+proof_server = "7.0.0"
+indexer = "3.0.0"
+
 # -----------------------------------------------------------------------------
 # LLM Configuration
 # -----------------------------------------------------------------------------
@@ -141,7 +169,7 @@ model = "claude-opus-4.5"
 [default.llm.components]
 somnia-agent = "vertex-anthropic"
 sonic-agent = "vertex-gemini"
-midnight-agent = "vertex-gemini"
+midnight-agent = "vertex-anthropic"
 opencode = "vertex-anthropic"
 
 # -----------------------------------------------------------------------------
@@ -157,7 +185,7 @@ opencode = "vertex-anthropic"
 
 [default.auth]
 allowed_users = [
-  "kunall@google.com",
+  "kunallimaye@gmail.com",
   "admin@kunall.altostrat.com",
 ]
 

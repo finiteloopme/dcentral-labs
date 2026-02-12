@@ -1,0 +1,39 @@
+{
+  "name": "@coding-labs/midnight-agent",
+  "version": "0.1.0",
+  "description": "A2A agent for Midnight Network - privacy-preserving blockchain with ZK proofs",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "keywords": [
+    "midnight",
+    "a2a",
+    "agent",
+    "blockchain",
+    "zk",
+    "zero-knowledge",
+    "compact",
+    "privacy"
+  ],
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.10",
+    "@coding-labs/shared": "workspace:*",
+    "@genkit-ai/vertexai": "^1.8.0",
+    "express": "^4.21.0",
+    "genkit": "^1.8.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

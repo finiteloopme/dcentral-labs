@@ -14,6 +14,7 @@ cmd_build() {
   log_header "Building all packages"
   run_pnpm --filter @coding-labs/shared build
   run_pnpm --filter @coding-labs/somnia-agent build
+  run_pnpm --filter @coding-labs/midnight-agent build
   log_success "Build complete"
 }
 
@@ -28,20 +29,22 @@ cmd_dev() {
 cmd_run_all() {
   log_header "Starting all services"
   log_info "Services:"
-  log_info "  - Agent Registry: http://localhost:4000"
-  log_info "  - Somnia Agent:   http://localhost:4001"
-  log_info "  - OpenCode Web:   http://localhost:3000 (connects to backend on 4097)"
+  log_info "  - Agent Registry:  http://localhost:4000"
+  log_info "  - Somnia Agent:    http://localhost:4001"
+  log_info "  - Midnight Agent:  http://localhost:4003"
+  log_info "  - OpenCode Web:    http://localhost:3000 (connects to backend on 4097)"
   log_info ""
   log_info "Press Ctrl+C to stop all services"
   echo ""
   
   npx concurrently \
-    --names "registry,agent,opencode" \
-    --prefix-colors "blue,green,yellow" \
+    --names "registry,somnia,midnight,opencode" \
+    --prefix-colors "blue,green,magenta,yellow" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
+    "cd packages/midnight-agent && npx tsx src/index.ts" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097"
 }
 
@@ -49,6 +52,7 @@ cmd_typecheck() {
   log_header "Running TypeScript type checking"
   run_pnpm --filter @coding-labs/shared typecheck
   run_pnpm --filter @coding-labs/somnia-agent typecheck
+  run_pnpm --filter @coding-labs/midnight-agent typecheck
   log_success "Type checking passed"
 }
 
@@ -74,6 +78,7 @@ cmd_clean() {
   log_header "Cleaning build artifacts"
   rm -rf packages/shared/dist
   rm -rf packages/somnia-agent/dist
+  rm -rf packages/midnight-agent/dist
   rm -rf node_modules/.cache
   log_success "Clean complete"
 }
@@ -84,6 +89,7 @@ cmd_clean_all() {
   rm -rf node_modules
   rm -rf packages/shared/node_modules
   rm -rf packages/somnia-agent/node_modules
+  rm -rf packages/midnight-agent/node_modules
   log_success "Full clean complete"
 }
 
