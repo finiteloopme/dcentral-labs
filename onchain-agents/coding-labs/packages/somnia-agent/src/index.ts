@@ -1,15 +1,36 @@
 import express from 'express';
 import type { TaskStore } from '@a2a-js/sdk/server';
-import {
-  InMemoryTaskStore,
-  DefaultRequestHandler,
-} from '@a2a-js/sdk/server';
+import { InMemoryTaskStore, DefaultRequestHandler } from '@a2a-js/sdk/server';
 import { A2AExpressApp } from '@a2a-js/sdk/server/express';
 import { somniaAgentCard } from './agent-card.js';
 import { SomniaAgentExecutor } from './executor.js';
 
-// Support both PORT (Cloud Run) and SOMNIA_AGENT_PORT (local dev)
-const PORT = parseInt(process.env.PORT || process.env.SOMNIA_AGENT_PORT || '4001', 10);
+// Import config loader for fallback values
+let configPort = 4001;
+let configHost = 'localhost';
+try {
+  // Dynamic import to handle cases where config.toml doesn't exist
+  const { loadConfigFile, getServiceConfig, findConfigPath } =
+    await import('@coding-labs/shared/config');
+  const configPath = findConfigPath();
+  if (configPath) {
+    const config = loadConfigFile(configPath);
+    const serviceConfig = getServiceConfig(config, 'somnia-agent');
+    configPort = serviceConfig.port;
+    configHost = serviceConfig.host;
+    console.log(`[SomniaAgent] Loaded config from ${configPath}`);
+  }
+} catch {
+  // Config not available, use defaults
+  console.log('[SomniaAgent] No config.toml found, using defaults');
+}
+
+// Resolution order: ENV vars > config.toml > hardcoded defaults
+const PORT = parseInt(
+  process.env.PORT || process.env.SOMNIA_AGENT_PORT || String(configPort),
+  10
+);
+const HOST = process.env.HOST || process.env.SOMNIA_AGENT_HOST || configHost;
 
 async function main() {
   console.log('[SomniaAgent] Starting Somnia Agent...');
@@ -42,8 +63,8 @@ async function main() {
   });
 
   // 7. Start the server
-  expressApp.listen(PORT, () => {
-    console.log(`[SomniaAgent] Server started on http://localhost:${PORT}`);
+  expressApp.listen(PORT, HOST, () => {
+    console.log(`[SomniaAgent] Server started on http://${HOST}:${PORT}`);
     console.log(
       `[SomniaAgent] Agent Card: http://localhost:${PORT}/.well-known/agent.json`
     );

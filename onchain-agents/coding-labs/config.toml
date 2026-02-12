@@ -1,0 +1,168 @@
+# Coding Labs - Master Configuration
+# ===================================
+# This is the single source of truth for all service configurations.
+#
+# Resolution order (later wins):
+#   1. [default.*] sections (base configuration)
+#   2. [<env>.*] sections (environment-specific overrides)
+#   3. Environment variables (container/cloud overrides)
+#
+# Environment variable naming convention:
+#   service "somnia-agent" → SOMNIA_AGENT_HOST, SOMNIA_AGENT_PORT, SOMNIA_AGENT_URL
+#   service "agent-registry" → AGENT_REGISTRY_HOST, AGENT_REGISTRY_PORT, AGENT_REGISTRY_URL
+
+[meta]
+version = "1.0"
+updated = "2026-02-12"
+
+# =============================================================================
+# DEFAULTS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Services
+# -----------------------------------------------------------------------------
+
+[default.services.agent-registry]
+host = "localhost"
+port = 4000
+
+[default.services.somnia-agent]
+host = "localhost"
+port = 4001
+
+[default.services.sonic-agent]
+host = "localhost"
+port = 4002
+
+[default.services.midnight-agent]
+host = "localhost"
+port = 4003
+
+[default.services.opencode-server]
+host = "localhost"
+port = 4097
+
+[default.services.opencode-frontend]
+host = "localhost"
+port = 3000
+
+# -----------------------------------------------------------------------------
+# Agents (registered in agent-registry)
+# -----------------------------------------------------------------------------
+# Each agent references a service for URL construction.
+# Explicit 'url' overrides the constructed URL (for containers/cloud).
+
+[default.agents.somnia]
+name = "Somnia Agent"
+description = "High-performance EVM L1 with 1M+ TPS. Generates and deploys Solidity contracts."
+service = "somnia-agent"
+chain_id = 50312
+keywords = ["somnia", "solidity", "erc20", "erc721", "nft", "token", "deploy", "contract", "evm"]
+enabled = true
+
+[default.agents.sonic]
+name = "Sonic Agent"
+description = "High-performance EVM chain with FeeM optimization."
+service = "sonic-agent"
+chain_id = 146
+keywords = ["sonic", "ftm", "fantom", "feem"]
+enabled = false
+
+[default.agents.midnight]
+name = "Midnight Agent"
+description = "Privacy-preserving blockchain with zero-knowledge proofs and Compact language."
+service = "midnight-agent"
+chain_id = 0
+keywords = ["midnight", "privacy", "zk", "zero-knowledge", "compact", "confidential"]
+enabled = false
+
+# -----------------------------------------------------------------------------
+# Networks (blockchain configurations)
+# -----------------------------------------------------------------------------
+
+[default.networks.somnia-mainnet]
+chain_id = 5031
+name = "Somnia Mainnet"
+rpc_url = "https://api.infra.mainnet.somnia.network/"
+explorer_url = "https://explorer.somnia.network"
+
+[default.networks.somnia-mainnet.native_currency]
+name = "SOMI"
+symbol = "SOMI"
+decimals = 18
+
+[default.networks.somnia-testnet]
+chain_id = 50312
+name = "Somnia Testnet (Shannon)"
+rpc_url = "https://dream-rpc.somnia.network/"
+explorer_url = "https://shannon-explorer.somnia.network"
+
+[default.networks.somnia-testnet.native_currency]
+name = "STT"
+symbol = "STT"
+decimals = 18
+
+[default.networks.sonic-mainnet]
+chain_id = 146
+name = "Sonic Mainnet"
+rpc_url = "https://rpc.soniclabs.com"
+explorer_url = "https://sonicscan.org"
+
+[default.networks.sonic-mainnet.native_currency]
+name = "Sonic"
+symbol = "S"
+decimals = 18
+
+# -----------------------------------------------------------------------------
+# LLM Configuration
+# -----------------------------------------------------------------------------
+# Define reusable LLM providers, then assign them to components.
+# Components not listed fall back to the default provider.
+
+# Default provider for components not explicitly assigned
+[default.llm]
+default = "vertex-gemini"
+
+# Available providers
+[default.llm.providers.vertex-gemini]
+type = "vertex"
+project = "kunal-scratch"
+location = "us-central1"
+model = "gemini-2.0-flash"
+
+[default.llm.providers.vertex-anthropic]
+type = "vertex-anthropic"
+project = "kunal-scratch"
+location = "us-east5"
+model = "claude-sonnet-4"
+
+# Component assignments (omitted = uses default)
+[default.llm.components]
+somnia-agent = "vertex-gemini"
+sonic-agent = "vertex-gemini"
+midnight-agent = "vertex-gemini"
+opencode = "vertex-anthropic"
+
+# =============================================================================
+# PRODUCTION OVERRIDES
+# =============================================================================
+
+[production.services.agent-registry]
+host = "0.0.0.0"
+
+[production.services.somnia-agent]
+host = "0.0.0.0"
+
+[production.services.sonic-agent]
+host = "0.0.0.0"
+
+[production.services.midnight-agent]
+host = "0.0.0.0"
+
+[production.services.opencode-server]
+host = "0.0.0.0"
+port = 443
+
+[production.services.opencode-frontend]
+host = "0.0.0.0"

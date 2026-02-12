@@ -44,6 +44,17 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | Sonic Agent | Sonic | Planned | - |
 | Midnight Agent | Midnight | Planned | Privacy-focused, Compact language |
 
+### Somnia Agent Skills
+
+| Skill | Status | Description |
+|-------|--------|-------------|
+| `solidity-gen` | Active | Generate Solidity contracts optimized for Somnia gas model |
+| `deploy` | Active | Prepare unsigned deployment transactions |
+| `tx-status` | Active | Check transaction status on Somnia |
+| `query-state` | Active | Query on-chain state (balances, contract calls) |
+| `reactivity-setup` | Planned | Generate Somnia Reactivity code |
+| `data-streams` | Planned | Generate Data Streams schemas |
+
 ## Quick Start
 
 ### Prerequisites
@@ -109,17 +120,55 @@ Then open http://localhost:3000 in your browser.
 ### Run with Containers
 
 ```bash
-# Build container image
-make container-build
+# First time or after code changes - build and start all containers:
+make compose-rebuild
 
-# Start container
-make up
+# Quick restart (no rebuild, uses cached images):
+make compose-up
 
-# View logs
-make logs
+# Just build without starting:
+make compose-build
 
-# Stop container
-make down
+# View logs:
+podman-compose logs -f
+
+# Stop all containers:
+make compose-down
+```
+
+| Container | Port | Description |
+|-----------|------|-------------|
+| agent-registry | 4000 | Central directory of agents |
+| somnia-agent | 4001 | A2A server for Somnia blockchain |
+| opencode-web | 3000 | Web UI with wallet integration |
+
+#### When to Rebuild
+
+| Scenario | Command |
+|----------|---------|
+| First time setup | `make compose-rebuild` |
+| Changed TypeScript code | `make compose-rebuild` |
+| Changed Containerfile | `make compose-rebuild` |
+| Changed compose.yaml | `make compose-up` (restart only) |
+| Changed config.toml | `make compose-up` (env vars regenerated) |
+
+#### GCloud Credentials
+
+The compose.yaml mounts `~/.config/gcloud` into containers for Vertex AI access. Ensure you have run:
+
+```bash
+gcloud auth application-default login
+```
+
+#### Verify Containers
+
+```bash
+curl http://localhost:4000/health  # agent-registry
+curl http://localhost:4001/health  # somnia-agent
+curl http://localhost:3000/global/health  # opencode-web
+
+# Test somnia-agent skill
+./scripts/a2a.sh send "Create a simple counter contract"
 ```
 
 ## Development
@@ -198,9 +247,11 @@ make help  # Show all available targets
 #### Containers
 | Target | Description |
 |--------|-------------|
-| `container-build` | Build images |
-| `up` | Start containers |
-| `down` | Stop containers |
+| `compose-rebuild` | Build and start all containers |
+| `compose-build` | Build container images only |
+| `compose-up` | Start containers (no rebuild) |
+| `compose-down` | Stop containers |
+| `container-build` | Build single image |
 | `logs` | View logs |
 | `shell` | Shell into container |
 

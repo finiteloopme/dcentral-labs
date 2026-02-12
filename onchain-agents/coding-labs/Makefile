@@ -3,10 +3,12 @@
 
 .PHONY: help install build dev typecheck lint lint-fix format clean clean-all \
         test test-unit test-unit-watch test-coverage test-integration \
-        container-build container-build-opencode up down compose-up compose-down \
+        container-build container-build-opencode up down \
+        compose-build compose-up compose-rebuild compose-down \
         logs shell container-status container-clean \
         health agent-card skills send send-stream \
-        opencode-server opencode-frontend opencode-typecheck
+        opencode-server opencode-frontend opencode-typecheck \
+        generate-config registry-dev
 
 # ============================================================================
 # Configuration
@@ -17,6 +19,18 @@ OPENCODE_PORT ?= 4097
 
 # Default target
 .DEFAULT_GOAL := help
+
+# ============================================================================
+# Configuration Management
+# ============================================================================
+
+generate-config: ## Generate .env.generated from config.toml
+	@bun scripts/generate-env.ts
+	@echo "Generated .env.generated"
+
+generate-config-prod: ## Generate production .env.generated from config.toml
+	@bun scripts/generate-env.ts --env=production
+	@echo "Generated .env.generated for production"
 
 # ============================================================================
 # Development
@@ -30,6 +44,9 @@ build: ## Build all packages
 
 dev: ## Run somnia-agent in dev mode
 	@./scripts/dev.sh dev
+
+registry-dev: ## Run agent-registry in dev mode
+	@cd packages/agent-registry && npx tsx src/index.ts
 
 typecheck: ## Run TypeScript type checking
 	@./scripts/dev.sh typecheck
@@ -84,7 +101,13 @@ up: ## Start somnia-agent container
 down: ## Stop containers
 	@./scripts/container.sh down
 
-compose-up: ## Start all containers with compose
+compose-build: ## Build all container images with compose
+	@./scripts/container.sh compose-build
+
+compose-up: generate-config ## Start all containers with compose (generates .env.generated first)
+	@./scripts/container.sh compose-up
+
+compose-rebuild: generate-config compose-build ## Build and start all containers (use after code changes)
 	@./scripts/container.sh compose-up
 
 compose-down: ## Stop all containers with compose
@@ -138,6 +161,16 @@ send-stream: ## Send message with streaming (usage: make send-stream MSG="your m
 	@./scripts/a2a.sh send-stream "$(MSG)"
 
 # ============================================================================
+# Agent Registry
+# ============================================================================
+
+registry-health: ## Check agent registry health
+	@curl -s http://localhost:4000/health | jq .
+
+registry-agents: ## List agents from registry
+	@curl -s http://localhost:4000/agents | jq .
+
+# ============================================================================
 # Help
 # ============================================================================
 
@@ -146,21 +179,28 @@ help: ## Show this help
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Examples:"
 	@echo "  make install              # Install dependencies"
 	@echo "  make dev                  # Start somnia-agent in dev mode"
+	@echo "  make registry-dev         # Start agent-registry in dev mode"
 	@echo "  make opencode-server      # Start OpenCode server (API with A2A plugin)"
 	@echo "  make opencode-frontend    # Start OpenCode web frontend"
-	@echo "  make compose-up           # Start all containers"
+	@echo "  make compose-rebuild      # Build and start all containers"
+	@echo "  make compose-up           # Start all containers (no rebuild)"
 	@echo "  make send MSG=\"Create an ERC-20 token\"  # Send message to agent"
 	@echo ""
-	@echo "Local integration testing (3 terminals):"
-	@echo "  Terminal 1: make dev               # Somnia Agent on :4001"
-	@echo "  Terminal 2: make opencode-server   # OpenCode backend on :4097"
-	@echo "  Terminal 3: make opencode-frontend # OpenCode web UI on :3000"
+	@echo "Local integration testing (4 terminals):"
+	@echo "  Terminal 1: make registry-dev      # Agent Registry on :4000"
+	@echo "  Terminal 2: make dev               # Somnia Agent on :4001"
+	@echo "  Terminal 3: make opencode-server   # OpenCode backend on :4097"
+	@echo "  Terminal 4: make opencode-frontend # OpenCode web UI on :3000"
 	@echo "  Then open http://localhost:3000 in browser"
+	@echo ""
+	@echo "Configuration:"
+	@echo "  make generate-config               # Generate .env.generated from config.toml"
+	@echo "  make generate-config-prod          # Generate production config"
 	@echo ""
 	@echo "Configuration overrides:"
 	@echo "  make opencode-server OPENCODE_PORT=4098  # Use custom server port"

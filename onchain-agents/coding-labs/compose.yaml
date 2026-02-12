@@ -1,53 +1,131 @@
 # Coding Labs - Local Development
-# Usage: podman-compose up -d
-# Or: docker compose up -d
+# ================================
+# Prerequisites:
+#   1. Generate environment file: bun scripts/generate-env.ts
+#   2. Ensure GCloud credentials are available
+#
+# Usage:
+#   podman-compose up -d
+#   docker compose up -d
 
 services:
+  # ---------------------------------------------------------------------------
+  # Agent Registry - Central directory of all agents
+  # ---------------------------------------------------------------------------
+  agent-registry:
+    build:
+      context: .
+      dockerfile: packages/agent-registry/Containerfile
+    container_name: agent-registry
+    ports:
+      - '${AGENT_REGISTRY_PORT:-4000}:${AGENT_REGISTRY_PORT:-4000}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - AGENT_REGISTRY_HOST=0.0.0.0
+      # Override agent URLs for container networking
+      - SOMNIA_AGENT_URL=http://somnia-agent:4001
+      - SONIC_AGENT_URL=http://sonic-agent:4002
+      - MIDNIGHT_AGENT_URL=http://midnight-agent:4003
+    volumes:
+      # Mount config.toml for the registry to read
+      - ./config.toml:/app/config.toml:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Somnia Agent - A2A server for Somnia blockchain
+  # ---------------------------------------------------------------------------
   somnia-agent:
     build:
       context: .
       dockerfile: packages/somnia-agent/Containerfile
     container_name: somnia-agent
     ports:
-      - "4001:4001"
+      - '${SOMNIA_AGENT_PORT:-4001}:${SOMNIA_AGENT_PORT:-4001}'
+    env_file:
+      - .env.generated
     environment:
       - NODE_ENV=development
-      - SOMNIA_AGENT_PORT=4001
       - SOMNIA_AGENT_HOST=0.0.0.0
-      - GOOGLE_CLOUD_PROJECT=kunal-scratch
-      - GOOGLE_CLOUD_LOCATION=global
       # For local dev with gcloud auth
       - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
     volumes:
       # Mount gcloud credentials for Vertex AI
       - ${HOME}/.config/gcloud:/creds:ro
+      # Mount config.toml (optional, env vars take precedence)
+      - ./config.toml:/app/config.toml:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     restart: unless-stopped
 
-  # OpenCode Web console with wallet connection and A2A routing
+  # ---------------------------------------------------------------------------
+  # OpenCode Web - Frontend + Backend with wallet connection and A2A routing
+  # ---------------------------------------------------------------------------
+  # Runs both the OpenCode server (with A2A plugin) and serves the static frontend.
+  # In local dev, these are separate (Vite dev server + opencode web), but in
+  # containers they're combined via `opencode serve` with OPENCODE_STATIC_DIR.
   opencode-web:
     build:
       context: ./opencode
       dockerfile: Containerfile.web
     container_name: opencode-web
     ports:
-      - "3000:3000"
+      # Container runs on 8080 (set in Containerfile.web), map to host port 3000
+      - '${OPENCODE_FRONTEND_PORT:-3000}:8080'
+    env_file:
+      - .env.generated
     environment:
       - NODE_ENV=development
-      - PORT=3000
       - HOST=0.0.0.0
-      - A2A_SOMNIA_URL=http://somnia-agent:4001
-      - A2A_SONIC_URL=http://sonic-agent:4002
-      - A2A_MIDNIGHT_URL=http://midnight-agent:4003
+      - PORT=8080
+      # Agent Registry URL for A2A plugin
+      - AGENT_REGISTRY_URL=http://agent-registry:4000
+      # GCloud credentials for Vertex AI
+      - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
+      # LLM config comes from .env.generated (GOOGLE_CLOUD_PROJECT, VERTEX_LOCATION)
+      # which is generated from config.toml [default.llm.components.opencode]
+    volumes:
+      # Mount gcloud credentials for Vertex AI
+      - ${HOME}/.config/gcloud:/creds:ro
     depends_on:
+      - agent-registry
       - somnia-agent
+    healthcheck:
+      test:
+        ['CMD', 'wget', '-q', '--spider', 'http://localhost:8080/global/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
-# For local development without containers, use:
-# pnpm dev (for somnia-agent)
-# cd opencode && bun run dev:web (for OpenCode console)
+# ===========================================================================
+# Local Development (without containers)
+# ===========================================================================
+# Terminal 1: make registry-dev     (Agent Registry on :4000)
+# Terminal 2: make dev              (Somnia Agent on :4001)
+# Terminal 3: make opencode-server  (OpenCode Backend on :4097)
+# Terminal 4: make opencode-frontend (OpenCode Frontend on :3000)

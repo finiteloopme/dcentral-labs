@@ -9,6 +9,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./config": {
+      "import": "./dist/config/index.js",
+      "types": "./dist/config/index.d.ts"
+    },
     "./wallet": {
       "import": "./dist/wallet/index.js",
       "types": "./dist/wallet/index.d.ts"
@@ -25,6 +29,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "smol-toml": "^1.3.1",
     "viem": "^2.21.0"
   },
   "devDependencies": {

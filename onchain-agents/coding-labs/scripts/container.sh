@@ -139,6 +139,12 @@ cmd_clean() {
   log_success "Container cleanup complete"
 }
 
+cmd_compose_build() {
+  log_header "Building all container images with compose"
+  podman-compose build
+  log_success "All container images built"
+}
+
 cmd_compose_up() {
   log_header "Starting all containers with compose"
   podman-compose up -d
@@ -165,6 +171,9 @@ case "${1:-}" in
   down)
     cmd_down
     ;;
+  compose-build)
+    cmd_compose_build
+    ;;
   compose-up)
     cmd_compose_up
     ;;
@@ -189,6 +198,7 @@ case "${1:-}" in
   build-opencode  Build OpenCode web container only
   up              Start somnia-agent container
   down            Stop containers
+  compose-build   Build all container images with compose
   compose-up      Start all containers with compose
   compose-down    Stop all containers with compose
   logs            View container logs (follow)

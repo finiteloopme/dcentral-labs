@@ -1,6 +1,9 @@
 import type { Message } from '@a2a-js/sdk';
 import type { WalletContext } from '@coding-labs/shared';
 import { generateSolidity, type SolidityGenResult } from './solidity-gen.js';
+import { deployContract } from './deploy.js';
+import { checkTxStatus } from './tx-status.js';
+import { queryState } from './query-state.js';
 
 /**
  * Skill handler function type
@@ -41,10 +44,9 @@ export function extractTextFromMessage(message: Message): string {
  */
 export const skillHandlers: Record<string, SkillHandler> = {
   'solidity-gen': generateSolidity,
-  // Phase 2: Add these handlers
-  // 'deploy': deployContract,
-  // 'tx-status': checkTxStatus,
-  // 'query-state': queryState,
+  deploy: deployContract,
+  'tx-status': checkTxStatus,
+  'query-state': queryState,
   // Phase 3: Add these handlers
   // 'reactivity-setup': setupReactivity,
   // 'data-streams': generateDataStreams,
@@ -91,10 +93,7 @@ export function detectSkill(userMessage: string): string {
     return 'reactivity-setup';
   }
 
-  if (
-    lowerMessage.includes('stream') ||
-    lowerMessage.includes('data stream')
-  ) {
+  if (lowerMessage.includes('stream') || lowerMessage.includes('data stream')) {
     return 'data-streams';
   }
 
@@ -103,3 +102,6 @@ export function detectSkill(userMessage: string): string {
 }
 
 export { generateSolidity, type SolidityGenResult };
+export { deployContract } from './deploy.js';
+export { checkTxStatus } from './tx-status.js';
+export { queryState } from './query-state.js';
