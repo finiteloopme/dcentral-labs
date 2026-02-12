@@ -224,9 +224,9 @@ function generateEnv(env: string = 'development'): string {
     lines.push(`VERTEX_LOCATION=${ocProvider.location || ''}`);
   }
 
-  // Also set GOOGLE_CLOUD_LOCATION for backward compatibility (somnia-agent default)
-  if (defaultProvider?.location) {
-    lines.push(`GOOGLE_CLOUD_LOCATION=${defaultProvider.location}`);
+  // Also set GOOGLE_CLOUD_LOCATION for OpenCode (it reads this first before VERTEX_LOCATION)
+  if (ocProvider?.location) {
+    lines.push(`GOOGLE_CLOUD_LOCATION=${ocProvider.location}`);
   }
   lines.push('');
 

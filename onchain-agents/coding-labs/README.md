@@ -78,62 +78,41 @@ make install
 make build
 ```
 
-### Run Locally (Agent Only)
+### Run Locally
 
 ```bash
-# Start the agent in dev mode
-make dev
+# Start all services (registry + agent + opencode) in one command
+make run
 
-# In another terminal, check health
+# Check health of all services
 make health
 
-# View the agent card
-make agent-card
-
-# Send a message
+# Send a message to the agent
 make send MSG="Create an ERC-20 token called TestCoin with symbol TST"
-```
-
-### Run with OpenCode Web UI (Full Integration)
-
-Run in 3 separate terminals:
-
-```bash
-# Terminal 1: Start Somnia Agent
-make dev
-
-# Terminal 2: Start OpenCode server (backend with A2A plugin)
-make opencode-server
-
-# Terminal 3: Start OpenCode frontend (web UI with wallet)
-make opencode-frontend
 ```
 
 Then open http://localhost:3000 in your browser.
 
 | Service | Port | Description |
 |---------|------|-------------|
+| Agent Registry | 4000 | Central directory of agents |
 | Somnia Agent | 4001 | A2A server for blockchain operations |
-| OpenCode Server | 4097 | Backend API with A2A plugin |
-| OpenCode Frontend | 3000 | Web UI with wallet integration |
+| OpenCode | 4097 | Backend API with A2A plugin + web UI |
 
 ### Run with Containers
 
 ```bash
-# First time or after code changes - build and start all containers:
-make compose-rebuild
+# Build and start all containers
+make rebuild
 
-# Quick restart (no rebuild, uses cached images):
-make compose-up
+# Start containers (no rebuild)
+make up
 
-# Just build without starting:
-make compose-build
+# View logs
+make logs
 
-# View logs:
-podman-compose logs -f
-
-# Stop all containers:
-make compose-down
+# Stop all containers
+make down
 ```
 
 | Container | Port | Description |
@@ -146,11 +125,11 @@ make compose-down
 
 | Scenario | Command |
 |----------|---------|
-| First time setup | `make compose-rebuild` |
-| Changed TypeScript code | `make compose-rebuild` |
-| Changed Containerfile | `make compose-rebuild` |
-| Changed compose.yaml | `make compose-up` (restart only) |
-| Changed config.toml | `make compose-up` (env vars regenerated) |
+| First time setup | `make rebuild` |
+| Changed TypeScript code | `make rebuild` |
+| Changed Containerfile | `make rebuild` |
+| Changed compose.yaml | `make up` (restart only) |
+| Changed config.toml | `make up` (env vars regenerated) |
 
 #### GCloud Credentials
 
@@ -225,50 +204,38 @@ coding-labs/
 make help  # Show all available targets
 ```
 
-#### Development
+#### Local
 | Target | Description |
 |--------|-------------|
 | `install` | Install dependencies |
+| `clean` | Clean build artifacts and node_modules |
 | `build` | Build all packages |
-| `dev` | Run agent in dev mode |
-| `typecheck` | TypeScript type checking |
-| `lint` | Run ESLint |
-| `format` | Format with Prettier |
-| `clean` | Clean build artifacts |
-
-#### Testing
-| Target | Description |
-|--------|-------------|
 | `test` | Run all tests |
-| `test-unit` | Run unit tests |
-| `test-coverage` | Run tests with coverage |
-| `test-integration` | Run integration tests |
+| `run` / `dev` | Run all services (registry + agent + opencode) |
+| `lint` | Lint and format code |
 
-#### Containers
+#### Container
 | Target | Description |
 |--------|-------------|
-| `compose-rebuild` | Build and start all containers |
-| `compose-build` | Build container images only |
-| `compose-up` | Start containers (no rebuild) |
-| `compose-down` | Stop containers |
-| `container-build` | Build single image |
-| `logs` | View logs |
-| `shell` | Shell into container |
+| `rebuild` | Build and start all containers |
+| `up` | Start containers (no rebuild) |
+| `down` | Stop containers |
+| `logs` | View container logs |
+| `container-build` | Build images only |
+| `container-clean` | Remove containers and images |
 
-#### A2A Agent
+#### Cloud
 | Target | Description |
 |--------|-------------|
-| `health` | Check agent health |
-| `agent-card` | Show agent card |
-| `skills` | List agent skills |
-| `send MSG="..."` | Send message to agent |
+| `cloud-build` | Build for Cloud Run (stub) |
+| `cloud-deploy` | Deploy to Cloud Run (stub) |
 
-#### OpenCode (Forked)
+#### Utilities
 | Target | Description |
 |--------|-------------|
-| `opencode-server` | Run OpenCode backend (port 4097) |
-| `opencode-frontend` | Run OpenCode web UI (port 3000) |
-| `opencode-typecheck` | Typecheck OpenCode fork |
+| `config` | Generate .env.generated from config.toml |
+| `health` | Check health of all services |
+| `send MSG="..."` | Send A2A message to agent |
 
 ### Adding a New Skill
 
@@ -317,12 +284,6 @@ export const skillHandlers: Record<string, SkillHandler> = {
 ```bash
 # Run all tests
 make test
-
-# Run unit tests in watch mode
-make test-unit-watch
-
-# Run with coverage
-make test-coverage
 ```
 
 ### Writing Tests
@@ -353,36 +314,25 @@ describe('somniaAgentCard', () => {
 | `GOOGLE_CLOUD_PROJECT` | `kunal-scratch` | GCP project for Vertex AI |
 | `GOOGLE_CLOUD_LOCATION` | `global` | GCP region |
 
-### OpenCode Frontend Configuration
+### Centralized Configuration
 
-The frontend uses `config.toml` for configuration with environment-specific sections:
+All configuration is managed via `config.toml` at the project root:
 
 ```toml
-# opencode/packages/app/config.toml
+# config.toml - services, agents, networks, LLM providers
 
-[default.server]
+[default.services.somnia-agent]
 host = "localhost"
-port = 4097
+port = 4001
 
-[production.server]
-host = "0.0.0.0"
-port = 443
+[default.llm.providers.vertex-gemini]
+type = "vertex"
+project = "kunal-scratch"
+location = "us-central1"
+model = "gemini-2.0-flash"
 ```
 
-**Config resolution order** (later overrides earlier):
-1. `config.toml` `[default]` section
-2. `config.toml` `[env]` section (dev/test/production)
-3. CLI environment variables
-
-**Override via Makefile:**
-```bash
-# Change backend port
-make opencode-server OPENCODE_PORT=4098
-make opencode-frontend PORT=4098
-
-# Switch environment
-make opencode-frontend ENV=production
-```
+Run `make config` to generate `.env.generated` for containers.
 
 ### Vertex AI Setup
 
