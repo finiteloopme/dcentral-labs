@@ -1,0 +1,238 @@
+# Cloud Build pipeline for Cloud Run deployment
+# Trigger: make cloud-deploy (manual)
+#
+# Deployment order:
+#   1. Build all images (parallel)
+#   2. Push all images
+#   3. Deploy agent-registry (no dependencies)
+#   4. Deploy somnia-agent (with AGENT_REGISTRY_URL)
+#   5. Deploy opencode-web (with both URLs)
+#
+# All services are PUBLIC with no auth (TODO: lock down internal services)
+
+steps:
+  # ===========================================================================
+  # BUILD ALL IMAGES (parallel)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-registry'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/agent-registry:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/agent-registry:latest'
+      - '-f'
+      - 'packages/agent-registry/Containerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-somnia'
+    waitFor: ['-'] # Start immediately (parallel with build-registry)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent:latest'
+      - '-f'
+      - 'packages/somnia-agent/Containerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-opencode'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:latest'
+      - '-f'
+      - 'opencode/Containerfile.web'
+      - './opencode'
+
+  # ===========================================================================
+  # PUSH ALL IMAGES
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-registry'
+    waitFor: ['build-registry']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/agent-registry'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-somnia'
+    waitFor: ['build-somnia']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-opencode'
+    waitFor: ['build-opencode']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web'
+
+  # ===========================================================================
+  # DEPLOY 1: agent-registry (no dependencies)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-registry'
+    waitFor: ['push-registry']
+    args:
+      - 'run'
+      - 'deploy'
+      - 'agent-registry'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/agent-registry:${_TAG}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--ingress=all'
+      - '--port=8080'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--min-instances=0'
+      - '--max-instances=2'
+      - '--set-env-vars=NODE_ENV=production'
+
+  # ===========================================================================
+  # GET agent-registry URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-registry-url'
+    waitFor: ['deploy-registry']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe agent-registry \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/registry-url.txt
+        echo "Registry URL: $$(cat /workspace/registry-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY 2: somnia-agent (depends on agent-registry)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-somnia'
+    waitFor: ['get-registry-url', 'push-somnia']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        gcloud run deploy somnia-agent \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=1Gi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=5 \
+          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
+
+  # ===========================================================================
+  # GET somnia-agent URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-somnia-url'
+    waitFor: ['deploy-somnia']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe somnia-agent \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/somnia-url.txt
+        echo "Somnia Agent URL: $$(cat /workspace/somnia-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY 3: opencode-web (depends on both)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-opencode'
+    waitFor: ['get-somnia-url', 'push-opencode']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
+        gcloud run deploy opencode-web \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=1Gi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL}"
+
+  # ===========================================================================
+  # UPDATE agent-registry with agent URLs
+  # ===========================================================================
+  # The registry needs to know the actual Cloud Run URLs for agents.
+  # We redeploy with SOMNIA_AGENT_URL so the config resolver uses it.
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'update-registry'
+    waitFor: ['get-somnia-url']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
+        gcloud run services update agent-registry \
+          --region=${_REGION} \
+          --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL}"
+
+  # ===========================================================================
+  # PRINT FINAL URLs
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'print-urls'
+    waitFor: ['deploy-opencode', 'update-registry']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo ""
+        echo "=========================================="
+        echo "Deployment Complete!"
+        echo "=========================================="
+        echo ""
+        echo "Service URLs:"
+        echo "  agent-registry: $$(cat /workspace/registry-url.txt)"
+        echo "  somnia-agent:   $$(cat /workspace/somnia-url.txt)"
+        OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
+        echo "  opencode-web:   $${OPENCODE_URL}"
+        echo ""
+
+substitutions:
+  _REGION: us-central1
+  _REPO: coding-labs
+  _TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

@@ -134,12 +134,12 @@ model = "gemini-2.0-flash"
 [default.llm.providers.vertex-anthropic]
 type = "vertex-anthropic"
 project = "kunal-scratch"
-location = "us-east5"
-model = "claude-sonnet-4"
+location = "global"
+model = "claude-opus-4.5"
 
 # Component assignments (omitted = uses default)
 [default.llm.components]
-somnia-agent = "vertex-gemini"
+somnia-agent = "vertex-anthropic"
 sonic-agent = "vertex-gemini"
 midnight-agent = "vertex-gemini"
 opencode = "vertex-anthropic"

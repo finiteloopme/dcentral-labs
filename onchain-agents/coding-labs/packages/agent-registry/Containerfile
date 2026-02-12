@@ -38,6 +38,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/pnpm-lock.yaml* ./
+COPY config.toml ./
 COPY --from=builder /app/packages/shared/package.json packages/shared/
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
 COPY --from=builder /app/packages/agent-registry/package.json packages/agent-registry/

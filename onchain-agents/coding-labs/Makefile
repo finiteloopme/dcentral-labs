@@ -5,7 +5,7 @@
 .PHONY: help install clean build test run dev lint \
         container-clean container-build container-run container-stop container-logs \
         up down rebuild logs \
-        cloud-build cloud-deploy \
+        cloud-setup cloud-deploy cloud-status cloud-urls cloud-logs cloud-delete \
         config health send
 
 .DEFAULT_GOAL := help
@@ -64,11 +64,23 @@ rebuild: container-build container-run ## Build and start containers
 # CLOUD (Cloud Run)
 # =============================================================================
 
-cloud-build: ## Build for Cloud Run (stub)
-	@echo "TODO: Build and push to gcr.io"
+cloud-setup: ## One-time cloud infrastructure setup
+	@./scripts/cloud.sh setup
 
-cloud-deploy: ## Deploy to Cloud Run (stub)
-	@echo "TODO: Deploy to Cloud Run"
+cloud-deploy: ## Build and deploy to Cloud Run
+	@./scripts/cloud.sh deploy
+
+cloud-status: ## Show Cloud Run service status
+	@./scripts/cloud.sh status
+
+cloud-urls: ## Show Cloud Run service URLs
+	@./scripts/cloud.sh urls
+
+cloud-logs: ## View Cloud Run logs (SVC=service-name)
+	@./scripts/cloud.sh logs $(SVC)
+
+cloud-delete: ## Delete all Cloud Run services
+	@./scripts/cloud.sh delete
 
 # =============================================================================
 # UTILITIES
@@ -107,4 +119,6 @@ help: ## Show this help
 	@echo "Examples:"
 	@echo "  make run                    # Start all services locally"
 	@echo "  make rebuild                # Build and start containers"
+	@echo "  make cloud-setup            # One-time cloud setup"
+	@echo "  make cloud-deploy           # Deploy to Cloud Run"
 	@echo "  make send MSG=\"Create an ERC-20 token\""
