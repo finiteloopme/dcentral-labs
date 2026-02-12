@@ -30,6 +30,7 @@ cmd_setup() {
     cloudbuild.googleapis.com \
     run.googleapis.com \
     artifactregistry.googleapis.com \
+    iap.googleapis.com \
     --project="$PROJECT_ID"
   
   log_info "Creating Artifact Registry repository..."
@@ -179,6 +180,92 @@ cmd_delete() {
   fi
 }
 
+cmd_sync_users() {
+  log_header "Syncing IAP users from config.toml"
+  
+  # Parse allowed_users from config.toml using bun
+  log_info "Reading allowed_users from config.toml..."
+  USERS=$(bun -e "
+    const fs = require('fs');
+    const { parse } = require('smol-toml');
+    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
+    const users = config.default?.auth?.allowed_users || [];
+    console.log(users.join('\n'));
+  " 2>/dev/null)
+  
+  if [[ -z "$USERS" ]]; then
+    log_warn "No users found in config.toml [default.auth.allowed_users]"
+    return 1
+  fi
+  
+  log_info "Users in config.toml:"
+  echo "$USERS" | while read -r user; do
+    echo "  - $user"
+  done
+  echo ""
+  
+  # Get current IAP bindings
+  log_info "Fetching current IAP bindings..."
+  CURRENT=$(gcloud beta iap web get-iam-policy \
+    --region="$REGION" \
+    --resource-type=cloud-run \
+    --service=opencode-web \
+    --project="$PROJECT_ID" \
+    --format='json' 2>/dev/null | \
+    bun -e "
+      const input = require('fs').readFileSync('/dev/stdin', 'utf-8');
+      const policy = JSON.parse(input || '{}');
+      const bindings = policy.bindings || [];
+      const accessorBinding = bindings.find(b => b.role === 'roles/iap.httpsResourceAccessor');
+      const members = accessorBinding?.members || [];
+      const users = members
+        .filter(m => m.startsWith('user:'))
+        .map(m => m.replace('user:', ''));
+      console.log(users.join('\n'));
+    " 2>/dev/null || echo "")
+  
+  # Add new users
+  log_info "Checking for users to add..."
+  echo "$USERS" | while read -r user; do
+    [[ -z "$user" ]] && continue
+    if ! echo "$CURRENT" | grep -q "^${user}$"; then
+      log_info "Adding: $user"
+      gcloud beta iap web add-iam-policy-binding \
+        --member="user:$user" \
+        --role=roles/iap.httpsResourceAccessor \
+        --region="$REGION" \
+        --resource-type=cloud-run \
+        --service=opencode-web \
+        --project="$PROJECT_ID" \
+        --quiet 2>/dev/null
+    else
+      log_info "Already exists: $user"
+    fi
+  done
+  
+  # Remove users not in config
+  log_info "Checking for users to remove..."
+  if [[ -n "$CURRENT" ]]; then
+    echo "$CURRENT" | while read -r user; do
+      [[ -z "$user" ]] && continue
+      if ! echo "$USERS" | grep -q "^${user}$"; then
+        log_warn "Removing: $user"
+        gcloud beta iap web remove-iam-policy-binding \
+          --member="user:$user" \
+          --role=roles/iap.httpsResourceAccessor \
+          --region="$REGION" \
+          --resource-type=cloud-run \
+          --service=opencode-web \
+          --project="$PROJECT_ID" \
+          --quiet 2>/dev/null
+      fi
+    done
+  fi
+  
+  echo ""
+  log_success "IAP users synced from config.toml"
+}
+
 # Main
 case "${1:-}" in
   setup)
@@ -199,6 +286,9 @@ case "${1:-}" in
   delete)
     cmd_delete
     ;;
+  sync-users)
+    cmd_sync_users
+    ;;
   *)
     show_usage "cloud.sh" "
   setup       One-time setup (APIs, Artifact Registry, IAM)
@@ -207,6 +297,7 @@ case "${1:-}" in
   urls        Show service URLs
   logs [svc]  View logs (default: opencode-web)
   delete      Delete all Cloud Run services
+  sync-users  Sync IAP allowed users from config.toml
 
 Environment variables:
   GCP_PROJECT  GCP project ID (default: kunal-scratch)

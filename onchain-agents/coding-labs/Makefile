@@ -82,6 +82,9 @@ cloud-logs: ## View Cloud Run logs (SVC=service-name)
 cloud-delete: ## Delete all Cloud Run services
 	@./scripts/cloud.sh delete
 
+cloud-sync-users: ## Sync IAP allowed users from config.toml
+	@./scripts/cloud.sh sync-users
+
 # =============================================================================
 # UTILITIES
 # =============================================================================

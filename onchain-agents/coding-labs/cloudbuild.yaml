@@ -174,11 +174,12 @@ steps:
       - |
         REGISTRY_URL=$$(cat /workspace/registry-url.txt)
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
-        gcloud run deploy opencode-web \
+        gcloud beta run deploy opencode-web \
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
           --region=${_REGION} \
           --platform=managed \
-          --allow-unauthenticated \
+          --no-allow-unauthenticated \
+          --iap \
           --ingress=all \
           --port=8080 \
           --memory=1Gi \
@@ -186,6 +187,29 @@ steps:
           --min-instances=0 \
           --max-instances=10 \
           --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL}"
+
+  # ===========================================================================
+  # SETUP IAP: Grant IAP service agent run.invoker role
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'setup-iap'
+    waitFor: ['deploy-opencode']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get project number
+        PROJECT_NUMBER=$$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+
+        # Grant IAP service agent the invoker role on opencode-web
+        gcloud run services add-iam-policy-binding opencode-web \
+          --region=${_REGION} \
+          --member="serviceAccount:service-$${PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" \
+          --role=roles/run.invoker \
+          --quiet 2>/dev/null || true
+
+        echo "IAP service agent granted run.invoker role"
 
   # ===========================================================================
   # UPDATE agent-registry with agent URLs

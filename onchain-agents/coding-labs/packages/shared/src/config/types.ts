@@ -76,6 +76,13 @@ export interface LLMConfig {
 }
 
 /**
+ * Authentication configuration (IAP user whitelist)
+ */
+export interface AuthConfig {
+  allowed_users: string[]; // List of allowed Google account emails
+}
+
+/**
  * Environment-specific configuration section
  */
 export interface EnvConfig {
@@ -83,6 +90,7 @@ export interface EnvConfig {
   agents?: Record<string, Partial<AgentConfig>>;
   networks?: Record<string, Partial<NetworkConfig>>;
   llm?: Partial<LLMConfig>;
+  auth?: AuthConfig;
 }
 
 /**
@@ -112,6 +120,7 @@ export interface ResolvedConfig {
   agents: Record<string, AgentConfig & { resolvedUrl: string }>;
   networks: Record<string, NetworkConfig>;
   llm: LLMConfig;
+  auth: AuthConfig;
 }
 
 /**

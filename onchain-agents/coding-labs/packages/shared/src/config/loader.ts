@@ -22,6 +22,7 @@ import type {
   LLMConfig,
   LLMProviderConfig,
   AgentInfo,
+  AuthConfig,
 } from './types.js';
 
 // Default config file locations to search
@@ -361,6 +362,22 @@ export function getLLMProviderName(
 }
 
 /**
+ * Get authentication configuration
+ */
+export function getAuthConfig(
+  config: Config,
+  _env: string = process.env.NODE_ENV || 'development'
+): AuthConfig {
+  const defaultAuthConfig = config.default?.auth as {
+    allowed_users?: string[];
+  };
+
+  return {
+    allowed_users: defaultAuthConfig?.allowed_users || [],
+  };
+}
+
+/**
  * Load and resolve full configuration
  */
 export function loadConfig(
@@ -390,12 +407,16 @@ export function loadConfig(
   // Resolve LLM config
   const llm = getLLMConfig(config, env);
 
+  // Resolve auth config
+  const auth = getAuthConfig(config, env);
+
   return {
     meta: config.meta,
     services,
     agents,
     networks,
     llm,
+    auth,
   };
 }
 

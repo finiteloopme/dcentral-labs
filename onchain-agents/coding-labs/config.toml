@@ -144,6 +144,23 @@ sonic-agent = "vertex-gemini"
 midnight-agent = "vertex-gemini"
 opencode = "vertex-anthropic"
 
+# -----------------------------------------------------------------------------
+# Authentication (IAP user whitelist)
+# -----------------------------------------------------------------------------
+# Users listed here will be granted access to opencode-web via IAP.
+# Run `make cloud-sync-users` after modifying to update IAP permissions.
+#
+# Workflow:
+#   1. Add/remove emails from allowed_users list
+#   2. Run: make cloud-sync-users
+#   3. Changes take effect immediately
+
+[default.auth]
+allowed_users = [
+  "kunall@google.com",
+  "admin@kunall.altostrat.com",
+]
+
 # =============================================================================
 # PRODUCTION OVERRIDES
 # =============================================================================
