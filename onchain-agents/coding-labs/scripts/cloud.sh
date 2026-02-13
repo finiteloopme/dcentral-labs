@@ -136,7 +136,7 @@ cmd_status() {
 cmd_urls() {
   log_header "Service URLs"
   local found=false
-  for service in agent-registry somnia-agent opencode-web; do
+  for service in agent-registry somnia-agent midnight-agent opencode-login opencode-web; do
     url=$(gcloud run services describe "$service" \
       --region="$REGION" \
       --project="$PROJECT_ID" \
@@ -167,7 +167,7 @@ cmd_delete() {
   read -p "Are you sure? (y/N) " -n 1 -r
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
-    for service in opencode-web somnia-agent agent-registry; do
+    for service in opencode-web opencode-login midnight-agent somnia-agent agent-registry; do
       log_info "Deleting $service..."
       gcloud run services delete "$service" \
         --region="$REGION" \
