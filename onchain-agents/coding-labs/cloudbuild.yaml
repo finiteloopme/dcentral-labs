@@ -7,9 +7,13 @@
 #   3. Deploy agent-registry (no dependencies)
 #   4. Deploy somnia-agent (with AGENT_REGISTRY_URL)
 #   5. Deploy midnight-agent (with AGENT_REGISTRY_URL)
-#   6. Deploy opencode-web (with all agent URLs)
+#   6. Deploy opencode-login (public landing page)
+#   7. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
 #
-# All services are PUBLIC with no auth (TODO: lock down internal services)
+# Services:
+#   - agent-registry, somnia-agent, midnight-agent: Public (no auth)
+#   - opencode-login: Public (landing page)
+#   - opencode-web: IAP protected (requires Google sign-in)
 
 steps:
   # ===========================================================================
@@ -67,6 +71,19 @@ steps:
       - 'opencode/Containerfile.web'
       - './opencode'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-login'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login:latest'
+      - '-f'
+      - 'packages/opencode-login/Containerfile'
+      - '.'
+
   # ===========================================================================
   # PUSH ALL IMAGES
   # ===========================================================================
@@ -102,6 +119,14 @@ steps:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-login'
+    waitFor: ['build-login']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login'
 
   # ===========================================================================
   # DEPLOY 1: agent-registry (no dependencies)
@@ -147,90 +172,9 @@ steps:
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-somnia'
-    waitFor: ['get-registry-url', 'push-somnia']
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
-        gcloud run deploy somnia-agent \
-          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent:${_TAG} \
-          --region=${_REGION} \
-          --platform=managed \
-          --allow-unauthenticated \
-          --ingress=all \
-          --port=8080 \
-          --memory=1Gi \
-          --cpu=1 \
-          --min-instances=0 \
-          --max-instances=5 \
-          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
-
-  # ===========================================================================
-  # GET somnia-agent URL
-  # ===========================================================================
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'get-somnia-url'
-    waitFor: ['deploy-somnia']
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud run services describe somnia-agent \
-          --region=${_REGION} \
-          --format='value(status.url)' > /workspace/somnia-url.txt
-        echo "Somnia Agent URL: $$(cat /workspace/somnia-url.txt)"
-
-  # ===========================================================================
-  # DEPLOY 3: midnight-agent (depends on agent-registry)
-  # ===========================================================================
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-midnight'
-    waitFor: ['get-registry-url', 'push-midnight']
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
-        gcloud run deploy midnight-agent \
-          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-agent:${_TAG} \
-          --region=${_REGION} \
-          --platform=managed \
-          --allow-unauthenticated \
-          --ingress=all \
-          --port=8080 \
-          --memory=1Gi \
-          --cpu=1 \
-          --min-instances=0 \
-          --max-instances=5 \
-          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
-
-  # ===========================================================================
-  # GET midnight-agent URL
-  # ===========================================================================
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'get-midnight-url'
-    waitFor: ['deploy-midnight']
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud run services describe midnight-agent \
-          --region=${_REGION} \
-          --format='value(status.url)' > /workspace/midnight-url.txt
-        echo "Midnight Agent URL: $$(cat /workspace/midnight-url.txt)"
-
-  # ===========================================================================
-  # DEPLOY 4: opencode-web (depends on all agents)
-  # ===========================================================================
-
-  - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-opencode'
-    waitFor: ['get-somnia-url', 'get-midnight-url', 'push-opencode']
+    waitFor:
+      ['get-somnia-url', 'get-midnight-url', 'get-login-url', 'push-opencode']
     entrypoint: 'bash'
     args:
       - '-c'
@@ -238,6 +182,7 @@ steps:
         REGISTRY_URL=$$(cat /workspace/registry-url.txt)
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
+        LOGIN_URL=$$(cat /workspace/login-url.txt)
         gcloud beta run deploy opencode-web \
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
           --region=${_REGION} \
@@ -250,7 +195,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=10 \
-          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL}"
+          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
   # ===========================================================================
   # SETUP IAP: Grant IAP service agent run.invoker role
@@ -295,12 +240,30 @@ steps:
           --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL}"
 
   # ===========================================================================
+  # UPDATE opencode-login with APP_URL (opencode-web URL)
+  # ===========================================================================
+  # The login page needs to know the main app URL for the "Sign in" button.
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'update-login'
+    waitFor: ['deploy-opencode', 'deploy-login']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
+        gcloud run services update opencode-login \
+          --region=${_REGION} \
+          --update-env-vars="APP_URL=$${OPENCODE_URL}"
+        echo "Updated opencode-login with APP_URL=$${OPENCODE_URL}"
+
+  # ===========================================================================
   # PRINT FINAL URLs
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'print-urls'
-    waitFor: ['deploy-opencode', 'update-registry']
+    waitFor: ['deploy-opencode', 'update-registry', 'update-login']
     entrypoint: 'bash'
     args:
       - '-c'
@@ -314,8 +277,11 @@ steps:
         echo "  agent-registry:  $$(cat /workspace/registry-url.txt)"
         echo "  somnia-agent:    $$(cat /workspace/somnia-url.txt)"
         echo "  midnight-agent:  $$(cat /workspace/midnight-url.txt)"
+        echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
         OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
-        echo "  opencode-web:    $${OPENCODE_URL}"
+        echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"
+        echo ""
+        echo "Access the application via the login page: $$(cat /workspace/login-url.txt)"
         echo ""
 
 substitutions:

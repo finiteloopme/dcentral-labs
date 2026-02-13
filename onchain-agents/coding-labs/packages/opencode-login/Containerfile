@@ -1,0 +1,40 @@
+# =============================================================================
+# dCoder Login Page - Container Build
+# =============================================================================
+# Simple Node.js container serving the login landing page
+#
+# Build:
+#   podman build -f packages/opencode-login/Containerfile -t opencode-login .
+#
+# Run:
+#   podman run -p 8080:8080 -e APP_URL=https://app.example.com opencode-login
+# =============================================================================
+
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY packages/opencode-login/package*.json ./
+
+# Install production dependencies only
+RUN npm ci --production
+
+# Copy application files
+COPY packages/opencode-login/server.js ./
+COPY packages/opencode-login/public ./public/
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
+
+# Run the server
+CMD ["node", "server.js"]

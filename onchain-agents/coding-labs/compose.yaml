@@ -7,6 +7,10 @@
 # Usage:
 #   podman-compose up -d
 #   docker compose up -d
+#
+# With login page (optional):
+#   docker compose --profile login up -d
+#   podman-compose --profile login up -d
 
 services:
   # ---------------------------------------------------------------------------
@@ -159,6 +163,33 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # OpenCode Login - Landing page with "Sign in with Google" (optional)
+  # ---------------------------------------------------------------------------
+  # Only starts when using --profile login
+  # In production, this is a separate Cloud Run service (public, no IAP)
+  opencode-login:
+    build:
+      context: .
+      dockerfile: packages/opencode-login/Containerfile
+    container_name: opencode-login
+    profiles:
+      - login
+    ports:
+      - '${OPENCODE_LOGIN_PORT:-4098}:8080'
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      # URL of the main app (for "Sign in with Google" button)
+      - APP_URL=http://localhost:${OPENCODE_FRONTEND_PORT:-3000}
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8080/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
 # ===========================================================================
 # Local Development (without containers)
 # ===========================================================================
@@ -166,3 +197,8 @@ services:
 # Terminal 2: make dev              (Somnia Agent on :4001)
 # Terminal 3: make opencode-server  (OpenCode Backend on :4097)
 # Terminal 4: make opencode-frontend (OpenCode Frontend on :3000)
+#
+# With login page:
+#   docker compose --profile login up -d
+#   Login page: http://localhost:4098
+#   Main app:   http://localhost:3000

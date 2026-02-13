@@ -48,6 +48,31 @@ cmd_run_all() {
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097"
 }
 
+cmd_run_all_with_login() {
+  log_header "Starting all services (with login page)"
+  log_info "Services:"
+  log_info "  - Agent Registry:  http://localhost:4000"
+  log_info "  - Somnia Agent:    http://localhost:4001"
+  log_info "  - Midnight Agent:  http://localhost:4003"
+  log_info "  - Login Page:      http://localhost:4098"
+  log_info "  - OpenCode Web:    http://localhost:3000 (connects to backend on 4097)"
+  log_info ""
+  log_info "Access the app via the login page: http://localhost:4098"
+  log_info "Press Ctrl+C to stop all services"
+  echo ""
+  
+  npx concurrently \
+    --names "registry,somnia,midnight,login,opencode" \
+    --prefix-colors "blue,green,magenta,cyan,yellow" \
+    --prefix "[{name}]" \
+    --kill-others-on-fail \
+    "cd packages/agent-registry && npx tsx src/index.ts" \
+    "cd packages/somnia-agent && npx tsx src/index.ts" \
+    "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/opencode-login && APP_URL=http://localhost:4097 node server.js" \
+    "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097"
+}
+
 cmd_typecheck() {
   log_header "Running TypeScript type checking"
   run_pnpm --filter @coding-labs/shared typecheck
@@ -107,6 +132,9 @@ case "${1:-}" in
   run-all)
     cmd_run_all
     ;;
+  run-all-with-login)
+    cmd_run_all_with_login
+    ;;
   typecheck)
     cmd_typecheck
     ;;
@@ -131,6 +159,7 @@ case "${1:-}" in
   build       Build all packages
   dev         Run somnia-agent in dev mode
   run-all     Run all services (registry, agent, opencode)
+  run-all-with-login  Run all services including login page
   typecheck   Run TypeScript type checking
   lint        Run ESLint
   lint-fix    Run ESLint with auto-fix

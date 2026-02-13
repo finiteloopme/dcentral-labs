@@ -9,31 +9,32 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│           Container: opencode-web (port 3000)                       │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    OpenCode Web                               │  │
-│  │              (Primary User Interface)                         │  │
-│  │                                                               │  │
-│  │  - Browser-based coding session                               │  │
-│  │  - Wallet connection (MetaMask / injected provider)           │  │
-│  │  - A2A Client integrated                                      │  │
-│  │  - Routes to chain agents based on user intent                │  │
-│  └───────────────────────────┬───────────────────────────────────┘  │
-└──────────────────────────────┼──────────────────────────────────────┘
-                               │ A2A Protocol (HTTP+JSON)
-          ┌────────────────────┼────────────────────────────────────┐
-          ▼                    ▼                                    ▼
-┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
-│   Somnia Agent    │   │  Midnight Agent   │   │   Sonic Agent     │
-│   (port 4001)     │   │  (port 4003)      │   │   (future)        │
-├───────────────────┤   ├───────────────────┤   ├───────────────────┤
-│ - Solidity Gen    │   │ - Compact Gen     │   │ - Solidity Gen    │
-│ - Deploy          │   │ - (compile)       │   │ - FeeM Optimize   │
-│ - Query State     │   │ - (deploy)        │   │ - Deploy          │
-│ - Reactivity      │   │ - (call)          │   │                   │
-│ - Data Streams    │   │ - (query-state)   │   │                   │
-└───────────────────┘   └───────────────────┘   └───────────────────┘
+┌──────────────────────┐         ┌─────────────────────────────────────────────┐
+│   opencode-login     │         │           opencode-web (port 3000)          │
+│   (port 4098)        │         │  ┌─────────────────────────────────────┐    │
+│                      │         │  │            OpenCode Web             │    │
+│   dCoder Landing     │  ──→    │  │       (Primary User Interface)      │    │
+│   "Sign in with      │  click  │  │                                     │    │
+│    Google" button    │         │  │  - Browser-based coding session     │    │
+│                      │         │  │  - Wallet connection (MetaMask)     │    │
+│   (Public)           │         │  │  - A2A Client integrated            │    │
+└──────────────────────┘         │  │  - Routes to chain agents           │    │
+                                 │  └──────────────────┬──────────────────┘    │
+                                 │    (IAP Protected)  │                       │
+                                 └─────────────────────┼───────────────────────┘
+                                                       │ A2A Protocol (HTTP+JSON)
+                          ┌────────────────────────────┼────────────────────────┐
+                          ▼                            ▼                        ▼
+                ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+                │   Somnia Agent    │   │  Midnight Agent   │   │   Sonic Agent     │
+                │   (port 4001)     │   │  (port 4003)      │   │   (future)        │
+                ├───────────────────┤   ├───────────────────┤   ├───────────────────┤
+                │ - Solidity Gen    │   │ - Compact Gen     │   │ - Solidity Gen    │
+                │ - Deploy          │   │ - (compile)       │   │ - FeeM Optimize   │
+                │ - Query State     │   │ - (deploy)        │   │ - Deploy          │
+                │ - Reactivity      │   │ - (call)          │   │                   │
+                │ - Data Streams    │   │ - (query-state)   │   │                   │
+                └───────────────────┘   └───────────────────┘   └───────────────────┘
 ```
 
 ### Current Agents
@@ -99,6 +100,17 @@ Then open http://localhost:3000 in your browser.
 | Somnia Agent | 4001 | A2A server for Somnia blockchain |
 | Midnight Agent | 4003 | A2A server for Midnight blockchain |
 | OpenCode | 4097 | Backend API with A2A plugin + web UI |
+| Login Page | 4098 | dCoder landing page (optional, for testing) |
+
+### Run with Login Page (Optional)
+
+```bash
+# Start all services including login page
+./scripts/dev.sh run-all-with-login
+
+# Login page: http://localhost:4098
+# Main app:   http://localhost:4097
+```
 
 ### Run with Containers
 
