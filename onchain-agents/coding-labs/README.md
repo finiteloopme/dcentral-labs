@@ -82,8 +82,8 @@ make build
 ### Run Locally
 
 ```bash
-# Start all services (registry + agent + opencode) in one command
-make run
+# Start all services with hot reload (recommended for development)
+./scripts/dev.sh run-all
 
 # Check health of all services
 make health
@@ -94,23 +94,25 @@ make send MSG="Create an ERC-20 token called TestCoin with symbol TST"
 
 Then open http://localhost:3000 in your browser.
 
+#### Run Modes
+
+| Command | Frontend | Access URL | Use Case |
+|---------|----------|------------|----------|
+| `run-all` | Vite dev server | http://localhost:3000 | Development (hot reload) |
+| `run-all-built` | Pre-built static | http://localhost:4097 | Production-like testing |
+| `run-all-with-login` | Vite + login page | http://localhost:4098 | Dev with login flow |
+| `run-all-with-login-built` | Built + login | http://localhost:4098 | Prod-like with login |
+
+#### Service Ports
+
 | Service | Port | Description |
 |---------|------|-------------|
 | Agent Registry | 4000 | Central directory of agents |
 | Somnia Agent | 4001 | A2A server for Somnia blockchain |
 | Midnight Agent | 4003 | A2A server for Midnight blockchain |
-| OpenCode | 4097 | Backend API with A2A plugin + web UI |
-| Login Page | 4098 | dCoder landing page (optional, for testing) |
-
-### Run with Login Page (Optional)
-
-```bash
-# Start all services including login page
-./scripts/dev.sh run-all-with-login
-
-# Login page: http://localhost:4098
-# Main app:   http://localhost:4097
-```
+| OpenCode Backend | 4097 | API server with A2A plugin |
+| OpenCode Frontend | 3000 | Vite dev server (in `run-all` mode) |
+| Login Page | 4098 | dCoder landing page (optional) |
 
 ### Run with Containers
 
