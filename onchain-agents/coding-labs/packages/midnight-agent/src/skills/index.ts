@@ -58,26 +58,56 @@ export function extractTextFromMessage(message: Message): string {
 }
 
 /**
- * Detect which skill should handle a message based on content analysis
+ * Detect which skill should handle a message based on content analysis.
+ *
+ * Priority order:
+ *   1. Code generation (most common, shares vocabulary with other skills)
+ *   2. Compile (explicit "compile" or code block provided)
+ *   3. Deploy
+ *   4. Call circuit
+ *   5. Query state (tightened patterns to avoid false positives)
+ *   6. Private state
+ *   7. Default → code generation
  */
 export function detectSkill(userText: string): string {
   const text = userText.toLowerCase();
 
-  // Compile skill detection
+  // 1. Code generation - check FIRST since generation requests naturally
+  //    contain words like "ledger", "state", "circuit" that overlap other skills
+  if (
+    text.includes('generate') ||
+    text.includes('create') ||
+    text.includes('write') ||
+    text.includes('build me') ||
+    text.includes('make a') ||
+    text.includes('make me') ||
+    text.includes('implement') ||
+    text.includes('code for') ||
+    text.includes('contract for') ||
+    text.includes('contract that') ||
+    text.includes('contract with') ||
+    text.includes('smart contract') ||
+    text.includes('write a') ||
+    text.includes('design a')
+  ) {
+    return 'compact-gen';
+  }
+
+  // 2. Compile - only when user explicitly asks to compile existing code
   if (
     text.includes('compile') ||
-    (text.includes('build') && text.includes('compact')) ||
-    text.includes('.compact file')
+    text.includes('.compact file') ||
+    text.includes('```compact')
   ) {
     return 'compile';
   }
 
-  // Deploy skill detection
+  // 3. Deploy
   if (text.includes('deploy') || text.includes('publish contract')) {
     return 'deploy';
   }
 
-  // Call circuit detection
+  // 4. Call circuit
   if (
     text.includes('call circuit') ||
     text.includes('execute circuit') ||
@@ -87,27 +117,31 @@ export function detectSkill(userText: string): string {
     return 'call';
   }
 
-  // Query state detection
+  // 5. Query state - specific patterns only, avoid generic words
+  //    that appear in code generation requests
   if (
-    text.includes('query') ||
-    text.includes('get state') ||
-    text.includes('read ledger') ||
-    text.includes('current value') ||
-    text.includes('ledger state')
+    text.includes('query state') ||
+    text.includes('query contract') ||
+    text.includes('query ledger') ||
+    text.includes('get state of') ||
+    text.includes('read state of') ||
+    text.includes('read ledger of') ||
+    text.includes('check state') ||
+    text.includes('what is the state') ||
+    (text.includes('query') && /0x[a-fA-F0-9]{40,}/.test(text))
   ) {
     return 'query-state';
   }
 
-  // Private state detection
+  // 6. Private state
   if (
     text.includes('private state') ||
-    text.includes('private key') ||
-    text.includes('witness') ||
+    text.includes('manage private') ||
     text.includes('local state')
   ) {
     return 'private-state';
   }
 
-  // Default to code generation for anything else
+  // Default to code generation
   return 'compact-gen';
 }

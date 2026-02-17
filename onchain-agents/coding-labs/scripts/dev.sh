@@ -15,6 +15,7 @@ cmd_build() {
   run_pnpm --filter @coding-labs/shared build
   run_pnpm --filter @coding-labs/somnia-agent build
   run_pnpm --filter @coding-labs/midnight-agent build
+  run_pnpm --filter @coding-labs/midnight-mcp build
   log_success "Build complete"
 }
 
@@ -32,6 +33,7 @@ cmd_run_all() {
   log_info "  - Agent Registry:    http://localhost:4000"
   log_info "  - Somnia Agent:      http://localhost:4001"
   log_info "  - Midnight Agent:    http://localhost:4003"
+  log_info "  - Midnight MCP:      http://localhost:4010"
   log_info "  - OpenCode Backend:  http://localhost:4097 (API)"
   log_info "  - OpenCode Frontend: http://localhost:3000 (Vite dev server)"
   log_info ""
@@ -40,13 +42,14 @@ cmd_run_all() {
   echo ""
   
   npx concurrently \
-    --names "registry,somnia,midnight,backend,frontend" \
-    --prefix-colors "blue,green,magenta,yellow,cyan" \
+    --names "registry,somnia,midnight,mcp,backend,frontend" \
+    --prefix-colors "blue,green,magenta,red,yellow,cyan" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
     "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/midnight-mcp && npx tsx src/index.ts" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097" \
     "cd opencode/packages/app && bun run dev"
 }
@@ -149,6 +152,7 @@ cmd_typecheck() {
   run_pnpm --filter @coding-labs/shared typecheck
   run_pnpm --filter @coding-labs/somnia-agent typecheck
   run_pnpm --filter @coding-labs/midnight-agent typecheck
+  run_pnpm --filter @coding-labs/midnight-mcp typecheck
   log_success "Type checking passed"
 }
 
@@ -175,6 +179,7 @@ cmd_clean() {
   rm -rf packages/shared/dist
   rm -rf packages/somnia-agent/dist
   rm -rf packages/midnight-agent/dist
+  rm -rf packages/midnight-mcp/dist
   rm -rf node_modules/.cache
   log_success "Clean complete"
 }
@@ -186,6 +191,7 @@ cmd_clean_all() {
   rm -rf packages/shared/node_modules
   rm -rf packages/somnia-agent/node_modules
   rm -rf packages/midnight-agent/node_modules
+  rm -rf packages/midnight-mcp/node_modules
   log_success "Full clean complete"
 }
 

@@ -122,6 +122,55 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Midnight MCP - MCP server for Midnight Network tools
+  # ---------------------------------------------------------------------------
+  # Provides: Compact compiler, Indexer queries, Proof Server access
+  # Transport: SSE over HTTP
+  midnight-mcp:
+    build:
+      context: .
+      dockerfile: packages/midnight-mcp/Containerfile
+    container_name: midnight-mcp
+    ports:
+      - '${MIDNIGHT_MCP_PORT:-4010}:${MIDNIGHT_MCP_PORT:-4010}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - MIDNIGHT_MCP_HOST=0.0.0.0
+      - MIDNIGHT_DEFAULT_NETWORK=preview
+      # Use local proof server if running (midnight-local profile)
+      # - MIDNIGHT_PROOF_SERVER_URL=http://midnight-proof-server:6300
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4010/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Midnight Proof Server - ZK proof generation (optional, local)
+  # ---------------------------------------------------------------------------
+  # Only starts when using --profile midnight-local
+  # Alternative: use hosted proof server endpoints (preview/preprod)
+  midnight-proof-server:
+    image: midnightnetwork/proof-server:latest
+    container_name: midnight-proof-server
+    profiles:
+      - midnight-local
+    ports:
+      - '6300:6300'
+    command: ['midnight-proof-server', '--network', 'preview']
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # OpenCode Web - Frontend + Backend with wallet connection and A2A routing
   # ---------------------------------------------------------------------------
   # Runs both the OpenCode server (with A2A plugin) and serves the static frontend.

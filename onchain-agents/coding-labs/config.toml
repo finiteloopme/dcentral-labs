@@ -39,6 +39,10 @@ port = 4002
 host = "localhost"
 port = 4003
 
+[default.services.midnight-mcp]
+host = "localhost"
+port = 4010
+
 [default.services.opencode-server]
 host = "localhost"
 port = 4097
@@ -163,7 +167,7 @@ model = "gemini-2.0-flash"
 type = "vertex-anthropic"
 project = "kunal-scratch"
 location = "global"
-model = "claude-opus-4.5"
+model = "claude-opus-4-5"
 
 # Component assignments (omitted = uses default)
 [default.llm.components]
@@ -203,6 +207,9 @@ host = "0.0.0.0"
 host = "0.0.0.0"
 
 [production.services.midnight-agent]
+host = "0.0.0.0"
+
+[production.services.midnight-mcp]
 host = "0.0.0.0"
 
 [production.services.opencode-server]

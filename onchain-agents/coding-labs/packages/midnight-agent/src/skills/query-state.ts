@@ -8,7 +8,8 @@
 import type { Message } from '@a2a-js/sdk';
 import type { SkillEvent } from './index.js';
 import { extractTextFromMessage } from './index.js';
-import { ai, geminiModel } from '../genkit.js';
+import { generateText } from 'ai';
+import { model } from '../genkit.js';
 
 // Midnight Indexer endpoints
 const INDEXER_ENDPOINTS = {
@@ -123,14 +124,12 @@ Based on the user's request, generate a valid GraphQL query.
 Return ONLY the GraphQL query, wrapped in \`\`\`graphql code blocks.
 Do not include any explanation.`;
 
-  const response = await ai.generate({
-    model: geminiModel,
+  const response = await generateText({
+    model,
     system: systemPrompt,
     prompt: userRequest,
-    config: {
-      temperature: 0.1,
-      maxOutputTokens: 1024,
-    },
+    temperature: 0.1,
+    maxOutputTokens: 1024,
   });
 
   const text = response.text;

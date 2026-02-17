@@ -9,7 +9,8 @@ import type { Message } from '@a2a-js/sdk';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { ai, geminiModel } from '../genkit.js';
+import { generateText } from 'ai';
+import { model } from '../genkit.js';
 import type { SkillEvent } from './index.js';
 import { extractTextFromMessage } from './index.js';
 
@@ -81,21 +82,45 @@ export async function* generateCompact(
   try {
     yield { type: 'status', message: 'Generating Compact contract...' };
 
-    const response = await ai.generate({
-      model: geminiModel,
+    const response = await generateText({
+      model,
       system: SYSTEM_PROMPT,
       prompt: userRequest,
-      config: {
-        temperature: 0.2, // Lower temperature for more deterministic code
-        maxOutputTokens: 4096,
-      },
+      temperature: 0.2, // Lower temperature for more deterministic code
+      maxOutputTokens: 4096,
     });
 
     const generatedText = response.text;
 
     // Extract Compact code from the response
-    const compactCodeMatch = generatedText.match(/```compact\n([\s\S]*?)```/);
-    const compactCode = compactCodeMatch ? compactCodeMatch[1].trim() : null;
+    // Try multiple fence formats: ```compact, ```Compact, ``` compact, plain ```
+    let compactCode: string | null = null;
+
+    const fencePatterns = [
+      /```[Cc]ompact\s*\n([\s\S]*?)```/, // ```compact or ```Compact
+      /```\s*\n([\s\S]*?)```/, // plain ``` code block
+    ];
+
+    for (const pattern of fencePatterns) {
+      const match = generatedText.match(pattern);
+      if (match) {
+        compactCode = match[1].trim();
+        break;
+      }
+    }
+
+    // Fallback: if no code fence found but response contains pragma, extract raw code
+    if (!compactCode && generatedText.includes('pragma language_version')) {
+      const pragmaStart = generatedText.indexOf('pragma language_version');
+      // Find the last closing brace after the pragma
+      const remaining = generatedText.slice(pragmaStart);
+      const lastBrace = remaining.lastIndexOf('}');
+      if (lastBrace > 0) {
+        compactCode = remaining.slice(0, lastBrace + 1).trim();
+      } else {
+        compactCode = remaining.trim();
+      }
+    }
 
     if (compactCode) {
       // Emit the code as an artifact

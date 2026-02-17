@@ -8,7 +8,8 @@ import {
   type Hex,
 } from 'viem';
 import { extractTextFromMessage, type SkillEvent } from './index.js';
-import { ai } from '../genkit.js';
+import { generateText } from 'ai';
+import { model } from '../genkit.js';
 import { SOMNIA_MAINNET, SOMNIA_TESTNET } from '@coding-labs/shared';
 
 /**
@@ -125,15 +126,18 @@ export async function* deployContract(
 
   try {
     // Extract deployment info using LLM
-    const extractionResponse = await ai.generate({
+    const extractionResponse = await generateText({
+      model,
       system: DEPLOY_EXTRACTION_PROMPT,
       prompt: userText,
-      output: { format: 'json' },
     });
 
-    const deploymentInfo = extractionResponse.output as
-      | DeploymentInfo
-      | undefined;
+    let deploymentInfo: DeploymentInfo | undefined;
+    try {
+      deploymentInfo = JSON.parse(extractionResponse.text) as DeploymentInfo;
+    } catch {
+      deploymentInfo = undefined;
+    }
     if (!deploymentInfo) {
       yield {
         type: 'error',
@@ -155,13 +159,18 @@ export async function* deployContract(
 
       // In production, use solc or compilation service
       // For now, use LLM to simulate compilation
-      const compileResponse = await ai.generate({
+      const compileResponse = await generateText({
+        model,
         system: COMPILE_PROMPT + deploymentInfo.sourceCode,
         prompt: 'Compile this contract and return bytecode and ABI.',
-        output: { format: 'json' },
       });
 
-      const compiled = compileResponse.output as CompilationResult | undefined;
+      let compiled: CompilationResult | undefined;
+      try {
+        compiled = JSON.parse(compileResponse.text) as CompilationResult;
+      } catch {
+        compiled = undefined;
+      }
       if (!compiled?.bytecode) {
         yield {
           type: 'error',

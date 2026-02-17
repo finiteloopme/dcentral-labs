@@ -1,5 +1,13 @@
-import { genkit } from 'genkit';
-import { vertexAI } from '@genkit-ai/vertexai';
+/**
+ * LLM Configuration - AI SDK + Vertex AI Anthropic
+ *
+ * Provides Claude models via Google Vertex AI using the AI SDK.
+ * Authentication uses Google ADC (gcloud auth application-default login
+ * or GOOGLE_APPLICATION_CREDENTIALS env var).
+ */
+
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
+import type { LanguageModel } from 'ai';
 
 // Read from component-specific env vars (generated from config.toml)
 // Falls back to generic env vars for backward compatibility
@@ -11,15 +19,23 @@ const projectId =
 const location =
   process.env.SOMNIA_AGENT_LLM_LOCATION ||
   process.env.GOOGLE_CLOUD_LOCATION ||
-  'us-central1';
+  'global';
 
-const model = process.env.SOMNIA_AGENT_LLM_MODEL || 'gemini-2.0-flash';
+const modelId = process.env.SOMNIA_AGENT_LLM_MODEL || 'claude-opus-4-5';
 
-// Initialize Genkit with Vertex AI
-export const ai = genkit({
-  plugins: [vertexAI({ projectId, location })],
-  model: `vertexai/${model}`,
+// Create the Vertex Anthropic provider
+const vertexAnthropic = createVertexAnthropic({
+  project: projectId,
+  location: location,
 });
 
-// Export for use in skills
-export { projectId, location, model };
+// Export model instance for use in skills
+export const model: LanguageModel = vertexAnthropic(modelId);
+
+// Export config for logging
+export { projectId, location, modelId };
+
+console.log(`[somnia-agent] LLM initialized with Vertex AI Anthropic`);
+console.log(`[somnia-agent]   Project: ${projectId}`);
+console.log(`[somnia-agent]   Location: ${location}`);
+console.log(`[somnia-agent]   Model: ${modelId}`);

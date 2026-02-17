@@ -53,47 +53,84 @@ export const skillHandlers: Record<string, SkillHandler> = {
 };
 
 /**
- * Get the appropriate skill handler based on user intent
- * For MVP, we default to solidity-gen
+ * Get the appropriate skill handler based on user intent.
+ *
+ * Priority order:
+ *   1. Code generation (most common, shares vocabulary with other skills)
+ *   2. Deploy
+ *   3. Transaction status
+ *   4. Query state (tightened to avoid false positives)
+ *   5. Reactivity / data streams (Phase 3)
+ *   6. Default → code generation
  */
 export function detectSkill(userMessage: string): string {
-  const lowerMessage = userMessage.toLowerCase();
+  const text = userMessage.toLowerCase();
 
-  // Simple keyword matching for MVP
+  // 1. Code generation - check FIRST since generation requests naturally
+  //    contain words like "read", "get", "event" that overlap other skills
   if (
-    lowerMessage.includes('deploy') ||
-    lowerMessage.includes('publish') ||
-    lowerMessage.includes('send to')
+    text.includes('generate') ||
+    text.includes('create') ||
+    text.includes('write') ||
+    text.includes('build me') ||
+    text.includes('make a') ||
+    text.includes('make me') ||
+    text.includes('implement') ||
+    text.includes('code for') ||
+    text.includes('contract for') ||
+    text.includes('contract that') ||
+    text.includes('contract with') ||
+    text.includes('smart contract') ||
+    text.includes('write a') ||
+    text.includes('design a') ||
+    text.includes('solidity') ||
+    text.includes('erc-20') ||
+    text.includes('erc20') ||
+    text.includes('erc-721') ||
+    text.includes('erc721') ||
+    text.includes('token contract') ||
+    text.includes('nft contract')
   ) {
+    return 'solidity-gen';
+  }
+
+  // 2. Deploy
+  if (text.includes('deploy') || text.includes('publish contract')) {
     return 'deploy';
   }
 
+  // 3. Transaction status
   if (
-    lowerMessage.includes('status') ||
-    lowerMessage.includes('transaction') ||
-    lowerMessage.includes('tx ')
+    text.includes('status') ||
+    text.includes('transaction') ||
+    text.includes('tx ') ||
+    text.includes('receipt')
   ) {
     return 'tx-status';
   }
 
+  // 4. Query state - specific patterns, avoid generic "read", "get", "query"
   if (
-    lowerMessage.includes('balance') ||
-    lowerMessage.includes('query') ||
-    lowerMessage.includes('read') ||
-    lowerMessage.includes('get ')
+    text.includes('balance') ||
+    text.includes('query state') ||
+    text.includes('query contract') ||
+    text.includes('get state of') ||
+    text.includes('read state') ||
+    text.includes('check state') ||
+    text.includes('total supply') ||
+    text.includes('what is the') ||
+    (text.includes('query') && /0x[a-fA-F0-9]{40,}/.test(text))
   ) {
     return 'query-state';
   }
 
-  if (
-    lowerMessage.includes('reactivity') ||
-    lowerMessage.includes('subscribe') ||
-    lowerMessage.includes('event')
-  ) {
+  // 5. Reactivity (Phase 3)
+  if (text.includes('reactivity') || text.includes('subscribe to')) {
     return 'reactivity-setup';
   }
 
-  if (lowerMessage.includes('stream') || lowerMessage.includes('data stream')) {
+  // 6. Data streams (Phase 3)
+  if (text.includes('data stream')) {
     return 'data-streams';
   }
 

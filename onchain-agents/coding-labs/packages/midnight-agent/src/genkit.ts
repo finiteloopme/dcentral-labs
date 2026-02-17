@@ -1,15 +1,16 @@
 /**
- * Genkit + Vertex AI Initialization
+ * LLM Configuration - AI SDK + Vertex AI Anthropic
  *
- * Sets up Genkit with Vertex AI for LLM capabilities.
- * Reads configuration from environment variables.
+ * Provides Claude models via Google Vertex AI using the AI SDK.
+ * Authentication uses Google ADC (gcloud auth application-default login
+ * or GOOGLE_APPLICATION_CREDENTIALS env var).
  */
 
-import { genkit } from 'genkit';
-import { vertexAI } from '@genkit-ai/vertexai';
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
+import type { LanguageModel } from 'ai';
 
-// LLM configuration from environment
-const project =
+// Read from component-specific env vars (generated from config.toml)
+const projectId =
   process.env.MIDNIGHT_AGENT_LLM_PROJECT ||
   process.env.GOOGLE_CLOUD_PROJECT ||
   'kunal-scratch';
@@ -17,30 +18,23 @@ const project =
 const location =
   process.env.MIDNIGHT_AGENT_LLM_LOCATION ||
   process.env.GOOGLE_CLOUD_LOCATION ||
-  'us-central1';
+  'global';
 
-const model = process.env.MIDNIGHT_AGENT_LLM_MODEL || 'gemini-2.0-flash';
+const modelId = process.env.MIDNIGHT_AGENT_LLM_MODEL || 'claude-opus-4-5';
 
-// Genkit instance
-export const ai = genkit({
-  plugins: [
-    vertexAI({
-      projectId: project,
-      location: location,
-    }),
-  ],
+// Create the Vertex Anthropic provider
+const vertexAnthropic = createVertexAnthropic({
+  project: projectId,
+  location: location,
 });
 
-// Model reference for generation
-export const geminiModel = `vertexai/${model}`;
+// Export model instance for use in skills
+export const model: LanguageModel = vertexAnthropic(modelId);
 
-/**
- * Initialize Genkit
- * Called at startup to ensure the AI is ready
- */
-export async function initializeGenkit(): Promise<void> {
-  console.log(`[midnight-agent] Genkit initialized with Vertex AI`);
-  console.log(`[midnight-agent]   Project: ${project}`);
-  console.log(`[midnight-agent]   Location: ${location}`);
-  console.log(`[midnight-agent]   Model: ${model}`);
-}
+// Export config for logging
+export { projectId, location, modelId };
+
+console.log(`[midnight-agent] LLM initialized with Vertex AI Anthropic`);
+console.log(`[midnight-agent]   Project: ${projectId}`);
+console.log(`[midnight-agent]   Location: ${location}`);
+console.log(`[midnight-agent]   Model: ${modelId}`);

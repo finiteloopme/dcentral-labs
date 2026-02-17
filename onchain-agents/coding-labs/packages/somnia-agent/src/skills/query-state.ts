@@ -9,7 +9,8 @@ import {
   getContract,
 } from 'viem';
 import { extractTextFromMessage, type SkillEvent } from './index.js';
-import { ai } from '../genkit.js';
+import { generateText } from 'ai';
+import { model } from '../genkit.js';
 import { SOMNIA_MAINNET, SOMNIA_TESTNET } from '@coding-labs/shared';
 
 /**
@@ -189,13 +190,18 @@ export async function* queryState(
 
   try {
     // Extract query info using LLM
-    const extractionResponse = await ai.generate({
+    const extractionResponse = await generateText({
+      model,
       system: QUERY_EXTRACTION_PROMPT,
       prompt: `User wallet: ${walletContext?.address ?? 'not connected'}\n\nUser request: ${userText}`,
-      output: { format: 'json' },
     });
 
-    const queryInfo = extractionResponse.output as QueryInfo | undefined;
+    let queryInfo: QueryInfo | undefined;
+    try {
+      queryInfo = JSON.parse(extractionResponse.text) as QueryInfo;
+    } catch {
+      queryInfo = undefined;
+    }
     if (!queryInfo) {
       yield {
         type: 'error',

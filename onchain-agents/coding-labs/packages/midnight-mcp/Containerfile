@@ -1,4 +1,4 @@
-# Midnight Agent - Container Build
+# Midnight MCP Server - Container Build
 # Multi-stage build for smaller final image
 
 # ==============================================================================
@@ -15,18 +15,14 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY tsconfig.base.json ./
 
-# Copy shared package
-COPY packages/shared ./packages/shared
-
-# Copy midnight-agent package
-COPY packages/midnight-agent ./packages/midnight-agent
+# Copy midnight-mcp package (no shared dependency needed)
+COPY packages/midnight-mcp ./packages/midnight-mcp
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Build shared package first, then midnight-agent
-RUN pnpm --filter @coding-labs/shared build
-RUN pnpm --filter @coding-labs/midnight-agent build
+# Build midnight-mcp
+RUN pnpm --filter @coding-labs/midnight-mcp build
 
 # ==============================================================================
 # Stage 2: Production
@@ -35,7 +31,7 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
-# Install required tools: curl, xz for extracting .tar.xz
+# Install required tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     xz-utils \
@@ -58,32 +54,25 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy workspace files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
-# Copy built packages
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-
-COPY --from=builder /app/packages/midnight-agent/package.json ./packages/midnight-agent/
-COPY --from=builder /app/packages/midnight-agent/dist ./packages/midnight-agent/dist
-COPY --from=builder /app/packages/midnight-agent/SKILLS.md ./packages/midnight-agent/
-
-# Copy config.toml for configuration loading
-COPY config.toml ./
+# Copy built package
+COPY --from=builder /app/packages/midnight-mcp/package.json ./packages/midnight-mcp/
+COPY --from=builder /app/packages/midnight-mcp/dist ./packages/midnight-mcp/dist
 
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
 # Set environment
-# Note: Cloud Run sets PORT=8080 automatically
 ENV NODE_ENV=production
-ENV MIDNIGHT_AGENT_HOST=0.0.0.0
-ENV MIDNIGHT_AGENT_PORT=8080
+ENV MIDNIGHT_MCP_HOST=0.0.0.0
+ENV MIDNIGHT_MCP_PORT=8080
+ENV MIDNIGHT_DEFAULT_NETWORK=preview
 
 EXPOSE 8080
 
-WORKDIR /app/packages/midnight-agent
+WORKDIR /app/packages/midnight-mcp
 
-# Health check - uses PORT env var (8080 for Cloud Run, 4003 for local)
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 8080) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:' + (process.env.MIDNIGHT_MCP_PORT || 8080) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 CMD ["node", "dist/index.js"]

@@ -102,8 +102,8 @@ export async function* compileCompact(
     yield { type: 'status', message: 'Compiling Compact contract...' };
 
     // Run the Compact compiler
-    // compact compile <input> <output-dir>
-    const compileCommand = `compact build "${contractPath}" --output "${outputDir}"`;
+    // compact compile <input-file> <output-dir>
+    const compileCommand = `compact compile "${contractPath}" "${outputDir}"`;
 
     try {
       const { stdout, stderr } = await execAsync(compileCommand, {

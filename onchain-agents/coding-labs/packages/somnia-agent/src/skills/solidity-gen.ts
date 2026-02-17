@@ -1,6 +1,7 @@
 import type { Message } from '@a2a-js/sdk';
 import type { WalletContext } from '@coding-labs/shared';
-import { ai } from '../genkit.js';
+import { streamText } from 'ai';
+import { model } from '../genkit.js';
 import { extractTextFromMessage, type SkillEvent } from './index.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -85,46 +86,47 @@ export async function* generateSolidity(
   const userText = extractTextFromMessage(userMessage);
 
   if (!userText.trim()) {
-    yield { type: 'error', message: 'No input provided. Please describe the contract you want to generate.' };
+    yield {
+      type: 'error',
+      message:
+        'No input provided. Please describe the contract you want to generate.',
+    };
     return;
   }
 
   yield { type: 'status', message: 'Analyzing requirements...' };
 
   try {
-    // Generate code using Genkit
-    const { stream, response } = await ai.generateStream({
+    // Generate code using AI SDK streaming
+    const streamResult = streamText({
+      model,
       system: SYSTEM_PROMPT,
       prompt: userText,
-      output: { format: 'json' },
     });
 
     yield { type: 'status', message: 'Generating Solidity code...' };
 
     // Collect the streamed response
     let fullOutput = '';
-    for await (const chunk of stream) {
-      if (chunk.text) {
-        fullOutput += chunk.text;
-      }
+    for await (const delta of streamResult.textStream) {
+      fullOutput += delta;
     }
 
     // Parse the final response
-    const finalResponse = await response;
     let result: SolidityGenResult;
 
     try {
-      // Try to parse the output as JSON
-      const output = finalResponse.output as SolidityGenResult | undefined;
-      if (output?.files) {
-        result = output;
-      } else {
-        // Fallback: try to parse fullOutput
-        result = JSON.parse(fullOutput);
+      // Try to parse the collected output as JSON
+      result = JSON.parse(fullOutput);
+      if (!result?.files) {
+        throw new Error('Missing files array');
       }
     } catch {
       // If JSON parsing fails, wrap raw output as a single file
-      yield { type: 'error', message: 'Failed to parse generated code. Raw output returned.' };
+      yield {
+        type: 'error',
+        message: 'Failed to parse generated code. Raw output returned.',
+      };
       result = {
         files: [
           {
@@ -154,7 +156,8 @@ export async function* generateSolidity(
       },
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred';
     yield { type: 'error', message: `Code generation failed: ${errorMessage}` };
   }
 }

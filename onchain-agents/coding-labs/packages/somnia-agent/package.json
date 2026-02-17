@@ -13,9 +13,9 @@
   "dependencies": {
     "@a2a-js/sdk": "^0.3.10",
     "@coding-labs/shared": "workspace:*",
-    "@genkit-ai/vertexai": "^1.8.0",
+    "@ai-sdk/google-vertex": "^3.0.98",
+    "ai": "^5.0.0",
     "express": "^4.21.0",
-    "genkit": "^1.18.0",
     "uuid": "^11.0.0",
     "viem": "^2.21.0"
   },
