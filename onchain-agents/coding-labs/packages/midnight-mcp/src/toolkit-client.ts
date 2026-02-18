@@ -11,7 +11,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
-import { mkdir, readFile, rm } from 'fs/promises';
+import { mkdir, readFile, rm, stat } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { tmpdir } from 'os';
 import { MIDNIGHT_VERSION, NETWORKS } from './config.js';
@@ -22,6 +22,8 @@ const execFileAsync = promisify(execFile);
 const TOOLKIT_BIN = process.env.TOOLKIT_BIN || 'midnight-node-toolkit';
 const INTENTS_DIR =
   process.env.INTENTS_DIR || join(tmpdir(), 'midnight-intents');
+// Path to toolkit-js directory (for running generate-intent)
+const TOOLKIT_JS_PATH = process.env.TOOLKIT_JS_PATH || '/toolkit-js';
 
 // Timeout for toolkit operations (2 minutes for proof generation)
 const TOOLKIT_TIMEOUT_MS = 120000;
@@ -75,14 +77,30 @@ export interface CallResult {
 
 /**
  * Execute the toolkit binary with given arguments.
+ *
+ * @param args - Arguments to pass to the toolkit
+ * @param options - Optional settings (cwd, env)
  */
-export async function runToolkit(args: string[]): Promise<ToolkitResult> {
+export async function runToolkit(
+  args: string[],
+  options?: { cwd?: string; env?: Record<string, string> }
+): Promise<ToolkitResult> {
   try {
-    const { stdout, stderr } = await execFileAsync(TOOLKIT_BIN, args, {
+    const execOptions = {
       timeout: TOOLKIT_TIMEOUT_MS,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
-    });
-    return { success: true, stdout, stderr };
+      encoding: 'utf-8' as const,
+      ...(options?.cwd ? { cwd: options.cwd } : {}),
+      ...(options?.env
+        ? { env: { ...process.env, ...options.env } }
+        : undefined),
+    };
+    const { stdout, stderr } = await execFileAsync(
+      TOOLKIT_BIN,
+      args,
+      execOptions
+    );
+    return { success: true, stdout: stdout || '', stderr: stderr || '' };
   } catch (error) {
     const err = error as {
       stdout?: string;
@@ -545,4 +563,600 @@ export function getNodeRpcUrl(network: string): string {
     throw new Error(`Unknown network: ${network}`);
   }
   return net.nodeRpc;
+}
+
+// -----------------------------------------------------------------------------
+// Intent Generation (for custom contract deployment via generate-intent)
+// -----------------------------------------------------------------------------
+
+/**
+ * Parameters for generating a deploy intent.
+ */
+export interface GenerateDeployIntentParams {
+  /** Path to contract.config.ts file */
+  configPath: string;
+  /** Wallet coin public key (hex) */
+  coinPublic: string;
+  /** Output directory for generated files */
+  outputDir: string;
+  /** Constructor arguments (as strings) */
+  constructorArgs?: string[];
+  /** Network name (default: undeployed) */
+  network?: string;
+}
+
+/**
+ * Result from generating a deploy intent.
+ */
+export interface GenerateDeployIntentResult {
+  success: boolean;
+  intentFile: string;
+  privateStateFile: string;
+  zswapStateFile: string;
+  error?: string;
+}
+
+/**
+ * Generate a deploy intent using the toolkit's generate-intent deploy command.
+ *
+ * This creates an intent file (.bin) that can be sent via send-intent.
+ *
+ * NOTE: The toolkit-js TypeScript runtime requires configs to be in its directory
+ * so that @midnight-ntwrk/* modules can be resolved. We create a symlink to the
+ * work directory and run from toolkit-js.
+ */
+export async function generateDeployIntent(
+  params: GenerateDeployIntentParams
+): Promise<GenerateDeployIntentResult> {
+  const {
+    configPath,
+    coinPublic,
+    outputDir,
+    constructorArgs = [],
+    network = 'undeployed',
+  } = params;
+
+  await ensureDir(outputDir);
+
+  // Create a unique temp directory within toolkit-js for this deployment
+  // This allows the TypeScript runtime to resolve @midnight-ntwrk/* modules
+  const tempName = `deploy-${randomUUID().slice(0, 8)}`;
+  const toolkitWorkDir = join(TOOLKIT_JS_PATH, tempName);
+
+  try {
+    // Copy the entire work directory to toolkit-js
+    await execFileAsync('cp', ['-r', outputDir, toolkitWorkDir], {
+      encoding: 'utf-8',
+    });
+    // Copy the config file
+    await execFileAsync('cp', [configPath, toolkitWorkDir + '/'], {
+      encoding: 'utf-8',
+    });
+
+    const toolkitConfigPath = join(toolkitWorkDir, 'contract.config.ts');
+    const intentFile = join(toolkitWorkDir, 'deploy.bin');
+    const privateStateFile = join(toolkitWorkDir, 'private_state.json');
+    const zswapStateFile = join(toolkitWorkDir, 'zswap_state.json');
+
+    const args = [
+      'generate-intent',
+      'deploy',
+      '-c',
+      toolkitConfigPath,
+      '--network',
+      network,
+      '--coin-public',
+      coinPublic,
+      '--output-intent',
+      intentFile,
+      '--output-private-state',
+      privateStateFile,
+      '--output-zswap-state',
+      zswapStateFile,
+      ...constructorArgs,
+    ];
+
+    console.log(`[toolkit] Running: generate-intent deploy from ${tempName}`);
+    const result = await runToolkit(args, { cwd: TOOLKIT_JS_PATH });
+
+    // Check for errors in stdout/stderr even if exit code is 0
+    // The toolkit may report errors but still exit with code 0
+    const output = result.stdout + result.stderr;
+    const hasError =
+      output.includes('Error loading configuration') ||
+      output.includes('Failed to compile') ||
+      output.includes('Cannot find module') ||
+      output.includes('ENOENT') ||
+      output.includes('not assignable to type');
+
+    if (!result.success || hasError) {
+      // Clean up temp directory
+      await rm(toolkitWorkDir, { recursive: true, force: true }).catch(
+        () => {}
+      );
+      return {
+        success: false,
+        intentFile: '',
+        privateStateFile: '',
+        zswapStateFile: '',
+        error: result.error || output || 'Unknown error',
+      };
+    }
+
+    // Verify the intent file was actually created
+    try {
+      await stat(intentFile);
+    } catch {
+      await rm(toolkitWorkDir, { recursive: true, force: true }).catch(
+        () => {}
+      );
+      return {
+        success: false,
+        intentFile: '',
+        privateStateFile: '',
+        zswapStateFile: '',
+        error: `Intent file not created. Toolkit output: ${output}`,
+      };
+    }
+
+    // Copy output files back to original output directory
+    const finalIntentFile = join(outputDir, 'deploy.bin');
+    const finalPrivateStateFile = join(outputDir, 'private_state.json');
+    const finalZswapStateFile = join(outputDir, 'zswap_state.json');
+
+    await execFileAsync('cp', [intentFile, finalIntentFile], {
+      encoding: 'utf-8',
+    });
+    await execFileAsync('cp', [privateStateFile, finalPrivateStateFile], {
+      encoding: 'utf-8',
+    });
+    await execFileAsync('cp', [zswapStateFile, finalZswapStateFile], {
+      encoding: 'utf-8',
+    });
+
+    // Clean up temp directory
+    await rm(toolkitWorkDir, { recursive: true, force: true }).catch(() => {});
+
+    return {
+      success: true,
+      intentFile: finalIntentFile,
+      privateStateFile: finalPrivateStateFile,
+      zswapStateFile: finalZswapStateFile,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      intentFile: '',
+      privateStateFile: '',
+      zswapStateFile: '',
+      error: `Failed to generate deploy intent: ${err}`,
+    };
+  }
+}
+
+/**
+ * Parameters for sending an intent.
+ */
+export interface SendIntentParams {
+  /** Path to intent file (.bin) */
+  intentFile: string;
+  /** Path to compiled contract directory */
+  compiledContractDir: string;
+  /** Optional: output file path for transaction */
+  destFile?: string;
+  /** Save as bytes (true) or JSON (false) */
+  toBytes?: boolean;
+  /** Funding seed (default: genesis) */
+  fundingSeed?: string;
+  /** Node RPC URL for fetching state and sending tx */
+  nodeRpcUrl?: string;
+  /** Proof server URL for generating ZK proofs */
+  proofServerUrl?: string;
+}
+
+/**
+ * Result from sending an intent.
+ */
+export interface SendIntentResult {
+  success: boolean;
+  txFile: string;
+  error?: string;
+}
+
+/**
+ * Send an intent and create a transaction file.
+ *
+ * This creates a transaction file that can be submitted via generate-txs send.
+ */
+export async function sendIntent(
+  params: SendIntentParams
+): Promise<SendIntentResult> {
+  const {
+    intentFile,
+    compiledContractDir,
+    destFile,
+    toBytes = true,
+    fundingSeed = GENESIS_WALLET_SEED,
+    nodeRpcUrl,
+    proofServerUrl,
+  } = params;
+
+  const txFile = destFile || intentFile.replace('.bin', '_tx.mn');
+
+  const args = [
+    'send-intent',
+    '--intent-file',
+    intentFile,
+    '--compiled-contract-dir',
+    compiledContractDir,
+    '--funding-seed',
+    fundingSeed,
+    '--dest-file',
+    txFile,
+  ];
+
+  // Add node RPC URL for fetching state (--dest-url conflicts with --dest-file)
+  if (nodeRpcUrl) {
+    args.push('--src-url', nodeRpcUrl);
+  }
+
+  // Add proof server URL for ZK proof generation
+  if (proofServerUrl) {
+    args.push('--proof-server', proofServerUrl);
+  }
+
+  if (toBytes) {
+    args.push('--to-bytes');
+  }
+
+  console.log(
+    `[toolkit] Running: send-intent with args:`,
+    args.slice(0, 8).join(' '),
+    '...'
+  );
+  const result = await runToolkit(args);
+
+  if (!result.success) {
+    return {
+      success: false,
+      txFile: '',
+      error: result.error || result.stderr,
+    };
+  }
+
+  return {
+    success: true,
+    txFile,
+  };
+}
+
+/**
+ * Submit a transaction to the chain.
+ */
+export async function submitTransaction(
+  txFile: string,
+  nodeRpcUrl: string
+): Promise<{ success: boolean; error?: string }> {
+  const args = ['generate-txs', '--src-file', txFile, '-d', nodeRpcUrl, 'send'];
+
+  console.log(`[toolkit] Running: generate-txs send`);
+  const result = await runToolkit(args);
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || result.stderr,
+    };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Extract contract address from a deploy transaction file.
+ */
+export async function extractContractAddress(
+  txFile: string
+): Promise<{ success: boolean; address: string; error?: string }> {
+  const args = ['contract-address', '--src-file', txFile];
+
+  console.log(`[toolkit] Running: contract-address`);
+  const result = await runToolkit(args);
+
+  if (!result.success) {
+    return {
+      success: false,
+      address: '',
+      error: result.error || result.stderr,
+    };
+  }
+
+  // Output is the address (possibly with "0x" prefix or raw hex)
+  const address = result.stdout.trim().replace(/^0x/i, '');
+
+  return {
+    success: true,
+    address,
+  };
+}
+
+/**
+ * Get coin public key from a wallet seed.
+ */
+export async function getCoinPublicKey(
+  seed: string,
+  network: string
+): Promise<string> {
+  const toolkitNetwork = mapNetworkName(network);
+
+  const args = [
+    'show-address',
+    '--network',
+    toolkitNetwork,
+    '--seed',
+    seed,
+    '--coin-public',
+  ];
+
+  const result = await runToolkit(args);
+
+  if (!result.success) {
+    throw new Error(
+      `Failed to get coin public key: ${result.error || result.stderr}`
+    );
+  }
+
+  // Output should be the hex-encoded coin public key
+  return result.stdout.trim();
+}
+
+/**
+ * Parameters for generating a circuit call intent.
+ */
+export interface GenerateCircuitIntentParams {
+  /** Path to contract.config.ts file */
+  configPath: string;
+  /** Wallet coin public key (hex) */
+  coinPublic: string;
+  /** Deployed contract address */
+  contractAddress: string;
+  /** Circuit name to call (e.g., "increment") */
+  circuitName: string;
+  /** Path to on-chain state file */
+  onchainStateFile: string;
+  /** Path to private state file */
+  privateStateFile: string;
+  /** Output directory for generated files */
+  outputDir: string;
+  /** Circuit call arguments (as strings) */
+  args?: string[];
+  /** Network name (default: undeployed) */
+  network?: string;
+  /** Node RPC URL for fetching state */
+  nodeRpcUrl?: string;
+}
+
+/**
+ * Result from generating a circuit intent.
+ */
+export interface GenerateCircuitIntentResult {
+  success: boolean;
+  intentFile: string;
+  newPrivateStateFile: string;
+  error?: string;
+}
+
+/**
+ * Generate a circuit call intent using the toolkit's generate-intent circuit command.
+ *
+ * NOTE: Like generateDeployIntent, this must run from the toolkit-js directory
+ * so that @midnight-ntwrk/* modules can be resolved by the TypeScript runtime.
+ */
+export async function generateCircuitIntent(
+  params: GenerateCircuitIntentParams
+): Promise<GenerateCircuitIntentResult> {
+  const {
+    configPath,
+    coinPublic,
+    contractAddress,
+    circuitName,
+    onchainStateFile,
+    privateStateFile,
+    outputDir,
+    args = [],
+    network = 'undeployed',
+    nodeRpcUrl,
+  } = params;
+
+  await ensureDir(outputDir);
+
+  // Create a unique temp directory within toolkit-js for this circuit call
+  // This allows the TypeScript runtime to resolve @midnight-ntwrk/* modules
+  const tempName = `circuit-${randomUUID().slice(0, 8)}`;
+  const toolkitWorkDir = join(TOOLKIT_JS_PATH, tempName);
+
+  try {
+    // Copy the entire output directory (which has managed/ folder structure) to toolkit-js
+    await execFileAsync('cp', ['-r', outputDir, toolkitWorkDir], {
+      encoding: 'utf-8',
+    });
+
+    // Copy the config file to the toolkit work directory
+    await execFileAsync('cp', [configPath, toolkitWorkDir + '/'], {
+      encoding: 'utf-8',
+    });
+
+    // Copy on-chain state file
+    await execFileAsync('cp', [onchainStateFile, toolkitWorkDir + '/'], {
+      encoding: 'utf-8',
+    });
+
+    // Copy private state file
+    await execFileAsync('cp', [privateStateFile, toolkitWorkDir + '/'], {
+      encoding: 'utf-8',
+    });
+
+    // Set up paths relative to toolkit work directory
+    const toolkitConfigPath = join(toolkitWorkDir, 'contract.config.ts');
+    const toolkitOnchainStateFile = join(
+      toolkitWorkDir,
+      onchainStateFile.split('/').pop()!
+    );
+    const toolkitPrivateStateFile = join(
+      toolkitWorkDir,
+      privateStateFile.split('/').pop()!
+    );
+
+    const intentFile = join(toolkitWorkDir, `${circuitName}.bin`);
+    const newPrivateStateFile = join(
+      toolkitWorkDir,
+      `${circuitName}_private_state.json`
+    );
+    const zswapStateFile = join(
+      toolkitWorkDir,
+      `${circuitName}_zswap_state.json`
+    );
+
+    const cmdArgs = [
+      'generate-intent',
+      'circuit',
+      '-c',
+      toolkitConfigPath,
+      '--network',
+      network,
+      '--coin-public',
+      coinPublic,
+      '--contract-address',
+      contractAddress,
+      '--input-onchain-state',
+      toolkitOnchainStateFile,
+      '--input-private-state',
+      toolkitPrivateStateFile,
+      '--output-intent',
+      intentFile,
+      '--output-private-state',
+      newPrivateStateFile,
+      '--output-zswap-state',
+      zswapStateFile,
+      circuitName,
+      ...args,
+    ];
+
+    // Add src-url if provided (for fetching state)
+    if (nodeRpcUrl) {
+      cmdArgs.splice(2, 0, '-s', nodeRpcUrl);
+    }
+
+    console.log(
+      `[toolkit] Running: generate-intent circuit ${circuitName} from ${tempName}`
+    );
+    const result = await runToolkit(cmdArgs, { cwd: TOOLKIT_JS_PATH });
+
+    // Check for errors in stdout/stderr even if exit code is 0
+    const output = result.stdout + result.stderr;
+    const hasError =
+      output.includes('Error loading configuration') ||
+      output.includes('Failed to compile') ||
+      output.includes('Cannot find module') ||
+      output.includes('ENOENT') ||
+      output.includes('not assignable to type');
+
+    if (!result.success || hasError) {
+      // Keep temp directory for debugging
+      console.error(
+        `[toolkit] Circuit intent generation failed. Work dir: ${toolkitWorkDir}`
+      );
+      return {
+        success: false,
+        intentFile: '',
+        newPrivateStateFile: '',
+        error: result.error || output || 'Unknown error',
+      };
+    }
+
+    // Verify the intent file was actually created
+    try {
+      await stat(intentFile);
+    } catch {
+      console.error(
+        `[toolkit] Intent file not created. Work dir: ${toolkitWorkDir}`
+      );
+      return {
+        success: false,
+        intentFile: '',
+        newPrivateStateFile: '',
+        error: `Intent file not created. Toolkit output: ${output}`,
+      };
+    }
+
+    // Copy output files back to original output directory
+    const finalIntentFile = join(outputDir, `${circuitName}.bin`);
+    const finalNewPrivateStateFile = join(
+      outputDir,
+      `${circuitName}_private_state.json`
+    );
+    const finalZswapStateFile = join(
+      outputDir,
+      `${circuitName}_zswap_state.json`
+    );
+
+    await execFileAsync('cp', [intentFile, finalIntentFile], {
+      encoding: 'utf-8',
+    });
+    await execFileAsync('cp', [newPrivateStateFile, finalNewPrivateStateFile], {
+      encoding: 'utf-8',
+    });
+    await execFileAsync('cp', [zswapStateFile, finalZswapStateFile], {
+      encoding: 'utf-8',
+    });
+
+    // Clean up temp directory
+    await rm(toolkitWorkDir, { recursive: true, force: true }).catch(() => {});
+
+    return {
+      success: true,
+      intentFile: finalIntentFile,
+      newPrivateStateFile: finalNewPrivateStateFile,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      intentFile: '',
+      newPrivateStateFile: '',
+      error: `Failed to generate circuit intent: ${err}`,
+    };
+  }
+}
+
+/**
+ * Fetch contract on-chain state and save to file.
+ */
+export async function fetchContractState(
+  contractAddress: string,
+  nodeRpcUrl: string,
+  destFile: string
+): Promise<{ success: boolean; error?: string }> {
+  await ensureDir(join(destFile, '..'));
+
+  const args = [
+    'contract-state',
+    '--src-url',
+    nodeRpcUrl,
+    '--contract-address',
+    contractAddress,
+    '--dest-file',
+    destFile,
+  ];
+
+  console.log(`[toolkit] Running: contract-state`);
+  const result = await runToolkit(args);
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || result.stderr,
+    };
+  }
+
+  return { success: true };
 }

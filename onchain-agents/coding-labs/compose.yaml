@@ -102,6 +102,8 @@ services:
       - MIDNIGHT_INDEXER_URL=http://midnight-indexer:8088/api/v1/graphql
       - MIDNIGHT_INDEXER_WS=ws://midnight-indexer:8088/api/v1/graphql/ws
       - MIDNIGHT_PROOF_SERVER_URL=http://midnight-proof-server:6300
+      # Enable full ZK compilation (required for deployment)
+      - COMPACTC_SKIP_ZK=false
     depends_on:
       - midnight-node
       - midnight-indexer

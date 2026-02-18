@@ -144,7 +144,7 @@ export function loadConfig(): MidnightMCPConfig {
   return {
     port: parseInt(process.env.MIDNIGHT_MCP_PORT || '4010', 10),
     host: process.env.MIDNIGHT_MCP_HOST || 'localhost',
-    compactBinaryPath: process.env.COMPACT_BINARY_PATH || 'compact',
+    compactBinaryPath: process.env.COMPACT_BINARY_PATH || 'compactc',
     proofServerUrl: process.env.MIDNIGHT_PROOF_SERVER_URL || null,
     indexerOverrides: {
       preview: process.env.MIDNIGHT_INDEXER_PREVIEW_URL || null,

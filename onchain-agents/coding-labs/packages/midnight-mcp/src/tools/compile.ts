@@ -178,34 +178,44 @@ export async function compileCompact(
       return 'text/plain';
     };
 
-    // Helper to check if file is binary (keys are binary, skip them)
+    // Helper to check if file is binary
     const isBinaryFile = (filename: string): boolean => {
-      return filename.endsWith('.prover') || filename.endsWith('.verifier');
+      return (
+        filename.endsWith('.prover') ||
+        filename.endsWith('.verifier') ||
+        filename.endsWith('.bzkir')
+      );
     };
 
-    // Recursively read all text files from output directory
+    // Recursively read all files from output directory
+    // Binary files (prover/verifier keys) are base64 encoded
     try {
       const files = await readdir(outputDir, { recursive: true });
       for (const file of files) {
         const filename = file.toString();
         const filePath = join(outputDir, filename);
 
-        // Skip binary files
-        if (isBinaryFile(filename)) {
-          console.log(`[compact_compile] Skipping binary file: ${filename}`);
-          continue;
-        }
-
         // Check if it's a file (not a directory)
         try {
           const fileStat = await stat(filePath);
           if (!fileStat.isFile()) continue;
 
-          const content = await readFile(filePath, 'utf-8');
+          let content: string;
+          let mimeType = getMimeType(filename);
+
+          if (isBinaryFile(filename)) {
+            // Read binary files as base64
+            const buffer = await readFile(filePath);
+            content = buffer.toString('base64');
+            mimeType = 'application/octet-stream;base64';
+          } else {
+            content = await readFile(filePath, 'utf-8');
+          }
+
           artifacts.push({
             filename,
             content,
-            mimeType: getMimeType(filename),
+            mimeType,
           });
         } catch {
           // Skip unreadable files

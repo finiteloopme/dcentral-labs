@@ -15,8 +15,8 @@ import { checkProofServer, generateProof } from './prove.js';
 import { requestTokens } from './faucet.js';
 import { createWallet } from './wallet.js';
 import {
-  deployContract,
-  callContract,
+  deployContractFromArtifacts,
+  callContractCircuit,
   listCachedContracts,
 } from './contract.js';
 
@@ -337,32 +337,45 @@ export function registerTools(
   // --- contract_deploy ---
   server.tool(
     'contract_deploy',
-    'Deploy a compiled Compact contract to the Midnight network using contract-custom. ' +
-      'Requires compiled contract directory (from compactc) and a deploy intent file (.mn). ' +
-      'Optionally provide a funding seed, or uses cached wallet / genesis seed. ' +
-      'Returns the contract address and transaction ID.',
+    'Deploy a compiled Compact contract to the Midnight network. ' +
+      'Takes compiled artifacts from compact_compile and deploys to the specified network. ' +
+      'Uses the toolkit generate-intent + send-intent flow for full deployment. ' +
+      'Returns the contract address. The contract is cached for subsequent circuit calls.',
     {
-      compiledContractDir: z
+      artifacts: z
+        .array(
+          z.object({
+            filename: z
+              .string()
+              .describe('Artifact filename (e.g., "contract/index.cjs")'),
+            content: z.string().describe('File content as string'),
+            mimeType: z
+              .string()
+              .optional()
+              .describe('MIME type of the artifact'),
+          })
+        )
+        .describe('Compiled contract artifacts from compact_compile'),
+      contractName: z
         .string()
-        .describe(
-          'Path to compactc output directory containing contract key files'
-        ),
-      intentFile: z.string().describe('Path to the deploy intent .mn file'),
-      fundingSeed: z
-        .string()
+        .describe('Name of the contract (used for directory structure)'),
+      constructorArgs: z
+        .array(z.unknown())
         .optional()
         .describe(
-          'Funding wallet seed (optional, defaults to cached wallet or genesis seed)'
+          'Constructor arguments as JSON array (e.g., [10] for initial value)'
         ),
       network: networkEnum,
     },
-    async ({ compiledContractDir, intentFile, fundingSeed, network }) => {
-      const result = await deployContract(
-        compiledContractDir,
-        intentFile,
-        config,
-        network,
-        fundingSeed
+    async ({ artifacts, contractName, constructorArgs, network }) => {
+      const result = await deployContractFromArtifacts(
+        {
+          artifacts,
+          contractName,
+          constructorArgs,
+          network,
+        },
+        config
       );
 
       if (!result.success) {
@@ -370,7 +383,12 @@ export function registerTools(
           content: [
             {
               type: 'text' as const,
-              text: `Deployment failed: ${result.message}\n\n${result.errors || ''}`,
+              text:
+                `Deployment failed: ${result.message}\n\n` +
+                `${result.errors || ''}\n` +
+                (result.workDir
+                  ? `Work directory (for debugging): ${result.workDir}`
+                  : ''),
             },
           ],
           isError: true,
@@ -384,8 +402,7 @@ export function registerTools(
             text:
               `${result.message}\n\n` +
               `Network: ${result.network}\n` +
-              `Contract Address: ${result.contractAddress}\n` +
-              `Transaction ID: ${result.txId}`,
+              `Contract Address: ${result.contractAddress}`,
           },
         ],
       };
@@ -395,32 +412,32 @@ export function registerTools(
   // --- contract_call ---
   server.tool(
     'contract_call',
-    'Execute a transaction on a deployed Midnight contract using contract-custom. ' +
-      'Requires compiled contract directory and a call intent file (.mn). ' +
-      'The intent file specifies which circuit to call and with what arguments. ' +
-      'Returns the transaction ID.',
+    'Call a circuit on a deployed Midnight contract. ' +
+      'The contract must have been deployed via contract_deploy in this session (cached). ' +
+      'Fetches current on-chain state, generates a circuit call intent, and submits. ' +
+      'Private state is automatically managed and persisted.',
     {
-      compiledContractDir: z
+      contractAddress: z
         .string()
-        .describe(
-          'Path to compactc output directory containing contract key files'
-        ),
-      intentFile: z.string().describe('Path to the call intent .mn file'),
-      fundingSeed: z
+        .describe('Address of the deployed contract (from contract_deploy)'),
+      circuitName: z
         .string()
+        .describe('Name of the circuit to call (e.g., "increment", "reset")'),
+      args: z
+        .array(z.unknown())
         .optional()
-        .describe(
-          'Funding wallet seed (optional, defaults to cached wallet or genesis seed)'
-        ),
+        .describe('Circuit arguments as JSON array (e.g., [5] for amount)'),
       network: networkEnum,
     },
-    async ({ compiledContractDir, intentFile, fundingSeed, network }) => {
-      const result = await callContract(
-        compiledContractDir,
-        intentFile,
-        config,
-        network,
-        fundingSeed
+    async ({ contractAddress, circuitName, args, network }) => {
+      const result = await callContractCircuit(
+        {
+          contractAddress,
+          circuitName,
+          args,
+          network,
+        },
+        config
       );
 
       if (!result.success) {
@@ -442,7 +459,7 @@ export function registerTools(
             text:
               `${result.message}\n\n` +
               `Network: ${result.network}\n` +
-              `Transaction ID: ${result.txId}`,
+              `Contract: ${result.contractAddress}`,
           },
         ],
       };
@@ -473,9 +490,9 @@ export function registerTools(
       const lines = contracts.map(
         (c) =>
           `- ${c.address}\n` +
+          `  Name: ${c.contractName}\n` +
           `  Network: ${c.network}\n` +
-          `  Deployed: ${c.deployedAt.toISOString()}\n` +
-          `  TxId: ${c.txId}`
+          `  Deployed: ${c.deployedAt.toISOString()}`
       );
 
       return {
