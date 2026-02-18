@@ -43,6 +43,10 @@ port = 4003
 host = "localhost"
 port = 4010
 
+[default.services.evm-mcp]
+host = "localhost"
+port = 4011
+
 [default.services.opencode-server]
 host = "localhost"
 port = 4097
@@ -227,6 +231,9 @@ host = "0.0.0.0"
 host = "0.0.0.0"
 
 [production.services.midnight-mcp]
+host = "0.0.0.0"
+
+[production.services.evm-mcp]
 host = "0.0.0.0"
 
 [production.services.opencode-server]

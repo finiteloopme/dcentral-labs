@@ -105,6 +105,19 @@ steps:
       - 'packages/opencode-login/Containerfile'
       - '.'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-evm-mcp'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:latest'
+      - '-f'
+      - 'packages/evm-mcp/Containerfile'
+      - '.'
+
   # ===========================================================================
   # PUSH ALL IMAGES
   # ===========================================================================
@@ -156,6 +169,14 @@ steps:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-evm-mcp'
+    waitFor: ['build-evm-mcp']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp'
 
   # ===========================================================================
   # DEPLOY MIDNIGHT INFRASTRUCTURE (parallel - no dependencies)
@@ -360,6 +381,48 @@ steps:
           --region=${_REGION} \
           --format='value(status.url)' > /workspace/midnight-mcp-url.txt
         echo "Midnight MCP URL: $$(cat /workspace/midnight-mcp-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY: evm-mcp (no dependencies - includes Foundry/Anvil)
+  # ===========================================================================
+  # MCP server for EVM tools (Forge compile, Cast call/send, Anvil fork).
+  # Shared by all EVM chain agents (sonic-agent, somnia-agent, etc.)
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-evm-mcp'
+    waitFor: ['push-evm-mcp']
+    args:
+      - 'run'
+      - 'deploy'
+      - 'evm-mcp'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:${_TAG}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--ingress=all'
+      - '--port=8080'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--min-instances=0'
+      - '--max-instances=3'
+      - '--set-env-vars=NODE_ENV=production,EVM_MCP_HOST=0.0.0.0,EVM_MCP_PORT=8080,ANVIL_PORT=8545,DEFAULT_SOLC_VERSION=0.8.28'
+      - '--timeout=600'
+
+  # ===========================================================================
+  # GET evm-mcp URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-evm-mcp-url'
+    waitFor: ['deploy-evm-mcp']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe evm-mcp \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/evm-mcp-url.txt
+        echo "EVM MCP URL: $$(cat /workspace/evm-mcp-url.txt)"
 
   # ===========================================================================
   # DEPLOY 3: somnia-agent (depends on agent-registry)
@@ -599,6 +662,7 @@ steps:
         echo "  somnia-agent:    $$(cat /workspace/somnia-url.txt)"
         echo "  midnight-agent:  $$(cat /workspace/midnight-url.txt)"
         echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
+        echo "  evm-mcp:         $$(cat /workspace/evm-mcp-url.txt)"
         echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
         OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
         echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"

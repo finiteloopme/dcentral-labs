@@ -1,0 +1,47 @@
+{
+  "name": "@coding-labs/evm-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for EVM chains - Foundry toolchain (Anvil, Forge, Cast)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "pnpm exec tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "typecheck": "pnpm exec tsc --noEmit"
+  },
+  "keywords": [
+    "evm",
+    "mcp",
+    "model-context-protocol",
+    "foundry",
+    "anvil",
+    "forge",
+    "cast",
+    "solidity",
+    "ethereum",
+    "sonic",
+    "somnia"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
