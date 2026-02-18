@@ -575,6 +575,152 @@ export function registerTools(server: McpServer, config: EvmMcpConfig): void {
     }
   );
 
+  // --- chain_start ---
+  server.tool(
+    'chain_start',
+    'Start a local Anvil fork for the specified chain. ' +
+      'Acquires session lock - only one agent can use evm-mcp at a time. ' +
+      'Returns chain info, RPC URL, and pre-funded test accounts.',
+    {
+      network: z
+        .string()
+        .describe(
+          'Network preset (sonic-mainnet, somnia-testnet, ethereum-sepolia, base-sepolia)'
+        ),
+      sessionId: z.string().describe('Session ID for tracking'),
+      agentId: z
+        .string()
+        .describe('Agent ID (e.g., sonic-agent, somnia-agent)'),
+    },
+    async ({ network, sessionId, agentId }) => {
+      try {
+        const chainConfig = getChainPreset(network);
+        if (!chainConfig) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Unknown network: ${network}. Available: ${Object.keys(CHAIN_PRESETS).join(', ')}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Acquire session
+        const session = acquireSession(
+          sessionId,
+          agentId,
+          chainConfig,
+          config.anvilPort
+        );
+
+        // Start Anvil if not already running
+        if (!session.anvilProcess) {
+          const anvilResult = await startAnvil(chainConfig, config.anvilPort);
+          if (!anvilResult.success) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Failed to start Anvil: ${anvilResult.error}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  success: true,
+                  chain: {
+                    name: chainConfig.name,
+                    chainId: chainConfig.chainId,
+                    rpcUrl: chainConfig.rpcUrl,
+                    explorerUrl: chainConfig.explorerUrl,
+                  },
+                  anvil: {
+                    rpcUrl: session.anvilRpcUrl,
+                    running: true,
+                  },
+                  accounts: ANVIL_ACCOUNTS.map((a) => ({
+                    address: a.address,
+                    // Note: private keys are only exposed for dev mode
+                    privateKey: a.privateKey,
+                  })),
+                  message: `Anvil fork started for ${chainConfig.name}. Use the test accounts for transactions.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${errorMessage}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // --- chain_stop ---
+  server.tool(
+    'chain_stop',
+    'Stop the Anvil fork and release the session. ' +
+      'This allows switching to a different chain in the next request.',
+    {
+      sessionId: z.string().optional().describe('Session ID to stop'),
+    },
+    async ({ sessionId }) => {
+      const session = getSession();
+
+      if (!session) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No active session to stop.',
+            },
+          ],
+        };
+      }
+
+      const chainName = session.chainConfig.name;
+      const wasRunning = session.anvilProcess !== null;
+
+      releaseSession(sessionId);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                success: true,
+                stopped: wasRunning,
+                chain: chainName,
+                message: wasRunning
+                  ? `Anvil fork for ${chainName} stopped. Session released.`
+                  : `Session for ${chainName} released (Anvil was not running).`,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
   // --- session_info ---
   server.tool(
     'session_info',

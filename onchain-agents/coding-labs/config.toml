@@ -71,11 +71,11 @@ enabled = true
 
 [default.agents.sonic]
 name = "Sonic Agent"
-description = "High-performance EVM chain with FeeM optimization."
+description = "High-performance EVM chain with FeeM (Fee Monetization). Earn 90% of gas fees!"
 service = "sonic-agent"
 chain_id = 146
-keywords = ["sonic", "ftm", "fantom", "feem"]
-enabled = false
+keywords = ["sonic", "ftm", "fantom", "feem", "fee monetization", "s token"]
+enabled = true
 
 [default.agents.midnight]
 name = "Midnight Agent"

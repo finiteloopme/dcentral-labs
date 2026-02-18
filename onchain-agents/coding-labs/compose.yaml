@@ -220,6 +220,46 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Sonic Agent - A2A server for Sonic blockchain
+  # ---------------------------------------------------------------------------
+  # NOTE: sonic-agent calls MCP tools via HTTP, so evm-mcp must be running.
+  sonic-agent:
+    build:
+      context: .
+      dockerfile: packages/sonic-agent/Containerfile
+    container_name: sonic-agent
+    ports:
+      - '${SONIC_AGENT_PORT:-4002}:${SONIC_AGENT_PORT:-4002}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - SONIC_AGENT_HOST=0.0.0.0
+      # EVM MCP server URL for tool calls
+      - EVM_MCP_URL=http://evm-mcp:8080
+      # For local dev with gcloud auth
+      - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
+    depends_on:
+      evm-mcp:
+        condition: service_healthy
+    volumes:
+      # Mount gcloud credentials for Vertex AI
+      - ${HOME}/.config/gcloud:/creds:ro
+      # Mount config.toml (optional, env vars take precedence)
+      - ./config.toml:/app/config.toml:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4002/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # Midnight Agent - A2A server for Midnight Network (ZK blockchain)
   # ---------------------------------------------------------------------------
   # NOTE: midnight-agent calls MCP tools via HTTP, so midnight-mcp must be running.
@@ -291,6 +331,7 @@ services:
     depends_on:
       - agent-registry
       - somnia-agent
+      - sonic-agent
       - midnight-agent
     healthcheck:
       test:

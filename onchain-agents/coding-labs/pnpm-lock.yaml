@@ -201,6 +201,46 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/sonic-agent:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^0.3.10
+        version: 0.3.10(@grpc/grpc-js@1.14.3)(express@4.22.1)
+      '@ai-sdk/google-vertex':
+        specifier: ^3.0.98
+        version: 3.0.104(zod@4.3.6)
+      '@coding-labs/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.27.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+      ai:
+        specifier: ^5.0.0
+        version: 5.0.133(zod@4.3.6)
+      express:
+        specifier: ^4.21.0
+        version: 4.22.1
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.13.0
+        version: 22.19.11
+      '@types/uuid':
+        specifier: ^10.0.0
+        version: 10.0.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
 packages:
 
   '@a2a-js/sdk@0.3.10':
