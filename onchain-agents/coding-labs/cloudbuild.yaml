@@ -54,6 +54,19 @@ steps:
       - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-sonic'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sonic-agent:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sonic-agent:latest'
+      - '-f'
+      - 'packages/sonic-agent/Containerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
     id: 'build-midnight'
     waitFor: ['-'] # Start immediately (parallel with others)
     args:
@@ -105,6 +118,19 @@ steps:
       - 'packages/opencode-login/Containerfile'
       - '.'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-evm-mcp'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:latest'
+      - '-f'
+      - 'packages/evm-mcp/Containerfile'
+      - '.'
+
   # ===========================================================================
   # PUSH ALL IMAGES
   # ===========================================================================
@@ -124,6 +150,14 @@ steps:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/somnia-agent'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-sonic'
+    waitFor: ['build-sonic']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sonic-agent'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-midnight'
@@ -156,6 +190,14 @@ steps:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-evm-mcp'
+    waitFor: ['build-evm-mcp']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp'
 
   # ===========================================================================
   # DEPLOY MIDNIGHT INFRASTRUCTURE (parallel - no dependencies)
@@ -362,6 +404,48 @@ steps:
         echo "Midnight MCP URL: $$(cat /workspace/midnight-mcp-url.txt)"
 
   # ===========================================================================
+  # DEPLOY: evm-mcp (no dependencies - includes Foundry/Anvil)
+  # ===========================================================================
+  # MCP server for EVM tools (Forge compile, Cast call/send, Anvil fork).
+  # Shared by all EVM chain agents (sonic-agent, somnia-agent, etc.)
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-evm-mcp'
+    waitFor: ['push-evm-mcp']
+    args:
+      - 'run'
+      - 'deploy'
+      - 'evm-mcp'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp:${_TAG}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--ingress=all'
+      - '--port=8080'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--min-instances=0'
+      - '--max-instances=3'
+      - '--set-env-vars=NODE_ENV=production,EVM_MCP_HOST=0.0.0.0,EVM_MCP_PORT=8080,ANVIL_PORT=8545,DEFAULT_SOLC_VERSION=0.8.28'
+      - '--timeout=600'
+
+  # ===========================================================================
+  # GET evm-mcp URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-evm-mcp-url'
+    waitFor: ['deploy-evm-mcp']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe evm-mcp \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/evm-mcp-url.txt
+        echo "EVM MCP URL: $$(cat /workspace/evm-mcp-url.txt)"
+
+  # ===========================================================================
   # DEPLOY 3: somnia-agent (depends on agent-registry)
   # ===========================================================================
 
@@ -403,7 +487,49 @@ steps:
         echo "Somnia URL: $$(cat /workspace/somnia-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 4: midnight-agent (depends on agent-registry + midnight-mcp)
+  # DEPLOY 4: sonic-agent (depends on agent-registry + evm-mcp)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-sonic'
+    waitFor: ['get-registry-url', 'get-evm-mcp-url', 'push-sonic']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        EVM_MCP_URL=$$(cat /workspace/evm-mcp-url.txt)
+        gcloud run deploy sonic-agent \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sonic-agent:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=5 \
+          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL},EVM_MCP_URL=$${EVM_MCP_URL}"
+
+  # ===========================================================================
+  # GET sonic-agent URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-sonic-url'
+    waitFor: ['deploy-sonic']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe sonic-agent \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/sonic-url.txt
+        echo "Sonic URL: $$(cat /workspace/sonic-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY 5: midnight-agent (depends on agent-registry + midnight-mcp)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -490,13 +616,20 @@ steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-opencode'
     waitFor:
-      ['get-somnia-url', 'get-midnight-url', 'get-login-url', 'push-opencode']
+      [
+        'get-somnia-url',
+        'get-sonic-url',
+        'get-midnight-url',
+        'get-login-url',
+        'push-opencode',
+      ]
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         REGISTRY_URL=$$(cat /workspace/registry-url.txt)
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
+        SONIC_URL=$$(cat /workspace/sonic-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
         LOGIN_URL=$$(cat /workspace/login-url.txt)
         gcloud beta run deploy opencode-web \
@@ -511,7 +644,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=10 \
-          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
+          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
   # ===========================================================================
   # SETUP IAP: Grant IAP service agent run.invoker role
@@ -544,16 +677,17 @@ steps:
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'update-registry'
-    waitFor: ['get-somnia-url', 'get-midnight-url']
+    waitFor: ['get-somnia-url', 'get-sonic-url', 'get-midnight-url']
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
+        SONIC_URL=$$(cat /workspace/sonic-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
         gcloud run services update agent-registry \
           --region=${_REGION} \
-          --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL}"
+          --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL}"
 
   # ===========================================================================
   # UPDATE opencode-login with APP_URL (opencode-web URL)
@@ -597,8 +731,10 @@ steps:
         echo "Application Services:"
         echo "  agent-registry:  $$(cat /workspace/registry-url.txt)"
         echo "  somnia-agent:    $$(cat /workspace/somnia-url.txt)"
+        echo "  sonic-agent:     $$(cat /workspace/sonic-url.txt)"
         echo "  midnight-agent:  $$(cat /workspace/midnight-url.txt)"
         echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
+        echo "  evm-mcp:         $$(cat /workspace/evm-mcp-url.txt)"
         echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
         OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
         echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"

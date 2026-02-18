@@ -1,0 +1,65 @@
+# Sonic Agent Container
+# Build: podman build -t sonic-agent -f Containerfile .
+# Run: podman run -p 4002:4002 -e GOOGLE_APPLICATION_CREDENTIALS=/creds/key.json -v ~/.config/gcloud:/creds sonic-agent
+
+FROM node:22-slim AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+WORKDIR /app
+
+# Build stage
+FROM base AS builder
+
+# Copy workspace files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/sonic-agent/package.json packages/sonic-agent/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY packages/shared/ packages/shared/
+COPY packages/sonic-agent/ packages/sonic-agent/
+
+# Build
+RUN pnpm --filter @coding-labs/shared build
+RUN pnpm --filter @coding-labs/sonic-agent build
+
+# Production stage
+FROM base AS runner
+
+WORKDIR /app
+
+# Copy built artifacts and production dependencies
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/pnpm-lock.yaml* ./
+COPY --from=builder /app/packages/shared/package.json packages/shared/
+COPY --from=builder /app/packages/shared/dist packages/shared/dist/
+COPY --from=builder /app/packages/sonic-agent/package.json packages/sonic-agent/
+COPY --from=builder /app/packages/sonic-agent/dist packages/sonic-agent/dist/
+COPY --from=builder /app/packages/sonic-agent/SKILLS.md packages/sonic-agent/
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Set environment
+ENV NODE_ENV=production
+# PORT is set by Cloud Run, default to 4002 for local development
+ENV PORT=4002
+ENV SONIC_AGENT_HOST=0.0.0.0
+
+# Expose port (Cloud Run uses $PORT, default 4002 for local)
+EXPOSE 4002
+EXPOSE 8080
+
+# Health check (uses PORT env var)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 4002) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+# Run - use shell form to allow $PORT expansion
+CMD node packages/sonic-agent/dist/index.js

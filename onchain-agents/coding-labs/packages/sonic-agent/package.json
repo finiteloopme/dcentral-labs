@@ -1,0 +1,29 @@
+{
+  "name": "@coding-labs/sonic-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "pnpm exec tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "typecheck": "pnpm exec tsc --noEmit"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.10",
+    "@coding-labs/shared": "workspace:*",
+    "@ai-sdk/google-vertex": "^3.0.98",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ai": "^5.0.0",
+    "express": "^4.21.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
