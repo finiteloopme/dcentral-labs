@@ -35,22 +35,8 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
-# Install required tools: curl, xz for extracting .tar.xz
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    xz-utils \
-    unzip \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Compact devtools v0.4.0 and download default compiler
-# The installer places the binary in $HOME/.local/bin
-# Then 'compact update' downloads the actual compactc compiler and sets it as default
-ENV PATH="/root/.local/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -LsSf \
-    https://github.com/midnightntwrk/compact/releases/download/compact-v0.4.0/compact-installer.sh | sh \
-    && compact update \
-    && compact --version
+# NOTE: Compact compiler is NOT installed here.
+# The midnight-agent calls MCP tools via HTTP, and midnight-mcp has the compiler.
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate

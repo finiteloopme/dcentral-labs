@@ -1,95 +1,265 @@
 /**
- * Call Circuit Skill (Stub)
+ * Call Circuit Skill
  *
- * Executes a circuit on a deployed Midnight contract with ZK proof generation.
- * This is a stub implementation - full implementation requires:
- * - Midnight.js SDK integration
- * - Wallet connection (Lace wallet)
- * - Proof Server for ZK proof generation
- * - Contract state management
+ * Executes a circuit (function) on a deployed Midnight contract.
+ * Uses MCP tools via HTTP for wallet creation and circuit execution.
+ *
+ * Prerequisites:
+ *   1. Contract must be deployed (contractAddress from session or message)
+ *   2. Compiled artifacts must be available (artifacts from session)
+ *   3. Wallet is created automatically via MCP
  */
 
 import type { Message } from '@a2a-js/sdk';
-import type { SkillEvent } from './index.js';
+import type { SkillEvent, SessionContext } from './index.js';
 import { extractTextFromMessage } from './index.js';
+import { getMCPClient } from '../mcp-client.js';
 
 /**
- * Call a circuit on a deployed contract (stub)
+ * Extract contract address from text (0x-prefixed hex string).
  */
-export async function* callCircuit(
-  message: Message
+function extractContractAddress(text: string): string | null {
+  const match = text.match(/0x[a-fA-F0-9]{40,}/);
+  return match ? match[0] : null;
+}
+
+/**
+ * Extract circuit name from user message.
+ * Looks for patterns like "call increment", "execute the transfer circuit", etc.
+ */
+function extractCircuitName(text: string): string | null {
+  const patterns = [
+    /(?:call|execute|run|invoke)\s+(?:the\s+)?["']?(\w+)["']?\s*(?:circuit|function)?/i,
+    /circuit\s+["']?(\w+)["']?/i,
+    /function\s+["']?(\w+)["']?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract arguments from user message.
+ * Looks for patterns like "with args [1, 2, 3]" or "arguments: {value: 100}".
+ */
+function extractArguments(text: string): unknown[] | null {
+  // Try to find array arguments
+  const arrayMatch = text.match(
+    /(?:args?|arguments?|params?)\s*[=:]\s*\[([^\]]+)\]/i
+  );
+  if (arrayMatch) {
+    try {
+      return JSON.parse(`[${arrayMatch[1]}]`);
+    } catch {
+      // Not valid JSON, skip
+    }
+  }
+
+  // Try to find a single numeric argument
+  const numMatch = text.match(/(?:with|value|amount)\s*[=:]\s*(\d+)/i);
+  if (numMatch) {
+    return [parseInt(numMatch[1], 10)];
+  }
+
+  return null;
+}
+
+/**
+ * Extract contract name from user message.
+ */
+function extractContractName(text: string): string | null {
+  const nameMatch = text.match(/contract\s+["']?(\w+)["']?/i);
+  return nameMatch ? nameMatch[1] : null;
+}
+
+/**
+ * Detect target network from user message.
+ */
+function detectNetwork(text: string): 'preview' | 'preprod' | 'local' {
+  const lower = text.toLowerCase();
+  if (lower.includes('preprod')) return 'preprod';
+  if (lower.includes('local') || lower.includes('standalone')) return 'local';
+  return 'preview';
+}
+
+/**
+ * Execute a circuit on a deployed Midnight contract via MCP.
+ */
+export async function* callCircuitSkill(
+  message: Message,
+  session?: SessionContext
 ): AsyncGenerator<SkillEvent, void, unknown> {
   const userText = extractTextFromMessage(message);
 
   yield { type: 'status', message: 'Analyzing circuit call request...' };
 
-  // Try to extract contract address
-  const addressMatch = userText.match(/0x[a-fA-F0-9]{40,}/);
-  const contractAddress = addressMatch ? addressMatch[0] : null;
+  // 1. Extract contract address - required
+  const contractAddress =
+    session?.contractAddress || extractContractAddress(userText);
 
-  // Try to extract circuit name
-  const circuitMatch = userText.match(
-    /(?:call|execute|run|invoke)\s+(?:the\s+)?(\w+)\s+(?:circuit|function)?/i
-  );
-  const circuitName = circuitMatch ? circuitMatch[1] : null;
-
-  yield {
-    type: 'status',
-    message: contractAddress
-      ? `Contract: ${contractAddress}`
-      : 'No contract address provided',
-  };
-
-  if (circuitName) {
+  if (!contractAddress) {
     yield {
-      type: 'status',
-      message: `Circuit: ${circuitName}`,
+      type: 'error',
+      message:
+        'No contract address found. Please deploy a contract first or provide the address ' +
+        '(e.g., "call increment on 0x1234...").',
     };
+    return;
   }
 
-  // This is a stub - circuit execution requires:
-  // 1. Contract address and deployed contract instance
-  // 2. Midnight.js SDK for transaction creation
-  // 3. Wallet connection for signing
-  // 4. Proof Server for ZK proof generation
-  // 5. Private state (witness) if needed
+  yield { type: 'status', message: `Contract: ${contractAddress}` };
 
+  // 2. Extract circuit name - required
+  const circuitName = extractCircuitName(userText);
+
+  if (!circuitName) {
+    yield {
+      type: 'error',
+      message:
+        'No circuit name found. Please specify which circuit to call ' +
+        '(e.g., "call the increment circuit").',
+    };
+    return;
+  }
+
+  yield { type: 'status', message: `Circuit: ${circuitName}` };
+
+  // 3. Get artifacts - required for circuit execution
+  const artifacts = session?.artifacts;
+
+  if (!artifacts || artifacts.length === 0) {
+    yield {
+      type: 'error',
+      message:
+        'No compiled artifacts found. The compiled contract artifacts are required ' +
+        'for circuit execution. Please compile and deploy the contract in this session.',
+    };
+    return;
+  }
+
+  // 4. Get contract name
+  const contractName =
+    session?.contractName || extractContractName(userText) || 'contract';
+
+  // 5. Determine target network
+  const network = (session?.network || detectNetwork(userText)) as
+    | 'preview'
+    | 'preprod'
+    | 'local';
+
+  yield { type: 'status', message: `Network: ${network}` };
+
+  // 6. Extract optional arguments
+  const args = extractArguments(userText);
+  if (args) {
+    yield { type: 'status', message: `Arguments: ${JSON.stringify(args)}` };
+  }
+
+  const mcp = getMCPClient();
+
+  // 7. Create wallet (required for circuit calls)
   yield {
-    type: 'artifact',
-    name: 'call-info.json',
-    content: JSON.stringify(
-      {
-        status: 'not_implemented',
-        message: 'Circuit execution is not yet implemented',
-        parsed: {
-          contractAddress,
-          circuitName,
-        },
-        requirements: [
-          'Deployed contract address',
-          'Circuit name and parameters',
-          'Midnight.js SDK (@midnight-ntwrk/midnight-js-contracts)',
-          'Wallet connection (Lace Midnight wallet)',
-          'Proof Server (for ZK proof generation)',
-          'Private state/witness (if circuit requires it)',
-        ],
-        documentation:
-          'https://docs.midnight.network/next/midnight-js/calling-circuits',
-      },
-      null,
-      2
-    ),
-    mimeType: 'application/json',
+    type: 'status',
+    message: 'Creating wallet for transaction via MCP...',
   };
 
-  yield {
-    type: 'result',
-    data: {
-      implemented: false,
+  try {
+    const walletResult = await mcp.createWallet(network);
+
+    if (!walletResult.success) {
+      yield {
+        type: 'error',
+        message: `Wallet creation failed: ${walletResult.message}`,
+      };
+      return;
+    }
+
+    yield {
+      type: 'status',
+      message: `Wallet ready: ${walletResult.address}`,
+    };
+
+    // 8. Execute the circuit via MCP
+    yield {
+      type: 'status',
+      message: `Executing circuit "${circuitName}" via MCP...`,
+    };
+
+    const result = await mcp.callContract(
       contractAddress,
       circuitName,
-    },
-    message:
-      'Circuit execution is not yet implemented. This skill requires Midnight.js SDK integration, wallet connection, Proof Server, and potentially private state management.',
-  };
+      artifacts,
+      contractName,
+      network,
+      args || undefined
+    );
+
+    if (!result.success) {
+      yield {
+        type: 'artifact',
+        name: 'call-error.json',
+        content: JSON.stringify(result, null, 2),
+        mimeType: 'application/json',
+      };
+
+      yield {
+        type: 'error',
+        message: result.message,
+      };
+      return;
+    }
+
+    // 9. Emit call result as artifact
+    yield {
+      type: 'artifact',
+      name: 'call-result.json',
+      content: JSON.stringify(
+        {
+          success: true,
+          network: result.network,
+          contractAddress: result.contractAddress,
+          circuitName: result.circuitName,
+          txId: result.txId,
+          txHash: result.txHash,
+          blockHeight: result.blockHeight,
+          explorerUrl: `https://explorer.${result.network}.midnight.network/tx/${result.txId}`,
+        },
+        null,
+        2
+      ),
+      mimeType: 'application/json',
+    };
+
+    yield {
+      type: 'result',
+      data: result,
+      message:
+        `Circuit "${circuitName}" executed successfully!\n\n` +
+        `Network: ${result.network}\n` +
+        `Contract: ${result.contractAddress}\n` +
+        `Transaction: ${result.txId}\n` +
+        `Block: ${result.blockHeight}`,
+    };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+
+    yield {
+      type: 'artifact',
+      name: 'call-error.txt',
+      content: errorMessage,
+      mimeType: 'text/plain',
+    };
+
+    yield {
+      type: 'error',
+      message: `Circuit call failed: ${errorMessage}`,
+    };
+  }
 }

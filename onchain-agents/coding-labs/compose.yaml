@@ -8,11 +8,116 @@
 #   podman-compose up -d
 #   docker compose up -d
 #
+# This starts the full stack including Midnight infrastructure (node, indexer, proof-server).
+# All services run by default - no profiles needed for local development.
+#
 # With login page (optional):
 #   docker compose --profile login up -d
-#   podman-compose --profile login up -d
+
+# ---------------------------------------------------------------------------
+# Midnight Versions - Keep all in sync when upgrading
+# ---------------------------------------------------------------------------
+# NODE_VERSION=0.20.1 (node, toolkit)
+# INDEXER_VERSION=3.0.0 (separate versioning)
+# PROOF_SERVER_VERSION=7.0.0-rc.1
+# See: https://docs.midnight.network/next/relnotes/overview#compatibility-matrix
 
 services:
+  # ---------------------------------------------------------------------------
+  # Midnight Infrastructure (always runs)
+  # ---------------------------------------------------------------------------
+  # These services provide the local Midnight blockchain for development.
+  # No external network dependencies - fully isolated.
+
+  # Midnight Node - Standalone dev node (isolated private chain)
+  # The CFG_PRESET=dev flag runs the node without connecting to any external network.
+  # Tokens are genesis-minted -- no faucet needed.
+  midnight-node:
+    image: midnightntwrk/midnight-node:0.20.1
+    container_name: midnight-node
+    ports:
+      - '9944:9944'
+    environment:
+      CFG_PRESET: dev
+      SIDECHAIN_BLOCK_BENEFICIARY: '04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # Midnight Indexer - Standalone indexer (chain + wallet + API in one)
+  # Watches the local node and provides GraphQL API for state queries.
+  # NOTE: No healthcheck - image doesn't have curl/wget
+  midnight-indexer:
+    image: midnightntwrk/indexer-standalone:3.0.0
+    container_name: midnight-indexer
+    ports:
+      - '8088:8088'
+    environment:
+      RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=info,info'
+      APP__INFRA__SECRET: '303132333435363738393031323334353637383930313233343536373839303132'
+      APP__INFRA__NODE__URL: 'ws://midnight-node:9944'
+    depends_on:
+      - midnight-node
+    restart: unless-stopped
+
+  # Midnight Proof Server - ZK proof generation
+  # NOTE: No healthcheck - image doesn't have curl/wget
+  midnight-proof-server:
+    image: midnightnetwork/proof-server:7.0.0-rc.1
+    container_name: midnight-proof-server
+    ports:
+      - '6300:6300'
+    environment:
+      # Proof server uses $PORT env var
+      PORT: '6300'
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Midnight MCP - MCP server for Midnight Network tools
+  # ---------------------------------------------------------------------------
+  # Provides: Compact compiler, contract deploy/call, state queries
+  # Transport: SSE over HTTP
+  # Connects to local infrastructure containers by default.
+  midnight-mcp:
+    build:
+      context: .
+      dockerfile: packages/midnight-mcp/Containerfile
+    container_name: midnight-mcp
+    ports:
+      - '${MIDNIGHT_MCP_PORT:-4010}:8080'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - MIDNIGHT_MCP_HOST=0.0.0.0
+      - MIDNIGHT_MCP_PORT=8080
+      # Default to local network (container URLs)
+      - MIDNIGHT_DEFAULT_NETWORK=local
+      # Container URLs for local infrastructure
+      - MIDNIGHT_NODE_RPC=ws://midnight-node:9944
+      - MIDNIGHT_INDEXER_URL=http://midnight-indexer:8088/api/v1/graphql
+      - MIDNIGHT_INDEXER_WS=ws://midnight-indexer:8088/api/v1/graphql/ws
+      - MIDNIGHT_PROOF_SERVER_URL=http://midnight-proof-server:6300
+    depends_on:
+      - midnight-node
+      - midnight-indexer
+      - midnight-proof-server
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:8080/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
   # ---------------------------------------------------------------------------
   # Agent Registry - Central directory of all agents
   # ---------------------------------------------------------------------------
@@ -38,10 +143,8 @@ services:
     healthcheck:
       test:
         [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:4000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4000/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
         ]
       interval: 30s
       timeout: 10s
@@ -74,10 +177,8 @@ services:
     healthcheck:
       test:
         [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:4001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4001/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
         ]
       interval: 30s
       timeout: 10s
@@ -88,6 +189,7 @@ services:
   # ---------------------------------------------------------------------------
   # Midnight Agent - A2A server for Midnight Network (ZK blockchain)
   # ---------------------------------------------------------------------------
+  # NOTE: midnight-agent calls MCP tools via HTTP, so midnight-mcp must be running.
   midnight-agent:
     build:
       context: .
@@ -100,8 +202,13 @@ services:
     environment:
       - NODE_ENV=development
       - MIDNIGHT_AGENT_HOST=0.0.0.0
+      # MCP server URL for tool calls (compile, deploy, call, query)
+      - MIDNIGHT_MCP_URL=http://midnight-mcp:8080
       # For local dev with gcloud auth
       - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
+    depends_on:
+      midnight-mcp:
+        condition: service_healthy
     volumes:
       # Mount gcloud credentials for Vertex AI
       - ${HOME}/.config/gcloud:/creds:ro
@@ -110,64 +217,13 @@ services:
     healthcheck:
       test:
         [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:4003/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4003/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
         ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # Midnight MCP - MCP server for Midnight Network tools
-  # ---------------------------------------------------------------------------
-  # Provides: Compact compiler, Indexer queries, Proof Server access
-  # Transport: SSE over HTTP
-  midnight-mcp:
-    build:
-      context: .
-      dockerfile: packages/midnight-mcp/Containerfile
-    container_name: midnight-mcp
-    ports:
-      - '${MIDNIGHT_MCP_PORT:-4010}:${MIDNIGHT_MCP_PORT:-4010}'
-    env_file:
-      - .env.generated
-    environment:
-      - NODE_ENV=development
-      - MIDNIGHT_MCP_HOST=0.0.0.0
-      - MIDNIGHT_DEFAULT_NETWORK=preview
-      # Use local proof server if running (midnight-local profile)
-      # - MIDNIGHT_PROOF_SERVER_URL=http://midnight-proof-server:6300
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:4010/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
-  # Midnight Proof Server - ZK proof generation (optional, local)
-  # ---------------------------------------------------------------------------
-  # Only starts when using --profile midnight-local
-  # Alternative: use hosted proof server endpoints (preview/preprod)
-  midnight-proof-server:
-    image: midnightnetwork/proof-server:latest
-    container_name: midnight-proof-server
-    profiles:
-      - midnight-local
-    ports:
-      - '6300:6300'
-    command: ['midnight-proof-server', '--network', 'preview']
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -205,7 +261,7 @@ services:
       - midnight-agent
     healthcheck:
       test:
-        ['CMD', 'wget', '-q', '--spider', 'http://localhost:8080/global/health']
+        ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/global/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -232,7 +288,7 @@ services:
       # URL of the main app (for "Sign in with Google" button)
       - APP_URL=http://localhost:${OPENCODE_FRONTEND_PORT:-3000}
     healthcheck:
-      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:8080/health']
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -240,14 +296,46 @@ services:
     restart: unless-stopped
 
 # ===========================================================================
+# Service Dependency Graph
+# ===========================================================================
+#
+#   midnight-node ──┬──> midnight-indexer ──┐
+#                   │                       │
+#                   └──> midnight-proof-server
+#                                           │
+#                                           ▼
+#                                    midnight-mcp
+#                                           │
+#                                           ▼
+#                                    midnight-agent
+#                                           │
+#   somnia-agent ◄──────────────────────────┤
+#                                           │
+#   agent-registry ◄────────────────────────┤
+#                                           │
+#                                           ▼
+#                                     opencode-web
+#
+# ===========================================================================
 # Local Development (without containers)
 # ===========================================================================
-# Terminal 1: make registry-dev     (Agent Registry on :4000)
-# Terminal 2: make dev              (Somnia Agent on :4001)
-# Terminal 3: make opencode-server  (OpenCode Backend on :4097)
-# Terminal 4: make opencode-frontend (OpenCode Frontend on :3000)
+# Terminal 1: make run   (starts all services with concurrently)
+#
+# Or individually:
+#   make registry-dev     (Agent Registry on :4000)
+#   make dev              (Somnia Agent on :4001)
+#   make opencode-server  (OpenCode Backend on :4097)
+#
+# Service URLs (containers):
+#   Node RPC:    ws://localhost:9944
+#   Indexer:     http://localhost:8088
+#   Proof:       http://localhost:6300
+#   MCP:         http://localhost:4010
+#   Registry:    http://localhost:4000
+#   Somnia:      http://localhost:4001
+#   Midnight:    http://localhost:4003
+#   OpenCode:    http://localhost:3000
 #
 # With login page:
 #   docker compose --profile login up -d
 #   Login page: http://localhost:4098
-#   Main app:   http://localhost:3000

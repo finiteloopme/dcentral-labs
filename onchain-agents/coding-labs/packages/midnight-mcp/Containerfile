@@ -1,78 +1,144 @@
-# Midnight MCP Server - Container Build
-# Multi-stage build for smaller final image
+# =============================================================================
+# Midnight MCP Server with Node Toolkit and Compact Compiler
+# =============================================================================
+#
+# This container includes:
+#   - Node.js MCP server for tool registration
+#   - midnight-node-toolkit binary (version-aligned with node)
+#   - Compact compiler (compactc) for smart contract compilation
+#
+# The toolkit binary is copied from the official Docker image to ensure
+# version compatibility between node and toolkit.
+#
+# Build args:
+#   MIDNIGHT_VERSION - Version for node/toolkit (default: 0.20.1)
+#   COMPACTC_VERSION - Compact compiler version (default: 0.28.0)
+#
+# Compatibility Matrix (Ledger 7.0.0):
+#   Node + Toolkit:   0.20.1
+#   Compact Compiler: 0.28.0
+#   See: https://docs.midnight.network/next/relnotes/overview#compatibility-matrix
+#
+# =============================================================================
 
-# ==============================================================================
-# Stage 1: Build
-# ==============================================================================
-FROM node:20-slim AS builder
+ARG MIDNIGHT_VERSION=0.20.1
+ARG COMPACTC_VERSION=0.28.0
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build Node.js MCP server
+# -----------------------------------------------------------------------------
+FROM node:22-slim AS builder
+
+WORKDIR /app/packages/midnight-mcp
+
+# Copy package files first for better layer caching
+COPY packages/midnight-mcp/package.json ./
+COPY tsconfig.base.json /app/
+
+# Install all dependencies (including devDependencies for build)
+RUN npm install
+
+# Verify key dependencies installed
+RUN ls -la node_modules/@modelcontextprotocol/sdk || (echo "MCP SDK not installed!" && exit 1)
+RUN ls -la node_modules/typescript || (echo "TypeScript not installed!" && exit 1)
+
+# Copy source files (preserve node_modules by copying individual dirs)
+COPY packages/midnight-mcp/src ./src
+COPY packages/midnight-mcp/tsconfig.json ./
+
+# Build TypeScript
+RUN npx tsc
+
+# Verify build output
+RUN ls -la dist/
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production with Toolkit and Compact Compiler
+# -----------------------------------------------------------------------------
+FROM node:22-slim AS production
+
+ARG MIDNIGHT_VERSION
+ARG COMPACTC_VERSION
 
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Copy workspace configuration
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY tsconfig.base.json ./
-
-# Copy midnight-mcp package (no shared dependency needed)
-COPY packages/midnight-mcp ./packages/midnight-mcp
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Build midnight-mcp
-RUN pnpm --filter @coding-labs/midnight-mcp build
-
-# ==============================================================================
-# Stage 2: Production
-# ==============================================================================
-FROM node:20-slim AS production
-
-WORKDIR /app
-
-# Install required tools
+# Install runtime dependencies including curl/unzip for compiler download
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    xz-utils \
-    unzip \
     ca-certificates \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Compact devtools v0.4.0 and download default compiler
-# The installer places the binary in $HOME/.local/bin
-# Then 'compact update' downloads the actual compactc compiler and sets it as default
-ENV PATH="/root/.local/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -LsSf \
-    https://github.com/midnightntwrk/compact/releases/download/compact-v0.4.0/compact-installer.sh | sh \
-    && compact update \
-    && compact --version
+# Copy toolkit binary from official image (SAME VERSION as node)
+# The toolkit is at /midnight-node-toolkit in the official image
+COPY --from=midnightntwrk/midnight-node-toolkit:${MIDNIGHT_VERSION} \
+  /midnight-node-toolkit /usr/local/bin/midnight-node-toolkit
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Make toolkit executable and verify version
+RUN chmod +x /usr/local/bin/midnight-node-toolkit && \
+    midnight-node-toolkit version && \
+    echo "Toolkit version: ${MIDNIGHT_VERSION}"
 
-# Copy workspace files
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+# -----------------------------------------------------------------------------
+# Install Compact Compiler (compactc)
+# -----------------------------------------------------------------------------
+# Download compactc directly for the specific version required by the node.
+# The compact CLI wrapper (compact) manages versions, but we install compactc
+# directly to ensure exact version compatibility with the Midnight node.
+#
+# compactc is the actual compiler binary that:
+#   - Takes Compact source code (.compact files)
+#   - Produces: contract/*.cjs, contract/*.d.cts, zkir/*.zkir, keys/*.prover/verifier
+#
+# Download URL format: compactc_v{VERSION}_{PLATFORM}.zip
+# Platform for node:22-slim (Debian): x86_64-unknown-linux-musl
+#
+# The zip contains:
+#   - compactc       (shell wrapper script)
+#   - compactc.bin   (actual binary)
+#   - fixup-compact  (fixup tool)
+#   - format-compact (formatter tool)
+#   - zkir           (ZK IR tool)
+# All files need to be in the same directory for the wrapper to work.
+# -----------------------------------------------------------------------------
+RUN curl -fsSL \
+    "https://github.com/midnightntwrk/compact/releases/download/compactc-v${COMPACTC_VERSION}/compactc_v${COMPACTC_VERSION}_x86_64-unknown-linux-musl.zip" \
+    -o /tmp/compactc.zip && \
+    unzip /tmp/compactc.zip -d /tmp/compactc-extract && \
+    mv /tmp/compactc-extract/* /usr/local/bin/ && \
+    chmod +x /usr/local/bin/compactc /usr/local/bin/compactc.bin && \
+    rm -rf /tmp/compactc.zip /tmp/compactc-extract && \
+    echo "Compact compiler version: ${COMPACTC_VERSION}"
 
-# Copy built package
-COPY --from=builder /app/packages/midnight-mcp/package.json ./packages/midnight-mcp/
-COPY --from=builder /app/packages/midnight-mcp/dist ./packages/midnight-mcp/dist
+# Verify compactc installation
+RUN compactc --version
+
+# Copy built package with node_modules (production deps only)
+WORKDIR /app/packages/midnight-mcp
+COPY --from=builder /app/packages/midnight-mcp/package.json ./
+COPY --from=builder /app/packages/midnight-mcp/dist ./dist
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN npm install --production
 
-# Set environment
+# Runtime config
 ENV NODE_ENV=production
 ENV MIDNIGHT_MCP_HOST=0.0.0.0
 ENV MIDNIGHT_MCP_PORT=8080
 ENV MIDNIGHT_DEFAULT_NETWORK=preview
+ENV MIDNIGHT_VERSION=${MIDNIGHT_VERSION}
+ENV COMPACTC_VERSION=${COMPACTC_VERSION}
+
+# Directories for contracts and intents
+RUN mkdir -p /data/contracts /data/intents /data/state
+ENV CONTRACTS_DIR=/data/contracts
+ENV INTENTS_DIR=/data/intents
+ENV STATE_DIR=/data/state
 
 EXPOSE 8080
 
-WORKDIR /app/packages/midnight-mcp
-
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:' + (process.env.MIDNIGHT_MCP_PORT || 8080) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/index.js"]

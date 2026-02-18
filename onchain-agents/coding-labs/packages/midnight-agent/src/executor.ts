@@ -20,6 +20,7 @@ import {
   skillHandlers,
   detectSkill,
   extractTextFromMessage,
+  type SessionContext,
 } from './skills/index.js';
 
 /**
@@ -29,6 +30,8 @@ import {
  */
 export class MidnightAgentExecutor implements AgentExecutor {
   private cancelledTasks = new Set<string>();
+  /** Session contexts keyed by contextId - tracks state across skill invocations */
+  private sessionContexts = new Map<string, SessionContext>();
 
   /**
    * Handle task cancellation requests
@@ -138,11 +141,14 @@ export class MidnightAgentExecutor implements AgentExecutor {
       return;
     }
 
-    // 5. Execute skill and stream events
+    // 5. Get or create session context for this conversation
+    let session = this.sessionContexts.get(contextId) || {};
+
+    // 6. Execute skill and stream events
     try {
       const artifacts: string[] = [];
 
-      for await (const event of handler(userMessage)) {
+      for await (const event of handler(userMessage, session)) {
         // Check for cancellation
         if (this.cancelledTasks.has(taskId)) {
           console.log(`[MidnightAgent] Task ${taskId} cancelled`);
@@ -165,6 +171,16 @@ export class MidnightAgentExecutor implements AgentExecutor {
 
         // Handle different event types
         switch (event.type) {
+          case 'session-update':
+            // Update session context with new values from skill
+            session = { ...session, ...event.context };
+            this.sessionContexts.set(contextId, session);
+            console.log(
+              `[MidnightAgent] Session updated for ${contextId}:`,
+              event.context
+            );
+            break;
+
           case 'status':
             const statusUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',

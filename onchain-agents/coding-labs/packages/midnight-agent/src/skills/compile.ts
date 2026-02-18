@@ -2,20 +2,13 @@
  * Compile Compact Contract Skill
  *
  * Compiles Compact smart contract source code to ZK circuits
- * using the Compact compiler (compactc).
+ * by calling the compact_compile MCP tool via HTTP.
  */
 
 import type { Message } from '@a2a-js/sdk';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, readFile, mkdir, rm } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import type { SkillEvent } from './index.js';
+import type { SkillEvent, SessionContext, Artifact } from './index.js';
 import { extractTextFromMessage } from './index.js';
-
-const execAsync = promisify(exec);
+import { getMCPClient } from '../mcp-client.js';
 
 /**
  * Extract Compact code from a message
@@ -55,10 +48,20 @@ function extractCompactCode(message: Message): string | null {
 }
 
 /**
- * Compile Compact source code
+ * Extract contract name from Compact source code.
+ * Looks for `contract ContractName { ... }` pattern.
+ */
+function extractContractName(source: string): string {
+  const match = source.match(/contract\s+(\w+)\s*\{/);
+  return match ? match[1] : 'contract';
+}
+
+/**
+ * Compile Compact source code via MCP
  */
 export async function* compileCompact(
-  message: Message
+  message: Message,
+  _session?: SessionContext
 ): AsyncGenerator<SkillEvent, void, unknown> {
   yield { type: 'status', message: 'Extracting Compact code...' };
 
@@ -84,101 +87,80 @@ export async function* compileCompact(
     return;
   }
 
-  yield { type: 'status', message: 'Setting up compilation environment...' };
+  yield { type: 'status', message: 'Connecting to MCP server...' };
 
-  // Create temporary directory for compilation
-  const tempDir = join(tmpdir(), `compact-${randomUUID()}`);
-  const contractPath = join(tempDir, 'contract.compact');
-  const outputDir = join(tempDir, 'output');
+  const mcp = getMCPClient();
+
+  yield { type: 'status', message: 'Compiling Compact contract via MCP...' };
 
   try {
-    // Create directories
-    await mkdir(tempDir, { recursive: true });
-    await mkdir(outputDir, { recursive: true });
+    const result = await mcp.compileCompact(compactCode);
 
-    // Write the Compact code to file
-    await writeFile(contractPath, compactCode, 'utf-8');
-
-    yield { type: 'status', message: 'Compiling Compact contract...' };
-
-    // Run the Compact compiler
-    // compact compile <input-file> <output-dir>
-    const compileCommand = `compact compile "${contractPath}" "${outputDir}"`;
-
-    try {
-      const { stdout, stderr } = await execAsync(compileCommand, {
-        timeout: 120000, // 2 minute timeout
-        cwd: tempDir,
-      });
-
-      // Log compiler output
-      if (stdout) {
-        console.log('[compile] stdout:', stdout);
-      }
-      if (stderr) {
-        console.log('[compile] stderr:', stderr);
-      }
-
-      yield { type: 'status', message: 'Compilation successful!' };
-
-      // Read and emit output files
-      const outputFiles = [
-        'contract.js',
-        'contract.d.ts',
-        'contract-info.json',
-      ];
-
-      for (const filename of outputFiles) {
-        try {
-          const filePath = join(outputDir, filename);
-          const content = await readFile(filePath, 'utf-8');
-          yield {
-            type: 'artifact',
-            name: filename,
-            content,
-            mimeType: filename.endsWith('.json')
-              ? 'application/json'
-              : 'text/javascript',
-          };
-        } catch {
-          // File might not exist, skip
-          console.log(`[compile] Output file not found: ${filename}`);
-        }
-      }
-
-      yield {
-        type: 'result',
-        data: {
-          success: true,
-          message: 'Contract compiled successfully',
-          outputDir,
-        },
-        message: 'Compact contract compiled successfully',
-      };
-    } catch (execError) {
-      const error = execError as { stderr?: string; message?: string };
-      const errorMessage = error.stderr || error.message || 'Unknown error';
-
-      console.error('[compile] Compilation failed:', errorMessage);
-
+    if (!result.success) {
       yield {
         type: 'artifact',
         name: 'compile-error.txt',
-        content: errorMessage,
+        content: result.errors || result.message,
         mimeType: 'text/plain',
       };
 
       yield {
         type: 'error',
-        message: `Compilation failed: ${errorMessage}`,
+        message: `Compilation failed: ${result.message}`,
+      };
+      return;
+    }
+
+    yield { type: 'status', message: 'Compilation successful!' };
+
+    // Extract contract name for session context
+    const contractName = extractContractName(compactCode);
+
+    // Emit artifacts
+    for (const artifact of result.artifacts) {
+      yield {
+        type: 'artifact',
+        name: artifact.filename,
+        content: artifact.content,
+        mimeType: artifact.filename.endsWith('.json')
+          ? 'application/json'
+          : 'text/javascript',
       };
     }
-  } finally {
-    // Clean up temporary directory
-    try {
-      await rm(tempDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+
+    // Emit session update with artifacts (not path)
+    yield {
+      type: 'session-update',
+      context: {
+        artifacts: result.artifacts as Artifact[],
+        contractName,
+      },
+    };
+
+    yield {
+      type: 'result',
+      data: {
+        success: true,
+        message: 'Contract compiled successfully',
+        contractName,
+        artifactCount: result.artifacts.length,
+      },
+      message: `Compact contract "${contractName}" compiled successfully. Ready for deployment.`,
+    };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+
+    yield {
+      type: 'artifact',
+      name: 'compile-error.txt',
+      content: errorMessage,
+      mimeType: 'text/plain',
+    };
+
+    yield {
+      type: 'error',
+      message: `Compilation failed: ${errorMessage}`,
+    };
   }
 }

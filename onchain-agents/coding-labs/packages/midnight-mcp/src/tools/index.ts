@@ -13,6 +13,18 @@ import { queryContractState } from './query-state.js';
 import { queryBlocks } from './query-blocks.js';
 import { checkProofServer, generateProof } from './prove.js';
 import { requestTokens } from './faucet.js';
+import { createWallet } from './wallet.js';
+import {
+  deployContract,
+  callContract,
+  listCachedContracts,
+} from './contract.js';
+
+/** Valid network names for tool inputs */
+const networkEnum = z
+  .enum(['preview', 'preprod', 'local'])
+  .optional()
+  .describe('Network to target (default: from config, usually preview)');
 
 export function registerTools(
   server: McpServer,
@@ -47,7 +59,15 @@ export function registerTools(
       }
 
       const content: Array<{ type: 'text'; text: string }> = [
-        { type: 'text' as const, text: result.message },
+        {
+          type: 'text' as const,
+          text:
+            result.message +
+            (result.compiledDir
+              ? `\n\nCompiled directory: ${result.compiledDir}\n` +
+                'Use this path as compiledDir in contract_deploy.'
+              : ''),
+        },
       ];
 
       for (const artifact of result.artifacts) {
@@ -104,10 +124,7 @@ export function registerTools(
       "Returns the contract's public ledger entries (key-value pairs).",
     {
       address: z.string().describe('Contract address on the Midnight network'),
-      network: z
-        .enum(['preview', 'preprod'])
-        .optional()
-        .describe('Network to query (default: preview)'),
+      network: networkEnum,
       fields: z
         .array(z.string())
         .optional()
@@ -147,10 +164,7 @@ export function registerTools(
     'Query block data from the Midnight ledger via the Indexer GraphQL API (v3). ' +
       'Can retrieve the latest blocks or a specific block by hash.',
     {
-      network: z
-        .enum(['preview', 'preprod'])
-        .optional()
-        .describe('Network to query (default: preview)'),
+      network: networkEnum,
       blockHash: z
         .string()
         .optional()
@@ -197,10 +211,7 @@ export function registerTools(
       'Currently checks proof server availability and provides SDK guidance. ' +
       'For full proof generation, use the Midnight.js SDK with httpClientProofProvider.',
     {
-      network: z
-        .enum(['preview', 'preprod'])
-        .optional()
-        .describe('Network context (default: preview)'),
+      network: networkEnum,
       action: z
         .enum(['health', 'prove'])
         .optional()
@@ -263,10 +274,7 @@ export function registerTools(
       'May require manual web UI interaction if the faucet API is not available programmatically.',
     {
       address: z.string().describe('Midnight wallet address to fund'),
-      network: z
-        .enum(['preview', 'preprod'])
-        .optional()
-        .describe('Network faucet to use (default: preview)'),
+      network: networkEnum,
     },
     async ({ address, network }) => {
       const result = await requestTokens(address, config, network);
@@ -281,6 +289,202 @@ export function registerTools(
           },
         ],
         isError: !result.success,
+      };
+    }
+  );
+
+  // --- wallet_create ---
+  server.tool(
+    'wallet_create',
+    'Create or retrieve a headless Midnight wallet for the given network. ' +
+      'On standalone (local) chains, uses genesis seed with pre-minted tDUST. ' +
+      'On testnets, generates a random seed (requires faucet funding). ' +
+      'The wallet is cached for the session -- subsequent calls return the same wallet.',
+    {
+      network: networkEnum,
+    },
+    async ({ network }) => {
+      const result = await createWallet(config, network);
+
+      if (!result.success) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Wallet creation failed: ${result.message}\n\n${result.errors || ''}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text:
+              `${result.message}\n\n` +
+              `Network: ${result.network}\n` +
+              `Address: ${result.address}\n` +
+              `Balance: ${result.balance} tDUST\n` +
+              `Seed: ${result.seed}`,
+          },
+        ],
+      };
+    }
+  );
+
+  // --- contract_deploy ---
+  server.tool(
+    'contract_deploy',
+    'Deploy a compiled Compact contract to the Midnight network using contract-custom. ' +
+      'Requires compiled contract directory (from compactc) and a deploy intent file (.mn). ' +
+      'Optionally provide a funding seed, or uses cached wallet / genesis seed. ' +
+      'Returns the contract address and transaction ID.',
+    {
+      compiledContractDir: z
+        .string()
+        .describe(
+          'Path to compactc output directory containing contract key files'
+        ),
+      intentFile: z.string().describe('Path to the deploy intent .mn file'),
+      fundingSeed: z
+        .string()
+        .optional()
+        .describe(
+          'Funding wallet seed (optional, defaults to cached wallet or genesis seed)'
+        ),
+      network: networkEnum,
+    },
+    async ({ compiledContractDir, intentFile, fundingSeed, network }) => {
+      const result = await deployContract(
+        compiledContractDir,
+        intentFile,
+        config,
+        network,
+        fundingSeed
+      );
+
+      if (!result.success) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Deployment failed: ${result.message}\n\n${result.errors || ''}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text:
+              `${result.message}\n\n` +
+              `Network: ${result.network}\n` +
+              `Contract Address: ${result.contractAddress}\n` +
+              `Transaction ID: ${result.txId}`,
+          },
+        ],
+      };
+    }
+  );
+
+  // --- contract_call ---
+  server.tool(
+    'contract_call',
+    'Execute a transaction on a deployed Midnight contract using contract-custom. ' +
+      'Requires compiled contract directory and a call intent file (.mn). ' +
+      'The intent file specifies which circuit to call and with what arguments. ' +
+      'Returns the transaction ID.',
+    {
+      compiledContractDir: z
+        .string()
+        .describe(
+          'Path to compactc output directory containing contract key files'
+        ),
+      intentFile: z.string().describe('Path to the call intent .mn file'),
+      fundingSeed: z
+        .string()
+        .optional()
+        .describe(
+          'Funding wallet seed (optional, defaults to cached wallet or genesis seed)'
+        ),
+      network: networkEnum,
+    },
+    async ({ compiledContractDir, intentFile, fundingSeed, network }) => {
+      const result = await callContract(
+        compiledContractDir,
+        intentFile,
+        config,
+        network,
+        fundingSeed
+      );
+
+      if (!result.success) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Contract call failed: ${result.message}\n\n${result.errors || ''}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text:
+              `${result.message}\n\n` +
+              `Network: ${result.network}\n` +
+              `Transaction ID: ${result.txId}`,
+          },
+        ],
+      };
+    }
+  );
+
+  // --- contract_list ---
+  server.tool(
+    'contract_list',
+    'List all contracts deployed during this session. ' +
+      'Shows contract addresses, networks, and deployment timestamps. ' +
+      'This is an in-memory cache -- contracts are not persisted across server restarts.',
+    {},
+    async () => {
+      const contracts = listCachedContracts();
+
+      if (contracts.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No contracts deployed in this session.',
+            },
+          ],
+        };
+      }
+
+      const lines = contracts.map(
+        (c) =>
+          `- ${c.address}\n` +
+          `  Network: ${c.network}\n` +
+          `  Deployed: ${c.deployedAt.toISOString()}\n` +
+          `  TxId: ${c.txId}`
+      );
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Deployed contracts (${contracts.length}):\n\n${lines.join('\n\n')}`,
+          },
+        ],
       };
     }
   );

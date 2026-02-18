@@ -4,16 +4,24 @@
 # Deployment order:
 #   1. Build all images (parallel)
 #   2. Push all images
-#   3. Deploy agent-registry (no dependencies)
-#   4. Deploy somnia-agent (with AGENT_REGISTRY_URL)
-#   5. Deploy midnight-agent (with AGENT_REGISTRY_URL)
-#   6. Deploy opencode-login (public landing page)
-#   7. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
+#   3. Deploy Midnight infrastructure (node, indexer, proof-server) - parallel
+#   4. Deploy agent-registry (no dependencies)
+#   5. Deploy midnight-mcp (depends on Midnight infrastructure URLs)
+#   6. Deploy somnia-agent (with AGENT_REGISTRY_URL)
+#   7. Deploy midnight-agent (with AGENT_REGISTRY_URL + MIDNIGHT_MCP_URL)
+#   8. Deploy opencode-login (public landing page)
+#   9. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
 #
 # Services:
-#   - agent-registry, somnia-agent, midnight-agent: Public (no auth)
+#   - midnight-node, midnight-indexer, midnight-proof-server: Public (Midnight infra)
+#   - agent-registry, somnia-agent, midnight-agent, midnight-mcp: Public (no auth)
 #   - opencode-login: Public (landing page)
 #   - opencode-web: IAP protected (requires Google sign-in)
+#
+# Midnight Infrastructure Versions:
+#   - Node: 0.20.1
+#   - Indexer: 3.0.0
+#   - Proof Server: 7.0.0-rc.1
 
 steps:
   # ===========================================================================
@@ -72,6 +80,19 @@ steps:
       - './opencode'
 
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-midnight-mcp'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-mcp:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-mcp:latest'
+      - '-f'
+      - 'packages/midnight-mcp/Containerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
     id: 'build-login'
     waitFor: ['-'] # Start immediately (parallel with others)
     args:
@@ -121,12 +142,132 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web'
 
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-midnight-mcp'
+    waitFor: ['build-midnight-mcp']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-mcp'
+
+  - name: 'gcr.io/cloud-builders/docker'
     id: 'push-login'
     waitFor: ['build-login']
     args:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-login'
+
+  # ===========================================================================
+  # DEPLOY MIDNIGHT INFRASTRUCTURE (parallel - no dependencies)
+  # ===========================================================================
+  # These use pre-built images from Docker Hub, no build/push needed.
+  # All 3 services can be deployed in parallel since they have no dependencies.
+
+  # Midnight Node - Standalone blockchain node
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-midnight-node'
+    waitFor: ['-'] # Start immediately
+    args:
+      - 'run'
+      - 'deploy'
+      - 'midnight-node'
+      - '--image=docker.io/midnightntwrk/midnight-node:0.20.1'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--ingress=all'
+      - '--port=9944'
+      - '--memory=8Gi'
+      - '--cpu=2'
+      - '--min-instances=0'
+      - '--max-instances=1'
+      - '--set-env-vars=CFG_PRESET=dev'
+      - '--timeout=600'
+
+  # Get midnight-node URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-midnight-node-url'
+    waitFor: ['deploy-midnight-node']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe midnight-node \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/midnight-node-url.txt
+        echo "Midnight Node URL: $$(cat /workspace/midnight-node-url.txt)"
+
+  # Midnight Indexer - Blockchain indexer (depends on node URL)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-midnight-indexer'
+    waitFor: ['get-midnight-node-url']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        NODE_URL=$$(cat /workspace/midnight-node-url.txt)
+        # Convert HTTPS URL to WSS for WebSocket connection
+        NODE_WS_URL=$$(echo "$${NODE_URL}" | sed 's|https://|wss://|')
+        gcloud run deploy midnight-indexer \
+          --image=docker.io/midnightntwrk/indexer-standalone:3.0.0 \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8088 \
+          --memory=8Gi \
+          --cpu=2 \
+          --min-instances=0 \
+          --max-instances=1 \
+          --timeout=600 \
+          --set-env-vars="APP__INFRA__NODE__URL=$${NODE_WS_URL},APP__INFRA__SECRET=303132333435363738393031323334353637383930313233343536373839303132"
+
+  # Get midnight-indexer URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-midnight-indexer-url'
+    waitFor: ['deploy-midnight-indexer']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe midnight-indexer \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/midnight-indexer-url.txt
+        echo "Midnight Indexer URL: $$(cat /workspace/midnight-indexer-url.txt)"
+
+  # Midnight Proof Server - ZK proof generation (no dependencies)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-midnight-proof-server'
+    waitFor: ['-'] # Start immediately (parallel with node)
+    args:
+      - 'run'
+      - 'deploy'
+      - 'midnight-proof-server'
+      - '--image=docker.io/midnightnetwork/proof-server:7.0.0-rc.1'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--ingress=all'
+      - '--port=6300'
+      - '--memory=8Gi'
+      - '--cpu=2'
+      - '--min-instances=0'
+      - '--max-instances=1'
+      - '--set-env-vars=PORT=6300'
+      - '--timeout=600'
+
+  # Get midnight-proof-server URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-midnight-proof-server-url'
+    waitFor: ['deploy-midnight-proof-server']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe midnight-proof-server \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/midnight-proof-server-url.txt
+        echo "Midnight Proof Server URL: $$(cat /workspace/midnight-proof-server-url.txt)"
 
   # ===========================================================================
   # DEPLOY 1: agent-registry (no dependencies)
@@ -168,7 +309,60 @@ steps:
         echo "Registry URL: $$(cat /workspace/registry-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 2: somnia-agent (depends on agent-registry)
+  # DEPLOY 2: midnight-mcp (depends on Midnight infrastructure)
+  # ===========================================================================
+  # MCP server for Midnight tools (Compact compiler, Indexer queries, Proof Server).
+  # Connects to our Cloud Run Midnight infrastructure services.
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-midnight-mcp'
+    waitFor:
+      [
+        'push-midnight-mcp',
+        'get-midnight-node-url',
+        'get-midnight-indexer-url',
+        'get-midnight-proof-server-url',
+      ]
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        NODE_URL=$$(cat /workspace/midnight-node-url.txt)
+        INDEXER_URL=$$(cat /workspace/midnight-indexer-url.txt)
+        PROOF_URL=$$(cat /workspace/midnight-proof-server-url.txt)
+        # Convert HTTPS to WSS for node RPC
+        NODE_WS_URL=$$(echo "$${NODE_URL}" | sed 's|https://|wss://|')
+        gcloud run deploy midnight-mcp \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-mcp:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=1Gi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=3 \
+          --set-env-vars="NODE_ENV=production,MIDNIGHT_DEFAULT_NETWORK=local,MIDNIGHT_NODE_RPC=$${NODE_WS_URL},MIDNIGHT_INDEXER_URL=$${INDEXER_URL}/api/v1/graphql,MIDNIGHT_PROOF_SERVER_URL=$${PROOF_URL}"
+
+  # ===========================================================================
+  # GET midnight-mcp URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-midnight-mcp-url'
+    waitFor: ['deploy-midnight-mcp']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe midnight-mcp \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/midnight-mcp-url.txt
+        echo "Midnight MCP URL: $$(cat /workspace/midnight-mcp-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY 3: somnia-agent (depends on agent-registry)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -209,17 +403,18 @@ steps:
         echo "Somnia URL: $$(cat /workspace/somnia-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 3: midnight-agent (depends on agent-registry)
+  # DEPLOY 4: midnight-agent (depends on agent-registry + midnight-mcp)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-midnight'
-    waitFor: ['get-registry-url', 'push-midnight']
+    waitFor: ['get-registry-url', 'get-midnight-mcp-url', 'push-midnight']
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        MCP_URL=$$(cat /workspace/midnight-mcp-url.txt)
         gcloud run deploy midnight-agent \
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-agent:${_TAG} \
           --region=${_REGION} \
@@ -231,7 +426,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=5 \
-          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
+          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL},MIDNIGHT_MCP_URL=$${MCP_URL}"
 
   # ===========================================================================
   # GET midnight-agent URL
@@ -250,7 +445,7 @@ steps:
         echo "Midnight URL: $$(cat /workspace/midnight-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 4: opencode-login (public landing page)
+  # DEPLOY 5: opencode-login (public landing page)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -289,7 +484,7 @@ steps:
         echo "Login URL: $$(cat /workspace/login-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 5: opencode-web (depends on all agents + login page, IAP protected)
+  # DEPLOY 6: opencode-web (depends on all agents + login page, IAP protected)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -394,10 +589,16 @@ steps:
         echo "Deployment Complete!"
         echo "=========================================="
         echo ""
-        echo "Service URLs:"
+        echo "Midnight Infrastructure:"
+        echo "  midnight-node:         $$(cat /workspace/midnight-node-url.txt)"
+        echo "  midnight-indexer:      $$(cat /workspace/midnight-indexer-url.txt)"
+        echo "  midnight-proof-server: $$(cat /workspace/midnight-proof-server-url.txt)"
+        echo ""
+        echo "Application Services:"
         echo "  agent-registry:  $$(cat /workspace/registry-url.txt)"
         echo "  somnia-agent:    $$(cat /workspace/somnia-url.txt)"
         echo "  midnight-agent:  $$(cat /workspace/midnight-url.txt)"
+        echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
         echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
         OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
         echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"

@@ -4,11 +4,38 @@
   "description": "MCP server for Midnight Network - Compact compiler, Proof Server, and Indexer tools",
   "type": "module",
   "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./tools/contract": {
+      "import": "./dist/tools/contract.js",
+      "types": "./dist/tools/contract.d.ts"
+    },
+    "./tools/wallet": {
+      "import": "./dist/tools/wallet.js",
+      "types": "./dist/tools/wallet.d.ts"
+    },
+    "./tools/compile": {
+      "import": "./dist/tools/compile.js",
+      "types": "./dist/tools/compile.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    },
+    "./toolkit-client": {
+      "import": "./dist/toolkit-client.js",
+      "types": "./dist/toolkit-client.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "build": "pnpm exec tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "typecheck": "pnpm exec tsc --noEmit",
     "clean": "rm -rf dist node_modules"
   },
   "keywords": [

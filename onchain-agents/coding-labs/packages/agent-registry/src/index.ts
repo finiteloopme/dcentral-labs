@@ -5,8 +5,10 @@
  * Reads agent configuration from the central config.toml.
  *
  * Endpoints:
- *   GET /agents  - List all enabled agents
- *   GET /health  - Health check
+ *   GET /agents        - List all enabled agents
+ *   GET /agents/all    - List all agents (including disabled)
+ *   GET /agents/health - Check health of all enabled agents
+ *   GET /health        - Health check for this service
  */
 
 import { serve } from '@hono/node-server';
@@ -21,6 +23,7 @@ import {
   findConfigPath,
 } from '@coding-labs/shared/config';
 import type { AgentRegistryResponse } from '@coding-labs/shared/config';
+import { checkAllAgentsHealth } from './health.js';
 
 const app = new Hono();
 
@@ -88,7 +91,31 @@ app.get('/agents/all', (c) => {
 });
 
 /**
- * GET /health - Health check
+ * GET /agents/health - Check health of all enabled agents
+ *
+ * Performs a health check against each enabled agent's /health endpoint.
+ * Used for lazy health checking in the UI (called when agent picker is opened).
+ */
+app.get('/agents/health', async (c) => {
+  try {
+    if (!configPath) {
+      return c.json({ error: 'Configuration not loaded' }, 500);
+    }
+
+    const config = loadConfigFile(configPath);
+    const agents = getEnabledAgents(config);
+
+    const healthResponse = await checkAllAgentsHealth(agents);
+
+    return c.json(healthResponse);
+  } catch (error) {
+    console.error('[AgentRegistry] Error checking agent health:', error);
+    return c.json({ error: 'Failed to check agent health' }, 500);
+  }
+});
+
+/**
+ * GET /health - Health check for this service
  */
 app.get('/health', (c) => {
   return c.json({
@@ -119,8 +146,10 @@ serve(
       `[AgentRegistry] Server started on http://${HOST}:${info.port}`
     );
     console.log(`[AgentRegistry] Endpoints:`);
-    console.log(`  GET /agents  - List enabled agents`);
-    console.log(`  GET /health  - Health check`);
+    console.log(`  GET /agents        - List enabled agents`);
+    console.log(`  GET /agents/all    - List all agents`);
+    console.log(`  GET /agents/health - Check agent health`);
+    console.log(`  GET /health        - Service health check`);
     console.log(`[AgentRegistry] Press Ctrl+C to stop`);
   }
 );

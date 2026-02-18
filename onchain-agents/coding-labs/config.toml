@@ -118,7 +118,7 @@ name = "Sonic"
 symbol = "S"
 decimals = 18
 
-# Midnight Networks (Preview and Preprod environments)
+# Midnight Networks (Preview, Preprod, and Local environments)
 # Note: Midnight uses different infrastructure than EVM chains
 [default.networks.midnight-preview]
 name = "Midnight Preview"
@@ -136,10 +136,27 @@ proof_server = "https://lace-proof-pub.preprod.midnight.network"
 faucet = "https://faucet.preprod.midnight.network/"
 explorer = "https://explorer.preprod.midnight.network/"
 
+# Local standalone devnet (docker compose --profile midnight-local up -d)
+# CFG_PRESET=dev on the node runs an isolated chain with genesis-minted tokens.
+# No faucet needed, no Cardano dependency, no external network connection.
+[default.networks.midnight-local]
+name = "Midnight Local (Standalone)"
+node_rpc = "ws://localhost:9944"
+indexer_graphql = "http://localhost:8088"
+proof_server = "http://localhost:6300"
+
 # Midnight version compatibility (v1.0)
+# Source: https://docs.midnight.network/next/relnotes/overview#compatibility-matrix
+#
+# IMPORTANT: Node and toolkit are released together with matching versions.
+# The 'version' field is the single source of truth for both.
 [default.midnight]
+# Single version for node + toolkit (they are versioned together)
+version = "0.20.1"
+
+# Component versions (for reference/validation)
 compact_compiler = "0.28.0"
-compact_language = "0.20"
+compact_language = "0.21"
 compact_runtime = "0.14.0"
 midnight_js = "3.0.0"
 ledger = "7.0.0"

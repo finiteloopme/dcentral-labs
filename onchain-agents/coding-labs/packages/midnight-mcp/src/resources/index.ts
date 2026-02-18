@@ -56,7 +56,7 @@ export function registerResources(
               source:
                 'https://docs.midnight.network/next/relnotes/overview#compatibility-matrix',
               components: COMPATIBILITY_MATRIX,
-              environments: ['preview', 'preprod'],
+              environments: ['preview', 'preprod', 'local'],
               releaseNotes: {
                 ledger:
                   'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-7.0.0',
@@ -97,25 +97,39 @@ export function registerResources(
             {
               images: DOCKER_IMAGES,
               usage: {
+                standaloneDevnet: {
+                  command: 'docker compose --profile midnight-local up -d',
+                  description:
+                    'Start a standalone local Midnight devnet with node, indexer, and proof server. ' +
+                    'Uses CFG_PRESET=dev on the node for an isolated chain with genesis-minted tokens. ' +
+                    'No Cardano dependency, no faucet needed.',
+                  ports: { node: 9944, indexer: 8088, proofServer: 6300 },
+                },
                 proofServer: {
-                  command:
-                    'docker run -p 6300:6300 midnightnetwork/proof-server -- midnight-proof-server --network preview',
+                  command: `docker run -p 6300:6300 ${DOCKER_IMAGES.proofServer}`,
                   port: 6300,
                   description:
-                    'ZK proof generation server. Required for all deployments.',
+                    'ZK proof generation server. Required for all deployments and local testing.',
                 },
-                indexerStandalone: {
-                  command:
-                    'docker run -p 8080:8080 midnightntwrk/indexer-standalone:3.0.0',
-                  port: 8080,
+                indexer: {
+                  command: `docker run -p 8088:8088 ${DOCKER_IMAGES.indexer}`,
+                  port: 8088,
                   description:
-                    'Combined indexer with SQLite DB. Alternative to hosted indexer endpoints.',
+                    'Combined indexer (chain + wallet + API) with embedded storage. ' +
+                    'Requires a running Midnight node via APP__INFRA__NODE__URL.',
                 },
                 node: {
-                  command: 'docker run midnightntwrk/midnight-node:0.20.0',
+                  command: `docker run -p 9944:9944 -e CFG_PRESET=dev ${DOCKER_IMAGES.node}`,
+                  port: 9944,
                   description:
-                    'Full Midnight node. Required only for running a local devnet (complex setup).',
-                  note: 'Running a local node requires Cardano integration and is not recommended for DApp development. Use Preview/Preprod testnets instead.',
+                    'Standalone Midnight node. Set CFG_PRESET=dev for an isolated local chain. ' +
+                    'Genesis-minted tokens are available immediately, no faucet required.',
+                },
+                toolkit: {
+                  command: `docker run ${DOCKER_IMAGES.toolkit} version`,
+                  description:
+                    'Midnight Node Toolkit CLI. Used for wallet management, contract deployment, ' +
+                    'and transaction generation. Version-aligned with node.',
                 },
               },
             },

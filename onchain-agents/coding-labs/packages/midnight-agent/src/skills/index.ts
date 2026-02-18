@@ -8,9 +8,32 @@ import type { Message } from '@a2a-js/sdk';
 import { generateCompact } from './compact-gen.js';
 import { compileCompact } from './compile.js';
 import { queryState } from './query-state.js';
-import { deployContract } from './deploy.js';
-import { callCircuit } from './call.js';
+import { deployContractSkill } from './deploy.js';
+import { callCircuitSkill } from './call.js';
 import { managePrivateState } from './private-state.js';
+
+/**
+ * Artifact structure for passing compiled contract files.
+ */
+export interface Artifact {
+  filename: string;
+  content: string;
+}
+
+/**
+ * Session context passed between skill invocations.
+ * Tracks state from previous operations (e.g., artifacts from compile step).
+ */
+export interface SessionContext {
+  /** Compiled contract artifacts (from compile skill via MCP) */
+  artifacts?: Artifact[];
+  /** Name of the contract (extracted from source or user input) */
+  contractName?: string;
+  /** Address of a deployed contract (from deploy skill) */
+  contractAddress?: string;
+  /** Target network (preview, preprod, local) */
+  network?: string;
+}
 
 /**
  * Events emitted by skill handlers during execution
@@ -19,13 +42,15 @@ export type SkillEvent =
   | { type: 'status'; message: string }
   | { type: 'artifact'; name: string; content: string; mimeType?: string }
   | { type: 'result'; data: unknown; message?: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'session-update'; context: Partial<SessionContext> };
 
 /**
  * Skill handler function signature
  */
 export type SkillHandler = (
-  message: Message
+  message: Message,
+  session?: SessionContext
 ) => AsyncGenerator<SkillEvent, void, unknown>;
 
 /**
@@ -35,8 +60,8 @@ export const skillHandlers: Record<string, SkillHandler> = {
   'compact-gen': generateCompact,
   compile: compileCompact,
   'query-state': queryState,
-  deploy: deployContract,
-  call: callCircuit,
+  deploy: deployContractSkill,
+  call: callCircuitSkill,
   'private-state': managePrivateState,
 };
 

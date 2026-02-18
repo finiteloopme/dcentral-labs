@@ -2,28 +2,24 @@
  * Query State Skill
  *
  * Queries public ledger state from deployed Midnight contracts
- * via the Midnight Indexer (GraphQL API).
+ * via the MCP query_contract_state tool.
  */
 
 import type { Message } from '@a2a-js/sdk';
-import type { SkillEvent } from './index.js';
+import type { SkillEvent, SessionContext } from './index.js';
 import { extractTextFromMessage } from './index.js';
-import { generateText } from 'ai';
-import { model } from '../genkit.js';
+import { getMCPClient } from '../mcp-client.js';
 
-// Midnight Indexer endpoints
-const INDEXER_ENDPOINTS = {
-  preview: 'https://indexer.preview.midnight.network/api/v3/graphql',
-  preprod: 'https://indexer.preprod.midnight.network/api/v3/graphql',
-};
-
-type Network = 'preview' | 'preprod';
+type Network = 'preview' | 'preprod' | 'local';
 
 /**
  * Detect which network to query from the message
  */
 function detectNetwork(text: string): Network {
   const lower = text.toLowerCase();
+  if (lower.includes('local') || lower.includes('localhost')) {
+    return 'local';
+  }
   if (lower.includes('preprod') || lower.includes('pre-prod')) {
     return 'preprod';
   }
@@ -32,197 +28,77 @@ function detectNetwork(text: string): Network {
 }
 
 /**
- * Execute a GraphQL query against the Midnight Indexer
- */
-async function executeGraphQL(
-  network: Network,
-  query: string,
-  variables?: Record<string, unknown>
-): Promise<unknown> {
-  const endpoint = INDEXER_ENDPOINTS[network];
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `GraphQL request failed: ${response.status} ${response.statusText}`
-    );
-  }
-
-  const result = (await response.json()) as {
-    data?: unknown;
-    errors?: Array<{ message: string }>;
-  };
-
-  if (result.errors) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
-  }
-
-  return result.data;
-}
-
-/**
- * Generate a GraphQL query based on user request using LLM
- */
-async function generateGraphQLQuery(userRequest: string): Promise<string> {
-  const systemPrompt = `You are a Midnight Network expert that generates GraphQL queries for the Midnight Indexer API.
-
-The Midnight Indexer provides a GraphQL API with the following schema (simplified):
-
-\`\`\`graphql
-type Query {
-  # Get blocks
-  blocks(first: Int, after: String, last: Int, before: String): BlockConnection
-  block(hash: String!): Block
-  
-  # Get transactions
-  transactions(first: Int, after: String, last: Int, before: String): TransactionConnection
-  transaction(hash: String!): Transaction
-  
-  # Get contract state
-  contractState(address: String!): ContractState
-  
-  # Get ledger state for a contract
-  ledgerState(contractAddress: String!, key: String): LedgerEntry
-}
-
-type Block {
-  hash: String!
-  height: Int!
-  timestamp: String!
-  transactions: [Transaction!]!
-}
-
-type Transaction {
-  hash: String!
-  blockHash: String
-  status: String!
-  timestamp: String
-}
-
-type ContractState {
-  address: String!
-  ledger: [LedgerEntry!]!
-}
-
-type LedgerEntry {
-  key: String!
-  value: String!
-}
-\`\`\`
-
-Based on the user's request, generate a valid GraphQL query.
-Return ONLY the GraphQL query, wrapped in \`\`\`graphql code blocks.
-Do not include any explanation.`;
-
-  const response = await generateText({
-    model,
-    system: systemPrompt,
-    prompt: userRequest,
-    temperature: 0.1,
-    maxOutputTokens: 1024,
-  });
-
-  const text = response.text;
-
-  // Extract GraphQL query from response
-  const match = text.match(/```graphql\n?([\s\S]*?)```/);
-  if (match) {
-    return match[1].trim();
-  }
-
-  // Try generic code block
-  const codeMatch = text.match(/```\n?([\s\S]*?)```/);
-  if (codeMatch) {
-    return codeMatch[1].trim();
-  }
-
-  // Return the raw text if no code block found
-  return text.trim();
-}
-
-/**
- * Query ledger state from Midnight Indexer
+ * Query ledger state from Midnight via MCP
  */
 export async function* queryState(
-  message: Message
+  message: Message,
+  session?: SessionContext
 ): AsyncGenerator<SkillEvent, void, unknown> {
   const userText = extractTextFromMessage(message);
 
   yield { type: 'status', message: 'Analyzing query request...' };
 
-  // Detect network
-  const network = detectNetwork(userText);
+  // Detect network (prefer session, then message)
+  const network = (session?.network || detectNetwork(userText)) as Network;
   yield { type: 'status', message: `Using ${network} network` };
 
+  // Check if user provided a specific contract address
+  const addressMatch = userText.match(/0x[a-fA-F0-9]{40,}/);
+  const contractAddress = addressMatch
+    ? addressMatch[0]
+    : session?.contractAddress;
+
+  if (!contractAddress) {
+    yield {
+      type: 'error',
+      message:
+        'No contract address found. Please provide a contract address to query ' +
+        '(e.g., "query state of 0x1234...") or deploy a contract first.',
+    };
+    return;
+  }
+
+  yield {
+    type: 'status',
+    message: `Querying contract ${contractAddress}...`,
+  };
+
+  const mcp = getMCPClient();
+
   try {
-    // Check if user provided a specific contract address
-    const addressMatch = userText.match(/0x[a-fA-F0-9]{40,}/);
-    const contractAddress = addressMatch ? addressMatch[0] : null;
+    yield { type: 'status', message: 'Querying contract state via MCP...' };
 
-    let query: string;
-    let variables: Record<string, unknown> | undefined;
+    const result = await mcp.queryContractState(contractAddress, network);
 
-    if (contractAddress) {
-      // If we have a contract address, query its state directly
-      query = `
-        query GetContractState($address: String!) {
-          contractState(address: $address) {
-            address
-            ledger {
-              key
-              value
-            }
-          }
-        }
-      `;
-      variables = { address: contractAddress };
+    if (!result.success) {
       yield {
-        type: 'status',
-        message: `Querying contract ${contractAddress}...`,
+        type: 'artifact',
+        name: 'query-error.txt',
+        content: result.errors || result.message,
+        mimeType: 'text/plain',
       };
-    } else {
-      // Generate a query based on the user's request
-      yield { type: 'status', message: 'Generating GraphQL query...' };
-      query = await generateGraphQLQuery(userText);
+
+      yield {
+        type: 'error',
+        message: `Query failed: ${result.message}`,
+      };
+      return;
     }
 
-    // Emit the generated query as an artifact
-    yield {
-      type: 'artifact',
-      name: 'query.graphql',
-      content: query,
-      mimeType: 'application/graphql',
-    };
-
-    yield { type: 'status', message: 'Executing query...' };
-
-    // Execute the query
-    const result = await executeGraphQL(network, query, variables);
-
     // Format result as JSON
-    const resultJson = JSON.stringify(result, null, 2);
+    const resultJson = JSON.stringify(result.data, null, 2);
 
     yield {
       type: 'artifact',
-      name: 'result.json',
+      name: 'query-result.json',
       content: resultJson,
       mimeType: 'application/json',
     };
 
     yield {
       type: 'result',
-      data: result,
-      message: 'Query executed successfully',
+      data: result.data,
+      message: `Contract state on ${result.network || network}:\n\n${resultJson}`,
     };
   } catch (error) {
     const errorMessage =

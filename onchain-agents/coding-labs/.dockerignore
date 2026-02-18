@@ -1,0 +1,35 @@
+# Ignore node_modules - these are installed fresh in the container
+**/node_modules
+
+# Ignore build artifacts - these are built fresh in the container
+**/dist
+
+# Ignore local environment files
+.env
+.env.*
+!.env.example
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore IDE/editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore test coverage
+coverage/
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore opencode submodule internals (has its own Containerfile)
+opencode/node_modules
+opencode/.git
