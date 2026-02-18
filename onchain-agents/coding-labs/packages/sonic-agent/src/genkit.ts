@@ -28,8 +28,7 @@ const location =
   process.env.GOOGLE_CLOUD_LOCATION ||
   'global';
 
-const modelId =
-  process.env.SONIC_AGENT_LLM_MODEL || 'claude-3-5-sonnet-v2@20241022';
+const modelId = process.env.SONIC_AGENT_LLM_MODEL || 'claude-opus-4-5';
 
 // Create the Vertex Anthropic provider
 const vertexAnthropic = createVertexAnthropic({
