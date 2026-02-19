@@ -44,10 +44,15 @@ interface LLMConfig {
   components?: Record<string, string>;
 }
 
+interface A2AConfig {
+  default_agents?: string[];
+}
+
 interface EnvSection {
   services?: Record<string, Partial<ServiceConfig>>;
   agents?: Record<string, Partial<AgentConfig>>;
   llm?: Partial<LLMConfig>;
+  a2a?: A2AConfig;
 }
 
 interface Config {
@@ -227,6 +232,27 @@ function generateEnv(env: string = 'development'): string {
   // Also set GOOGLE_CLOUD_LOCATION for OpenCode (it reads this first before VERTEX_LOCATION)
   if (ocProvider?.location) {
     lines.push(`GOOGLE_CLOUD_LOCATION=${ocProvider.location}`);
+  }
+  lines.push('');
+
+  // Generate A2A config variables
+  lines.push(
+    '# ============================================================================='
+  );
+  lines.push('# A2A (Agent-to-Agent) CONFIG');
+  lines.push(
+    '# ============================================================================='
+  );
+  lines.push('');
+
+  const a2aConfig = config.default?.a2a;
+  const a2aEnvOverride = envSection?.a2a;
+  const defaultAgents =
+    a2aEnvOverride?.default_agents || a2aConfig?.default_agents || [];
+
+  if (defaultAgents.length > 0) {
+    lines.push(`# Default blockchain agents for A2A routing`);
+    lines.push(`A2A_DEFAULT_AGENTS=${defaultAgents.join(',')}`);
   }
   lines.push('');
 

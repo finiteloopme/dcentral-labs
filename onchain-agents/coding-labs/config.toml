@@ -198,19 +198,32 @@ midnight-agent = "vertex-anthropic"
 opencode = "vertex-anthropic"
 
 # -----------------------------------------------------------------------------
+# A2A (Agent-to-Agent) Configuration
+# -----------------------------------------------------------------------------
+# Controls which blockchain agents are available for A2A routing.
+# The frontend agent picker defaults to this list when no selection is made.
+
+[default.a2a]
+# Explicit list of agent IDs enabled by default
+# These must match agent IDs defined in [default.agents.*]
+default_agents = ["somnia", "sonic", "midnight"]
+
+# -----------------------------------------------------------------------------
 # Authentication (IAP user whitelist)
 # -----------------------------------------------------------------------------
 # Users listed here will be granted access to opencode-web via IAP.
-# Run `make cloud-sync-users` after modifying to update IAP permissions.
 #
 # Workflow:
 #   1. Add/remove emails from allowed_users list
-#   2. Run: make cloud-sync-users
+#   2. Run: make cloud-sync-users    # Sync IAP bindings
 #   3. Changes take effect immediately
+#
+# NOTE: This project is deployed on an Argolis (Google internal demo) org.
+# Only @kunall.altostrat.com users can access IAP-protected resources.
+# External users require deployment to a non-Argolis GCP project.
 
 [default.auth]
 allowed_users = [
-  "kunallimaye@gmail.com",
   "admin@kunall.altostrat.com",
 ]
 
