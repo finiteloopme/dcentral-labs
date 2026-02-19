@@ -116,12 +116,12 @@ export interface DeployedContract {
 // Configuration
 // -----------------------------------------------------------------------------
 
-/** Directory for contract work files */
+/** Directory for contract work files (uses /tmp for Cloud Run compatibility) */
 const CONTRACTS_DIR =
   process.env.CONTRACTS_DIR || join(tmpdir(), 'midnight-contracts');
 
-/** Directory for private state persistence */
-const STATE_DIR = process.env.STATE_DIR || '/data/state';
+/** Directory for private state persistence (uses /tmp for Cloud Run compatibility) */
+const STATE_DIR = process.env.STATE_DIR || join(tmpdir(), 'midnight-state');
 
 // -----------------------------------------------------------------------------
 // In-Memory Contract Cache
@@ -193,7 +193,12 @@ async function writeArtifacts(
     const { filename, content, mimeType } = artifact;
 
     // Check if this is a base64-encoded binary file
-    const isBase64Binary = mimeType?.includes('base64');
+    // Detection: by mimeType OR by file extension (prover, verifier, bzkir are always binary)
+    const isBinaryExtension =
+      filename.endsWith('.prover') ||
+      filename.endsWith('.verifier') ||
+      filename.endsWith('.bzkir');
+    const isBase64Binary = mimeType?.includes('base64') || isBinaryExtension;
 
     // Determine target path based on filename patterns
     let targetPath: string;

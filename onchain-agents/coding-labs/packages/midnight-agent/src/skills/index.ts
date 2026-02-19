@@ -18,6 +18,7 @@ import { managePrivateState } from './private-state.js';
 export interface Artifact {
   filename: string;
   content: string;
+  mimeType?: string;
 }
 
 /**
@@ -83,19 +84,90 @@ export function extractTextFromMessage(message: Message): string {
 }
 
 /**
+ * Continuation phrases that indicate user wants to proceed with workflow.
+ */
+const CONTINUATION_PHRASES = [
+  'yes',
+  'ok',
+  'okay',
+  'sure',
+  'proceed',
+  'continue',
+  'next',
+  'do it',
+  'go ahead',
+  'go on',
+  'yep',
+  'yeah',
+  'y',
+];
+
+/**
+ * Check if the message is a continuation/confirmation phrase.
+ */
+function isContinuation(text: string): boolean {
+  const trimmed = text.trim().toLowerCase();
+  // Check exact match or phrase at start/end
+  return CONTINUATION_PHRASES.some(
+    (phrase) =>
+      trimmed === phrase ||
+      trimmed.startsWith(phrase + ' ') ||
+      trimmed.startsWith(phrase + ',') ||
+      trimmed.startsWith(phrase + '!')
+  );
+}
+
+/**
+ * Determine the next logical skill based on session state.
+ * Used when user confirms/continues without explicit instruction.
+ */
+function getNextWorkflowStep(session: SessionContext): string | null {
+  // If deployed, suggest calling circuits
+  if (session.contractAddress) {
+    return 'call';
+  }
+  // If compiled but not deployed, proceed to deploy
+  if (session.artifacts && session.artifacts.length > 0) {
+    return 'deploy';
+  }
+  // If we have contract name but no artifacts, compile
+  if (session.contractName) {
+    return 'compile';
+  }
+  // No state - can't determine next step
+  return null;
+}
+
+/**
  * Detect which skill should handle a message based on content analysis.
  *
  * Priority order:
+ *   0. Continuation phrases (yes, ok, continue) → check session for next step
  *   1. Code generation (most common, shares vocabulary with other skills)
  *   2. Compile (explicit "compile" or code block provided)
  *   3. Deploy
  *   4. Call circuit
  *   5. Query state (tightened patterns to avoid false positives)
  *   6. Private state
- *   7. Default → code generation
+ *   7. Session-aware default (avoid regenerating code if artifacts exist)
+ *   8. Default → code generation
  */
-export function detectSkill(userText: string): string {
+export function detectSkill(
+  userText: string,
+  session?: SessionContext
+): string {
   const text = userText.toLowerCase();
+
+  // 0. Check for continuation phrases first
+  if (isContinuation(text) && session) {
+    const nextStep = getNextWorkflowStep(session);
+    if (nextStep) {
+      console.log(
+        `[detectSkill] Continuation detected, next workflow step: ${nextStep}`
+      );
+      return nextStep;
+    }
+  }
 
   // 1. Code generation - check FIRST since generation requests naturally
   //    contain words like "ledger", "state", "circuit" that overlap other skills
@@ -167,6 +239,38 @@ export function detectSkill(userText: string): string {
     return 'private-state';
   }
 
-  // Default to code generation
+  // 7. Session-aware default: if contract is deployed,
+  //    ambiguous messages about executing/calling should go to call skill
+  if (session?.contractAddress) {
+    // Check for call-like intent without requiring exact patterns
+    if (
+      text.includes('increment') ||
+      text.includes('decrement') ||
+      text.includes('execute') ||
+      text.includes('invoke') ||
+      text.includes('run') ||
+      text.includes('call')
+    ) {
+      console.log(
+        '[detectSkill] Contract deployed, routing to call skill for circuit execution'
+      );
+      return 'call';
+    }
+  }
+
+  // 8. Session-aware default: if artifacts exist but not deployed,
+  //    ambiguous messages should NOT regenerate code
+  if (
+    session?.artifacts &&
+    session.artifacts.length > 0 &&
+    !session.contractAddress
+  ) {
+    console.log(
+      '[detectSkill] Artifacts exist but not deployed, suggesting deploy instead of code gen'
+    );
+    return 'deploy';
+  }
+
+  // 9. Default to code generation
   return 'compact-gen';
 }

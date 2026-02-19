@@ -14,6 +14,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 export interface Artifact {
   filename: string;
   content: string;
+  mimeType?: string;
 }
 
 /**
@@ -201,6 +202,7 @@ class MidnightMCPClient {
     }
 
     // Parse artifacts from response
+    // Format: --- filename (mimeType) ---\ncontent
     const artifacts: Artifact[] = [];
     const artifactMatches = result.content.matchAll(
       /--- ([^\s]+) \(([^)]+)\) ---\n([\s\S]*?)(?=\n--- |$)/g
@@ -209,6 +211,7 @@ class MidnightMCPClient {
       artifacts.push({
         filename: match[1],
         content: match[3].trim(),
+        mimeType: match[2], // Capture mimeType for binary file detection
       });
     }
 
