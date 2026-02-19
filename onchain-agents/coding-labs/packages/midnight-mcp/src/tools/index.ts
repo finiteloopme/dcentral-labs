@@ -24,7 +24,9 @@ import {
 const networkEnum = z
   .enum(['preview', 'preprod', 'local'])
   .optional()
-  .describe('Network to target (default: from config, usually preview)');
+  .describe(
+    'Target network. Defaults to local dev chain (pre-funded, no faucet needed). Use preview/preprod for public testnets.'
+  );
 
 export function registerTools(
   server: McpServer,
@@ -35,7 +37,9 @@ export function registerTools(
     'compact_compile',
     'Compile Compact smart contract source code to ZK circuits and JavaScript artifacts. ' +
       'Input is Compact source code (must include pragma language_version 0.20). ' +
-      'Returns compiled artifacts: JS implementation, TypeScript declarations, and contract info.',
+      'Returns compiled artifacts: JS implementation, TypeScript declarations, ZK prover/verifier keys, and contract info. ' +
+      'IMPORTANT: Compilation includes ZK key generation which typically takes 2-5 minutes for complex contracts. ' +
+      'Please inform the user that compilation may take several minutes before calling this tool.',
     {
       source: z
         .string()

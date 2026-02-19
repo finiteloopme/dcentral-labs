@@ -54,7 +54,8 @@ export const midnightAgentCard: AgentCard = {
       name: 'Compile Compact Contract',
       description:
         'Compile Compact source code to ZK circuits using the Compact compiler (v0.28.0). ' +
-        'Outputs JavaScript implementation and TypeScript declarations.',
+        'Outputs JavaScript implementation, TypeScript declarations, and ZK prover/verifier keys. ' +
+        'Note: Full compilation with ZK key generation typically takes 2-5 minutes.',
       tags: ['compile', 'compact', 'zk-circuits'],
       examples: [
         'Compile my counter.compact file',
@@ -67,12 +68,14 @@ export const midnightAgentCard: AgentCard = {
       id: 'deploy',
       name: 'Deploy Contract',
       description:
-        'Deploy a compiled Compact contract to Midnight Network (Preview or Preprod). ' +
-        'Returns contract address and deployment transaction.',
+        'Deploy a compiled Compact contract to Midnight Network. ' +
+        'Defaults to local dev chain (pre-funded, no faucet needed). ' +
+        'Can also target Preview or Preprod testnets if specified.',
       tags: ['deploy', 'transaction', 'midnight'],
       examples: [
-        'Deploy the counter contract to Preview network',
-        'Deploy my voting contract to Preprod',
+        'Deploy the counter contract',
+        'Deploy my voting contract to the local chain',
+        'Deploy to Preview network',
       ],
       inputModes: ['text', 'file'],
       outputModes: ['text'],

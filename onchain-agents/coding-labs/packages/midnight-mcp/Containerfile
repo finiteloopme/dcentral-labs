@@ -25,9 +25,15 @@ ARG MIDNIGHT_VERSION=0.20.1
 ARG COMPACTC_VERSION=0.28.0
 
 # -----------------------------------------------------------------------------
+# Stage 0: Alias the toolkit image (required for ARG substitution in COPY --from)
+# -----------------------------------------------------------------------------
+FROM midnightntwrk/midnight-node-toolkit:${MIDNIGHT_VERSION} AS toolkit
+
+# -----------------------------------------------------------------------------
 # Stage 1: Build Node.js MCP server
 # -----------------------------------------------------------------------------
-FROM node:22-slim AS builder
+# Using Alpine to match the musl-compiled compactc binary
+FROM node:22-alpine AS builder
 
 WORKDIR /app/packages/midnight-mcp
 
@@ -55,7 +61,8 @@ RUN ls -la dist/
 # -----------------------------------------------------------------------------
 # Stage 2: Production with Toolkit and Compact Compiler
 # -----------------------------------------------------------------------------
-FROM node:22-slim AS production
+# Using Alpine to match the musl-compiled compactc binary
+FROM node:22-alpine AS production
 
 ARG MIDNIGHT_VERSION
 ARG COMPACTC_VERSION
@@ -63,16 +70,15 @@ ARG COMPACTC_VERSION
 WORKDIR /app
 
 # Install runtime dependencies including curl/unzip for compiler download
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates curl unzip
 
 # Copy toolkit binary from official image (SAME VERSION as node)
 # The toolkit is at /midnight-node-toolkit in the official image
-COPY --from=midnightntwrk/midnight-node-toolkit:${MIDNIGHT_VERSION} \
-  /midnight-node-toolkit /usr/local/bin/midnight-node-toolkit
+COPY --from=toolkit /midnight-node-toolkit /usr/local/bin/midnight-node-toolkit
+
+# Copy toolkit-js from official image (required for generate-intent command)
+# toolkit-js contains TypeScript runtime and test contracts
+COPY --from=toolkit /toolkit-js /toolkit-js
 
 # Make toolkit executable and verify version
 RUN chmod +x /usr/local/bin/midnight-node-toolkit && \
@@ -91,7 +97,7 @@ RUN chmod +x /usr/local/bin/midnight-node-toolkit && \
 #   - Produces: contract/*.cjs, contract/*.d.cts, zkir/*.zkir, keys/*.prover/verifier
 #
 # Download URL format: compactc_v{VERSION}_{PLATFORM}.zip
-# Platform for node:22-slim (Debian): x86_64-unknown-linux-musl
+# Platform for node:22-alpine (musl libc): x86_64-unknown-linux-musl
 #
 # The zip contains:
 #   - compactc       (shell wrapper script)
@@ -134,6 +140,11 @@ RUN mkdir -p /data/contracts /data/intents /data/state
 ENV CONTRACTS_DIR=/data/contracts
 ENV INTENTS_DIR=/data/intents
 ENV STATE_DIR=/data/state
+
+# toolkit-js path for generate-intent command
+ENV TOOLKIT_JS_PATH=/toolkit-js
+# Node module resolution for contract.config.ts execution
+ENV NODE_PATH=/toolkit-js/node_modules
 
 EXPOSE 8080
 

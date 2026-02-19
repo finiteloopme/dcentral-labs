@@ -122,15 +122,37 @@ export async function compileCompact(
 
     // Run compactc compiler directly
     // Usage: compactc [FLAGS] <sourcepath> <targetpath>
-    // We use --skip-zk by default for faster compilation during development.
-    // The ZK keys can be generated separately if needed for deployment.
-    const skipZk = process.env.COMPACTC_SKIP_ZK !== 'false';
+    //
+    // ZK key generation:
+    // - Default: Full compilation with ZK keys (required for deployment)
+    // - Opt-in skip: Set COMPACTC_SKIP_ZK=true for faster development iteration
+    //
+    // Note: Full compilation with ZK keys can take 2-5 minutes for complex contracts
+    const skipZk = process.env.COMPACTC_SKIP_ZK === 'true';
     const args = skipZk
       ? ['--skip-zk', contractPath, outputDir]
       : [contractPath, outputDir];
 
-    console.log(`[compact_compile] Running: compactc ${args.join(' ')}`);
+    const startTime = Date.now();
+    if (skipZk) {
+      console.log(
+        '[compact_compile] Running in FAST mode (--skip-zk, no ZK keys)'
+      );
+    } else {
+      console.log(
+        '[compact_compile] Starting full compilation with ZK key generation...'
+      );
+      console.log(
+        '[compact_compile] This may take 2-5 minutes for complex contracts.'
+      );
+    }
+    console.log(`[compact_compile] Command: compactc ${args.join(' ')}`);
+
     const result = await runCompactc(args);
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(
+      `[compact_compile] Compilation ${result.success ? 'completed' : 'failed'} in ${durationSec}s`
+    );
 
     if (!result.success) {
       // Clean up on failure

@@ -295,7 +295,6 @@ steps:
       - '--cpu=2'
       - '--min-instances=0'
       - '--max-instances=1'
-      - '--set-env-vars=PORT=6300'
       - '--timeout=600'
 
   # Get midnight-proof-server URL
@@ -381,10 +380,11 @@ steps:
           --allow-unauthenticated \
           --ingress=all \
           --port=8080 \
-          --memory=1Gi \
-          --cpu=1 \
+          --memory=8Gi \
+          --cpu=2 \
           --min-instances=0 \
           --max-instances=3 \
+          --timeout=600 \
           --set-env-vars="NODE_ENV=production,MIDNIGHT_DEFAULT_NETWORK=local,MIDNIGHT_NODE_RPC=$${NODE_WS_URL},MIDNIGHT_INDEXER_URL=$${INDEXER_URL}/api/v1/graphql,MIDNIGHT_PROOF_SERVER_URL=$${PROOF_URL}"
 
   # ===========================================================================

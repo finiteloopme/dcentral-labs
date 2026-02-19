@@ -91,6 +91,16 @@ export async function* compileCompact(
 
   const mcp = getMCPClient();
 
+  // Notify user about expected compilation time
+  // Full compilation includes ZK key generation which can take several minutes
+  yield {
+    type: 'status',
+    message:
+      'Starting Compact contract compilation with ZK proof key generation. ' +
+      'This process typically takes 2-5 minutes depending on contract complexity. ' +
+      "I'll notify you when it's complete.",
+  };
+
   yield { type: 'status', message: 'Compiling Compact contract via MCP...' };
 
   try {
