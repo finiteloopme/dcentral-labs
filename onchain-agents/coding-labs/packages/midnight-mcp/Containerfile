@@ -32,8 +32,7 @@ FROM midnightntwrk/midnight-node-toolkit:${MIDNIGHT_VERSION} AS toolkit
 # -----------------------------------------------------------------------------
 # Stage 1: Build Node.js MCP server
 # -----------------------------------------------------------------------------
-# Using Alpine to match the musl-compiled compactc binary
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app/packages/midnight-mcp
 
@@ -61,16 +60,24 @@ RUN ls -la dist/
 # -----------------------------------------------------------------------------
 # Stage 2: Production with Toolkit and Compact Compiler
 # -----------------------------------------------------------------------------
-# Using Alpine to match the musl-compiled compactc binary
-FROM node:22-alpine AS production
+# Using Debian slim for compatibility with glibc-compiled toolkit binary.
+# The musl package provides compatibility for the musl-compiled compactc binary.
+FROM node:22-slim AS production
 
 ARG MIDNIGHT_VERSION
 ARG COMPACTC_VERSION
 
 WORKDIR /app
 
-# Install runtime dependencies including curl/unzip for compiler download
-RUN apk add --no-cache ca-certificates curl unzip
+# Install runtime dependencies:
+# - ca-certificates, curl, unzip: for downloading compactc
+# - musl: provides /lib/ld-musl-x86_64.so.1 for running musl-compiled compactc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    unzip \
+    musl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy toolkit binary from official image (SAME VERSION as node)
 # The toolkit is at /midnight-node-toolkit in the official image
@@ -97,7 +104,7 @@ RUN chmod +x /usr/local/bin/midnight-node-toolkit && \
 #   - Produces: contract/*.cjs, contract/*.d.cts, zkir/*.zkir, keys/*.prover/verifier
 #
 # Download URL format: compactc_v{VERSION}_{PLATFORM}.zip
-# Platform for node:22-alpine (musl libc): x86_64-unknown-linux-musl
+# Platform: x86_64-unknown-linux-musl (runs on Debian via musl compat layer)
 #
 # The zip contains:
 #   - compactc       (shell wrapper script)
