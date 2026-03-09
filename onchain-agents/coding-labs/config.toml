@@ -39,6 +39,14 @@ port = 4002
 host = "localhost"
 port = 4003
 
+[default.services.store-agent]
+host = "localhost"
+port = 4004
+
+[default.services.payment-agent]
+host = "localhost"
+port = 4005
+
 [default.services.midnight-mcp]
 host = "localhost"
 port = 4010
@@ -83,6 +91,22 @@ description = "Privacy-preserving blockchain with zero-knowledge proofs and Comp
 service = "midnight-agent"
 chain_id = 0
 keywords = ["midnight", "privacy", "zk", "zero-knowledge", "compact", "confidential"]
+enabled = true
+
+[default.agents.store]
+name = "Store Agent"
+description = "Mock stationery web store. Browse, search, and purchase items with crypto payments via x402."
+service = "store-agent"
+chain_id = 0
+keywords = ["store", "shop", "buy", "purchase", "stationery", "notebook", "pen", "pencil", "eraser", "catalog", "browse", "order", "cart"]
+enabled = true
+
+[default.agents.payment]
+name = "Payment Agent"
+description = "x402 payment facilitator and buyer-side agent. Handles USDC payments, verification, and settlement for purchases."
+service = "payment-agent"
+chain_id = 0
+keywords = ["pay", "payment", "settle", "x402", "usdc", "transfer", "facilitator", "checkout", "invoice"]
 enabled = true
 
 # -----------------------------------------------------------------------------
@@ -168,6 +192,26 @@ proof_server = "7.0.0"
 indexer = "3.0.0"
 
 # -----------------------------------------------------------------------------
+# x402 Payment Protocol Configuration
+# -----------------------------------------------------------------------------
+# Configuration for x402-based payments between store and payment agents.
+# Facilitator URL can be changed to switch between testnet and mainnet.
+
+[default.x402]
+facilitator_url = "https://x402.org/facilitator"
+default_network = "eip155:84532"
+
+# Store wallet address (receives payments) - replace with actual address
+[default.x402.store]
+wallet_address = "0x0000000000000000000000000000000000000000"
+
+# USDC contract addresses per network (CAIP-2 identifiers)
+[default.x402.assets.usdc]
+"eip155:84532" = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+"eip155:8453" = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+"eip155:1" = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+
+# -----------------------------------------------------------------------------
 # LLM Configuration
 # -----------------------------------------------------------------------------
 # Define reusable LLM providers, then assign them to components.
@@ -206,7 +250,7 @@ opencode = "vertex-anthropic"
 [default.a2a]
 # Explicit list of agent IDs enabled by default
 # These must match agent IDs defined in [default.agents.*]
-default_agents = ["somnia", "sonic", "midnight"]
+default_agents = ["somnia", "sonic", "midnight", "store", "payment"]
 
 # -----------------------------------------------------------------------------
 # Authentication (IAP user whitelist)
@@ -244,6 +288,12 @@ host = "0.0.0.0"
 host = "0.0.0.0"
 
 [production.services.midnight-mcp]
+host = "0.0.0.0"
+
+[production.services.store-agent]
+host = "0.0.0.0"
+
+[production.services.payment-agent]
 host = "0.0.0.0"
 
 [production.services.evm-mcp]

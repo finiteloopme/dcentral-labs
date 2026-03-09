@@ -25,6 +25,10 @@ readonly SOMNIA_AGENT_PORT="${SOMNIA_AGENT_PORT:-4001}"
 readonly SOMNIA_AGENT_HOST="${SOMNIA_AGENT_HOST:-localhost}"
 readonly MIDNIGHT_AGENT_PORT="${MIDNIGHT_AGENT_PORT:-4003}"
 readonly MIDNIGHT_AGENT_HOST="${MIDNIGHT_AGENT_HOST:-localhost}"
+readonly STORE_AGENT_PORT="${STORE_AGENT_PORT:-4004}"
+readonly STORE_AGENT_HOST="${STORE_AGENT_HOST:-localhost}"
+readonly PAYMENT_AGENT_PORT="${PAYMENT_AGENT_PORT:-4005}"
+readonly PAYMENT_AGENT_HOST="${PAYMENT_AGENT_HOST:-localhost}"
 
 # Default agent (for scripts that target a single agent)
 readonly DEFAULT_AGENT="${AGENT:-somnia}"
@@ -117,6 +121,12 @@ get_agent_url() {
     midnight)
       echo "http://${MIDNIGHT_AGENT_HOST}:${MIDNIGHT_AGENT_PORT}"
       ;;
+    store)
+      echo "http://${STORE_AGENT_HOST}:${STORE_AGENT_PORT}"
+      ;;
+    payment)
+      echo "http://${PAYMENT_AGENT_HOST}:${PAYMENT_AGENT_PORT}"
+      ;;
     *)
       log_warn "Unknown agent: $agent_id, falling back to somnia"
       echo "http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
@@ -130,6 +140,8 @@ list_agents() {
     log_warn "Could not reach registry, using static agent list"
     echo "somnia: http://${SOMNIA_AGENT_HOST}:${SOMNIA_AGENT_PORT}"
     echo "midnight: http://${MIDNIGHT_AGENT_HOST}:${MIDNIGHT_AGENT_PORT}"
+    echo "store: http://${STORE_AGENT_HOST}:${STORE_AGENT_PORT}"
+    echo "payment: http://${PAYMENT_AGENT_HOST}:${PAYMENT_AGENT_PORT}"
   }
 }
 
