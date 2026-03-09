@@ -1,0 +1,39 @@
+# Build stage
+FROM node:22-slim AS builder
+WORKDIR /app
+
+RUN npm install -g pnpm@9
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/payment-agent/package.json packages/payment-agent/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/shared packages/shared
+COPY packages/payment-agent packages/payment-agent
+COPY config.toml ./
+
+RUN pnpm --filter @coding-labs/shared build
+RUN pnpm --filter @coding-labs/payment-agent build
+
+# Runtime stage
+FROM node:22-slim
+WORKDIR /app
+
+COPY --from=builder /app/packages/payment-agent/dist ./dist
+COPY --from=builder /app/packages/payment-agent/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages/shared/dist ./node_modules/@coding-labs/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./node_modules/@coding-labs/shared/
+
+COPY packages/payment-agent/SKILLS.md ./SKILLS.md
+
+ENV NODE_ENV=production
+EXPOSE 4005
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:4005/health || exit 1
+
+CMD ["node", "dist/index.js"]
