@@ -25,8 +25,20 @@ cmd_build() {
     -f opencode/Containerfile.web \
     opencode/
   
+  log_info "Building store-agent..."
+  podman build \
+    -t store-agent:latest \
+    -f packages/store-agent/Containerfile \
+    .
+
+  log_info "Building payment-agent..."
+  podman build \
+    -t payment-agent:latest \
+    -f packages/payment-agent/Containerfile \
+    .
+
   log_success "Container images built"
-  podman images | grep -E "^(REPOSITORY|somnia-agent|opencode-web)"
+  podman images | grep -E "^(REPOSITORY|somnia-agent|store-agent|payment-agent|opencode-web)"
 }
 
 cmd_build_opencode() {
@@ -114,11 +126,11 @@ cmd_status() {
   
   echo ""
   echo "Running containers:"
-  podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|somnia|opencode)" || echo "  (none)"
+  podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|somnia|store|payment|opencode)" || echo "  (none)"
   
   echo ""
   echo "Images:"
-  podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(REPOSITORY|somnia|opencode)" || echo "  (none)"
+  podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "(REPOSITORY|somnia|store|payment|opencode)" || echo "  (none)"
 }
 
 cmd_clean() {
@@ -134,6 +146,18 @@ cmd_clean() {
   if podman images --format "{{.Repository}}" | grep -q "^somnia-agent$"; then
     log_info "Removing somnia-agent image..."
     podman rmi somnia-agent:latest
+  fi
+
+  # Remove store-agent image
+  if podman images --format "{{.Repository}}" | grep -q "^store-agent$"; then
+    log_info "Removing store-agent image..."
+    podman rmi store-agent:latest
+  fi
+
+  # Remove payment-agent image
+  if podman images --format "{{.Repository}}" | grep -q "^payment-agent$"; then
+    log_info "Removing payment-agent image..."
+    podman rmi payment-agent:latest
   fi
   
   log_success "Container cleanup complete"

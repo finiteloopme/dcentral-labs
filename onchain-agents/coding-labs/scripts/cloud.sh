@@ -151,7 +151,7 @@ cmd_urls() {
   
   echo ""
   echo "Application Services:"
-  for service in agent-registry somnia-agent sonic-agent midnight-agent midnight-mcp evm-mcp opencode-login opencode-web; do
+  for service in agent-registry somnia-agent sonic-agent midnight-agent store-agent payment-agent midnight-mcp evm-mcp opencode-login opencode-web; do
     url=$(gcloud run services describe "$service" \
       --region="$REGION" \
       --project="$PROJECT_ID" \
@@ -183,7 +183,7 @@ cmd_delete() {
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     # Delete in reverse dependency order
-    for service in opencode-web opencode-login midnight-agent sonic-agent midnight-mcp evm-mcp somnia-agent agent-registry midnight-indexer midnight-proof-server midnight-node; do
+    for service in opencode-web opencode-login payment-agent store-agent midnight-agent sonic-agent midnight-mcp evm-mcp somnia-agent agent-registry midnight-indexer midnight-proof-server midnight-node; do
       log_info "Deleting $service..."
       gcloud run services delete "$service" \
         --region="$REGION" \

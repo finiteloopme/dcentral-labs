@@ -131,6 +131,33 @@ steps:
       - 'packages/evm-mcp/Containerfile'
       - '.'
 
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-store'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/store-agent:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/store-agent:latest'
+      - '-f'
+      - 'packages/store-agent/Containerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-payment'
+    waitFor: ['-'] # Start immediately (parallel with others)
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/payment-agent:${_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/payment-agent:latest'
+      - '-f'
+      - 'packages/payment-agent/Containerfile'
+      - '.'
+
   # ===========================================================================
   # PUSH ALL IMAGES
   # ===========================================================================
@@ -198,6 +225,23 @@ steps:
       - 'push'
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/evm-mcp'
+
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-store'
+    waitFor: ['build-store']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/store-agent'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-payment'
+    waitFor: ['build-payment']
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/payment-agent'
 
   # ===========================================================================
   # DEPLOY MIDNIGHT INFRASTRUCTURE (parallel - no dependencies)
@@ -570,6 +614,89 @@ steps:
           --format='value(status.url)' > /workspace/midnight-url.txt
         echo "Midnight URL: $$(cat /workspace/midnight-url.txt)"
 
+
+  # ===========================================================================
+  # DEPLOY: store-agent (depends on agent-registry)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-store'
+    waitFor: ['get-registry-url', 'push-store']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        gcloud run deploy store-agent \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/store-agent:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=5 \
+          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
+
+  # ===========================================================================
+  # GET store-agent URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-store-url'
+    waitFor: ['deploy-store']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe store-agent \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/store-url.txt
+        echo "Store URL: $$(cat /workspace/store-url.txt)"
+
+  # ===========================================================================
+  # DEPLOY: payment-agent (depends on agent-registry)
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-payment'
+    waitFor: ['get-registry-url', 'push-payment']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
+        gcloud run deploy payment-agent \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/payment-agent:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --ingress=all \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=5 \
+          --set-env-vars="NODE_ENV=production,AGENT_REGISTRY_URL=$${REGISTRY_URL}"
+
+  # ===========================================================================
+  # GET payment-agent URL
+  # ===========================================================================
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-payment-url'
+    waitFor: ['deploy-payment']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe payment-agent \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/payment-url.txt
+        echo "Payment URL: $$(cat /workspace/payment-url.txt)"
+
   # ===========================================================================
   # DEPLOY 5: opencode-login (public landing page)
   # ===========================================================================
@@ -620,6 +747,8 @@ steps:
         'get-somnia-url',
         'get-sonic-url',
         'get-midnight-url',
+        'get-store-url',
+        'get-payment-url',
         'get-login-url',
         'push-opencode',
       ]
@@ -631,6 +760,8 @@ steps:
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
         SONIC_URL=$$(cat /workspace/sonic-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
+        STORE_URL=$$(cat /workspace/store-url.txt)
+        PAYMENT_URL=$$(cat /workspace/payment-url.txt)
         LOGIN_URL=$$(cat /workspace/login-url.txt)
         gcloud beta run deploy opencode-web \
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
@@ -644,7 +775,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=10 \
-          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
+          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
   # ===========================================================================
   # SETUP IAP: Grant IAP service agent run.invoker role
@@ -677,7 +808,7 @@ steps:
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'update-registry'
-    waitFor: ['get-somnia-url', 'get-sonic-url', 'get-midnight-url']
+    waitFor: ['get-somnia-url', 'get-sonic-url', 'get-midnight-url', 'get-store-url', 'get-payment-url']
     entrypoint: 'bash'
     args:
       - '-c'
@@ -685,9 +816,11 @@ steps:
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
         SONIC_URL=$$(cat /workspace/sonic-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
+        STORE_URL=$$(cat /workspace/store-url.txt)
+        PAYMENT_URL=$$(cat /workspace/payment-url.txt)
         gcloud run services update agent-registry \
           --region=${_REGION} \
-          --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL}"
+          --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL}"
 
   # ===========================================================================
   # UPDATE opencode-login with APP_URL (opencode-web URL)
@@ -733,6 +866,8 @@ steps:
         echo "  somnia-agent:    $$(cat /workspace/somnia-url.txt)"
         echo "  sonic-agent:     $$(cat /workspace/sonic-url.txt)"
         echo "  midnight-agent:  $$(cat /workspace/midnight-url.txt)"
+        echo "  store-agent:     $$(cat /workspace/store-url.txt)"
+        echo "  payment-agent:   $$(cat /workspace/payment-url.txt)"
         echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
         echo "  evm-mcp:         $$(cat /workspace/evm-mcp-url.txt)"
         echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"

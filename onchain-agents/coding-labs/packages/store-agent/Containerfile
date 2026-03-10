@@ -1,39 +1,65 @@
-# Build stage
-FROM node:22-slim AS builder
+# Store Agent Container
+# Build: podman build -t store-agent -f Containerfile .
+# Run: podman run -p 4004:4004 store-agent
+
+FROM node:22-slim AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
 WORKDIR /app
 
-RUN npm install -g pnpm@9
+# Build stage
+FROM base AS builder
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+# Copy workspace files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/store-agent/package.json packages/store-agent/
 
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
-COPY packages/shared packages/shared
-COPY packages/store-agent packages/store-agent
-COPY config.toml ./
+# Copy source files
+COPY packages/shared/ packages/shared/
+COPY packages/store-agent/ packages/store-agent/
 
+# Build
 RUN pnpm --filter @coding-labs/shared build
 RUN pnpm --filter @coding-labs/store-agent build
 
-# Runtime stage
-FROM node:22-slim
+# Production stage
+FROM base AS runner
+
 WORKDIR /app
 
-COPY --from=builder /app/packages/store-agent/dist ./dist
-COPY --from=builder /app/packages/store-agent/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/shared/dist ./node_modules/@coding-labs/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./node_modules/@coding-labs/shared/
+# Copy built artifacts and production dependencies
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/pnpm-lock.yaml* ./
+COPY --from=builder /app/packages/shared/package.json packages/shared/
+COPY --from=builder /app/packages/shared/dist packages/shared/dist/
+COPY --from=builder /app/packages/store-agent/package.json packages/store-agent/
+COPY --from=builder /app/packages/store-agent/dist packages/store-agent/dist/
+COPY --from=builder /app/packages/store-agent/SKILLS.md packages/store-agent/
 
-COPY packages/store-agent/SKILLS.md ./SKILLS.md
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
 
+# Set environment
 ENV NODE_ENV=production
+# PORT is set by Cloud Run, default to 4004 for local development
+ENV PORT=4004
+ENV STORE_AGENT_HOST=0.0.0.0
+
+# Expose port (Cloud Run uses $PORT, default 4004 for local)
 EXPOSE 4004
+EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:4004/health || exit 1
+# Health check (uses PORT env var)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 4004) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-CMD ["node", "dist/index.js"]
+# Run - use shell form to allow $PORT expansion
+CMD node packages/store-agent/dist/index.js
