@@ -8,6 +8,26 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 
 ### Architecture
 
+**High-Level Overview**
+
+```
+┌────────────┐      ┌────────────────┐      ┌──────────────────┐
+│   Login    │      │  OpenCode Web  │      │  Agent Registry  │
+│  (4098)    │ ──→  │    (3000)      │ ──→  │     (4000)       │
+└────────────┘      └────────────────┘      └────────┬─────────┘
+                                                     │ A2A Protocol
+                    ┌────────────────────────────────┬┼──────────────────────────────┐
+                    │                    ┌───────────┘│                              │
+                    ▼                    ▼            ▼                  ▼           ▼
+             ┌────────────┐  ┌────────────────┐  ┌──────────────┐  ┌────────┐  ┌─────────┐
+             │   Somnia   │  │     Sonic      │  │   Midnight   │  │ Store  │  │ Payment │
+             │   (4001)   │  │    (4002)      │  │   (4003)     │  │(4004)  │  │ (4005)  │
+             │            │  │                │  │              │  │preview │  │ preview │
+             └────────────┘  └────────────────┘  └──────────────┘  └────────┘  └─────────┘
+```
+
+**Detailed Architecture**
+
 ```
 ┌──────────────────────┐         ┌─────────────────────────────────────────────┐
 │   opencode-login     │         │           opencode-web (port 3000)          │
@@ -23,18 +43,34 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
                                  │    (IAP Protected)  │                       │
                                  └─────────────────────┼───────────────────────┘
                                                        │ A2A Protocol (HTTP+JSON)
-                          ┌────────────────────────────┼────────────────────────┐
-                          ▼                            ▼                        ▼
-                ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
-                │   Somnia Agent    │   │  Midnight Agent   │   │   Sonic Agent     │
-                │   (port 4001)     │   │  (port 4003)      │   │   (future)        │
-                ├───────────────────┤   ├───────────────────┤   ├───────────────────┤
-                │ - Solidity Gen    │   │ - Compact Gen     │   │ - Solidity Gen    │
-                │ - Deploy          │   │ - (compile)       │   │ - FeeM Optimize   │
-                │ - Query State     │   │ - (deploy)        │   │ - Deploy          │
-                │ - Reactivity      │   │ - (call)          │   │                   │
-                │ - Data Streams    │   │ - (query-state)   │   │                   │
-                └───────────────────┘   └───────────────────┘   └───────────────────┘
+       ┌───────────────────┬───────────────────────────┼──────────────────┬──────────────────────┐
+       ▼                   ▼                           ▼                  ▼                      ▼
+┌─────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐
+│  Somnia Agent   │ │  Sonic Agent    │ │  Midnight Agent  │ │  Store Agent    │ │  Payment Agent   │
+│  (port 4001)    │ │  (port 4002)    │ │  (port 4003)     │ │  (port 4004)    │ │  (port 4005)     │
+├─────────────────┤ ├─────────────────┤ ├──────────────────┤ │  [preview]      │ │  [preview]       │
+│ - Solidity Gen  │ │ - Solidity Gen  │ │ - Compact Gen    │ ├─────────────────┤ ├──────────────────┤
+│ - Deploy        │ │ - Compile       │ │ - Compile        │ │ - Browse        │ │ - Pay            │
+│ - Tx Status     │ │ - Deploy        │ │ - Deploy         │ │ - Item Detail   │ │ - Verify Payment │
+│ - Query State   │ │ - Call          │ │ - Call           │ │ - Purchase      │ │ - Payment Status │
+│ - Reactivity    │ │ - Tx Status     │ │ - (query-state)  │ │ - Confirm       │ │ - Supported      │
+│ - Data Streams  │ │ - (FeeM Info)   │ │ - (private-state)│ │                 │ │   Networks       │
+└─────────────────┘ └────────┬────────┘ └────────┬─────────┘ └─────────────────┘ └──────────────────┘
+                             │                   │
+                    ┌────────┘                   └────────┐
+                    ▼                                     ▼
+          ┌──────────────────┐                 ┌───────────────────┐
+          │    EVM MCP       │                 │   Midnight MCP    │
+          │   (port 4011)    │                 │   (port 4010)     │
+          └──────────────────┘                 └─────────┬─────────┘
+                                                         │
+                                        ┌────────────────┼────────────────┐
+                                        ▼                ▼                ▼
+                                ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+                                │ midnight-node│ │  midnight-   │ │  midnight-   │
+                                │   (9944)     │ │  indexer     │ │ proof-server │
+                                │              │ │  (8088)      │ │  (6300)      │
+                                └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
 ### Current Agents
@@ -42,8 +78,10 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | Agent | Chain | Status | Description |
 |-------|-------|--------|-------------|
 | **Somnia Agent** | [Somnia](https://somnia.network) | Active | High-performance EVM L1 (1M+ TPS) |
+| **Sonic Agent** | [Sonic](https://soniclabs.com) | Active | High-performance EVM L1 with FeeM monetization |
 | **Midnight Agent** | [Midnight](https://midnight.network) | Active | Privacy-focused blockchain with Compact language |
-| Sonic Agent | Sonic | Planned | - |
+| Store Agent | — | Preview | Mock stationery store for x402 protocol demo |
+| Payment Agent | — | Preview | x402 payment facilitator for crypto purchases |
 
 ### Somnia Agent Skills
 
@@ -55,6 +93,28 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | `query-state` | Active | Query on-chain state (balances, contract calls) |
 | `reactivity-setup` | Planned | Generate Somnia Reactivity code |
 | `data-streams` | Planned | Generate Data Streams schemas |
+
+### Sonic Agent Skills
+
+| Skill | Status | Description |
+|-------|--------|-------------|
+| `solidity-gen` | Active | Generate Solidity contracts for Sonic |
+| `compile` | Active | Compile contracts via Foundry (EVM MCP) |
+| `deploy` | Active | Deploy contracts via Foundry (EVM MCP) |
+| `call` | Active | Call contract functions (EVM MCP) |
+| `tx-status` | Active | Check transaction status on Sonic |
+| `feem-info` | Planned | FeeM monetization information |
+
+### Midnight Agent Skills
+
+| Skill | Status | Description |
+|-------|--------|-------------|
+| `compact-gen` | Active | Generate Compact smart contracts for Midnight |
+| `compile` | Active | Compile Compact contracts (Midnight MCP) |
+| `deploy` | Active | Deploy contracts with auto-funding (Midnight MCP) |
+| `call` | Active | Execute circuit calls with ZK proofs (Midnight MCP) |
+| `query-state` | Planned | Query ledger state |
+| `private-state` | Planned | Manage private state |
 
 ## Quick Start
 
@@ -109,7 +169,12 @@ Then open http://localhost:3000 in your browser.
 |---------|------|-------------|
 | Agent Registry | 4000 | Central directory of agents |
 | Somnia Agent | 4001 | A2A server for Somnia blockchain |
+| Sonic Agent | 4002 | A2A server for Sonic blockchain |
 | Midnight Agent | 4003 | A2A server for Midnight blockchain |
+| Store Agent | 4004 | Mock store agent (preview) |
+| Payment Agent | 4005 | x402 payment agent (preview) |
+| Midnight MCP | 4010 | MCP tool server for Midnight |
+| EVM MCP | 4011 | MCP tool server for EVM chains |
 | OpenCode Backend | 4097 | API server with A2A plugin |
 | OpenCode Frontend | 3000 | Vite dev server (in `run-all` mode) |
 | Login Page | 4098 | dCoder landing page (optional) |
@@ -134,7 +199,13 @@ make down
 |-----------|------|-------------|
 | agent-registry | 4000 | Central directory of agents |
 | somnia-agent | 4001 | A2A server for Somnia blockchain |
+| sonic-agent | 4002 | A2A server for Sonic blockchain |
 | midnight-agent | 4003 | A2A server for Midnight blockchain |
+| midnight-mcp | 4010 | MCP tool server for Midnight |
+| evm-mcp | 4011 | MCP tool server for EVM chains |
+| midnight-node | 9944 | Midnight development node |
+| midnight-indexer | 8088 | Midnight blockchain indexer |
+| midnight-proof-server | 6300 | Midnight ZK proof server |
 | opencode-web | 3000 | Web UI with wallet integration |
 
 #### When to Rebuild
