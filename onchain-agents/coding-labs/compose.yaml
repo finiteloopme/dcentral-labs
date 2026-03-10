@@ -172,6 +172,8 @@ services:
       - SOMNIA_AGENT_URL=http://somnia-agent:4001
       - SONIC_AGENT_URL=http://sonic-agent:4002
       - MIDNIGHT_AGENT_URL=http://midnight-agent:4003
+      - STORE_AGENT_URL=http://store-agent:4004
+      - PAYMENT_AGENT_URL=http://payment-agent:4005
     volumes:
       # Mount config.toml for the registry to read
       - ./config.toml:/app/config.toml:ro
@@ -302,6 +304,64 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Store Agent - Mock stationery web store (x402 payments)
+  # ---------------------------------------------------------------------------
+  store-agent:
+    build:
+      context: .
+      dockerfile: packages/store-agent/Containerfile
+    container_name: store-agent
+    ports:
+      - '${STORE_AGENT_PORT:-4004}:${STORE_AGENT_PORT:-4004}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - STORE_AGENT_HOST=0.0.0.0
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4004/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Payment Agent - x402 payment facilitator and buyer-side agent
+  # ---------------------------------------------------------------------------
+  payment-agent:
+    build:
+      context: .
+      dockerfile: packages/payment-agent/Containerfile
+    container_name: payment-agent
+    ports:
+      - '${PAYMENT_AGENT_PORT:-4005}:${PAYMENT_AGENT_PORT:-4005}'
+    env_file:
+      - .env.generated
+    environment:
+      - NODE_ENV=development
+      - PAYMENT_AGENT_HOST=0.0.0.0
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:4005/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # OpenCode Web - Frontend + Backend with wallet connection and A2A routing
   # ---------------------------------------------------------------------------
   # Runs both the OpenCode server (with A2A plugin) and serves the static frontend.
@@ -335,6 +395,8 @@ services:
       - somnia-agent
       - sonic-agent
       - midnight-agent
+      - store-agent
+      - payment-agent
     healthcheck:
       test:
         ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/global/health']
@@ -387,6 +449,10 @@ services:
 #                                           │
 #   somnia-agent ◄──────────────────────────┤
 #                                           │
+#   store-agent ◄───────────────────────────┤
+#                                           │
+#   payment-agent ◄─────────────────────────┤
+#                                           │
 #   agent-registry ◄────────────────────────┤
 #                                           │
 #                                           ▼
@@ -411,6 +477,8 @@ services:
 #   Registry:      http://localhost:4000
 #   Somnia:        http://localhost:4001
 #   Midnight:      http://localhost:4003
+#   Store:         http://localhost:4004
+#   Payment:       http://localhost:4005
 #   OpenCode:      http://localhost:3000
 #
 # With login page:

@@ -16,6 +16,8 @@ cmd_build() {
   run_pnpm --filter @coding-labs/somnia-agent build
   run_pnpm --filter @coding-labs/midnight-agent build
   run_pnpm --filter @coding-labs/midnight-mcp build
+  run_pnpm --filter @coding-labs/store-agent build
+  run_pnpm --filter @coding-labs/payment-agent build
   log_success "Build complete"
 }
 
@@ -33,6 +35,8 @@ cmd_run_all() {
   log_info "  - Agent Registry:    http://localhost:4000"
   log_info "  - Somnia Agent:      http://localhost:4001"
   log_info "  - Midnight Agent:    http://localhost:4003"
+  log_info "  - Store Agent:       http://localhost:4004"
+  log_info "  - Payment Agent:     http://localhost:4005"
   log_info "  - Midnight MCP:      http://localhost:4010"
   log_info "  - OpenCode Backend:  http://localhost:4097 (API)"
   log_info "  - OpenCode Frontend: http://localhost:3000 (Vite dev server)"
@@ -42,13 +46,15 @@ cmd_run_all() {
   echo ""
   
   npx concurrently \
-    --names "registry,somnia,midnight,mcp,backend,frontend" \
-    --prefix-colors "blue,green,magenta,red,yellow,cyan" \
+    --names "registry,somnia,midnight,store,payment,mcp,backend,frontend" \
+    --prefix-colors "blue,green,magenta,white,red.bold,red,yellow,cyan" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
     "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/store-agent && npx tsx src/index.ts" \
+    "cd packages/payment-agent && npx tsx src/index.ts" \
     "cd packages/midnight-mcp && npx tsx src/index.ts" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097" \
     "cd opencode/packages/app && bun run dev"
@@ -66,6 +72,8 @@ cmd_run_all_built() {
   log_info "  - Agent Registry:  http://localhost:4000"
   log_info "  - Somnia Agent:    http://localhost:4001"
   log_info "  - Midnight Agent:  http://localhost:4003"
+  log_info "  - Store Agent:     http://localhost:4004"
+  log_info "  - Payment Agent:   http://localhost:4005"
   log_info "  - OpenCode Web:    http://localhost:4097 (backend + static frontend)"
   log_info ""
   log_info "Access the app at: http://localhost:4097"
@@ -75,13 +83,15 @@ cmd_run_all_built() {
   export OPENCODE_STATIC_DIR="$(pwd)/opencode/packages/app/dist"
   
   npx concurrently \
-    --names "registry,somnia,midnight,opencode" \
-    --prefix-colors "blue,green,magenta,yellow" \
+    --names "registry,somnia,midnight,store,payment,opencode" \
+    --prefix-colors "blue,green,magenta,white,red.bold,yellow" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
     "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/store-agent && npx tsx src/index.ts" \
+    "cd packages/payment-agent && npx tsx src/index.ts" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097"
 }
 
@@ -91,6 +101,8 @@ cmd_run_all_with_login() {
   log_info "  - Agent Registry:    http://localhost:4000"
   log_info "  - Somnia Agent:      http://localhost:4001"
   log_info "  - Midnight Agent:    http://localhost:4003"
+  log_info "  - Store Agent:       http://localhost:4004"
+  log_info "  - Payment Agent:     http://localhost:4005"
   log_info "  - Login Page:        http://localhost:4098"
   log_info "  - OpenCode Backend:  http://localhost:4097 (API)"
   log_info "  - OpenCode Frontend: http://localhost:3000 (Vite dev server)"
@@ -101,13 +113,15 @@ cmd_run_all_with_login() {
   echo ""
   
   npx concurrently \
-    --names "registry,somnia,midnight,login,backend,frontend" \
-    --prefix-colors "blue,green,magenta,cyan,yellow,white" \
+    --names "registry,somnia,midnight,store,payment,login,backend,frontend" \
+    --prefix-colors "blue,green,magenta,white,red.bold,cyan,yellow,gray" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
     "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/store-agent && npx tsx src/index.ts" \
+    "cd packages/payment-agent && npx tsx src/index.ts" \
     "cd packages/opencode-login && APP_URL=http://localhost:3000 node server.js" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097" \
     "cd opencode/packages/app && bun run dev"
@@ -125,6 +139,8 @@ cmd_run_all_with_login_built() {
   log_info "  - Agent Registry:  http://localhost:4000"
   log_info "  - Somnia Agent:    http://localhost:4001"
   log_info "  - Midnight Agent:  http://localhost:4003"
+  log_info "  - Store Agent:     http://localhost:4004"
+  log_info "  - Payment Agent:   http://localhost:4005"
   log_info "  - Login Page:      http://localhost:4098"
   log_info "  - OpenCode Web:    http://localhost:4097 (backend + static frontend)"
   log_info ""
@@ -136,13 +152,15 @@ cmd_run_all_with_login_built() {
   export OPENCODE_STATIC_DIR="$(pwd)/opencode/packages/app/dist"
   
   npx concurrently \
-    --names "registry,somnia,midnight,login,opencode" \
-    --prefix-colors "blue,green,magenta,cyan,yellow" \
+    --names "registry,somnia,midnight,store,payment,login,opencode" \
+    --prefix-colors "blue,green,magenta,white,red.bold,cyan,yellow" \
     --prefix "[{name}]" \
     --kill-others-on-fail \
     "cd packages/agent-registry && npx tsx src/index.ts" \
     "cd packages/somnia-agent && npx tsx src/index.ts" \
     "cd packages/midnight-agent && npx tsx src/index.ts" \
+    "cd packages/store-agent && npx tsx src/index.ts" \
+    "cd packages/payment-agent && npx tsx src/index.ts" \
     "cd packages/opencode-login && APP_URL=http://localhost:4097 node server.js" \
     "cd opencode && bun run dev -- web --hostname 0.0.0.0 --port 4097"
 }
@@ -153,6 +171,8 @@ cmd_typecheck() {
   run_pnpm --filter @coding-labs/somnia-agent typecheck
   run_pnpm --filter @coding-labs/midnight-agent typecheck
   run_pnpm --filter @coding-labs/midnight-mcp typecheck
+  run_pnpm --filter @coding-labs/store-agent typecheck
+  run_pnpm --filter @coding-labs/payment-agent typecheck
   log_success "Type checking passed"
 }
 
@@ -180,6 +200,8 @@ cmd_clean() {
   rm -rf packages/somnia-agent/dist
   rm -rf packages/midnight-agent/dist
   rm -rf packages/midnight-mcp/dist
+  rm -rf packages/store-agent/dist
+  rm -rf packages/payment-agent/dist
   rm -rf node_modules/.cache
   log_success "Clean complete"
 }
@@ -192,6 +214,8 @@ cmd_clean_all() {
   rm -rf packages/somnia-agent/node_modules
   rm -rf packages/midnight-agent/node_modules
   rm -rf packages/midnight-mcp/node_modules
+  rm -rf packages/store-agent/node_modules
+  rm -rf packages/payment-agent/node_modules
   log_success "Full clean complete"
 }
 

@@ -20,6 +20,10 @@
     "./llm": {
       "import": "./dist/llm/index.js",
       "types": "./dist/llm/index.d.ts"
+    },
+    "./x402": {
+      "import": "./dist/x402/index.js",
+      "types": "./dist/x402/index.d.ts"
     }
   },
   "scripts": {
