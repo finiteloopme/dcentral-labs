@@ -89,18 +89,3 @@ pub async fn fetch_solana(client: &reqwest::Client) -> Result<NetworkResponse> {
         source: "api.mainnet-beta.solana.com".into(),
     })
 }
-
-/// Fetch all three networks in parallel, returning whatever succeeds.
-pub async fn fetch_all(client: &reqwest::Client) -> Vec<NetworkResponse> {
-    let (btc, eth, sol) = tokio::join!(
-        fetch_bitcoin(client),
-        fetch_ethereum(client),
-        fetch_solana(client),
-    );
-
-    let mut results = Vec::with_capacity(3);
-    if let Ok(r) = btc { results.push(r); }
-    if let Ok(r) = eth { results.push(r); }
-    if let Ok(r) = sol { results.push(r); }
-    results
-}
