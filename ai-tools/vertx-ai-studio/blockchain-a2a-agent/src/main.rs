@@ -133,6 +133,11 @@ async fn fetch_networks(
 // Handlers
 // ---------------------------------------------------------------------------
 
+/// `GET /health` — Health check for Vertex AI Prediction and load balancers.
+async fn health() -> &'static str {
+    "ok"
+}
+
 /// `GET /.well-known/agent.json` — A2A discovery endpoint.
 async fn discovery() -> Json<AgentCard> {
     Json(AgentCard {
@@ -247,6 +252,7 @@ async fn main() {
     let state = Arc::new(AppState { http_client, gemini });
 
     let app = Router::new()
+        .route("/health", get(health))
         .route("/.well-known/agent.json", get(discovery))
         .route("/v1/bitcoin", post(handle_bitcoin))
         .route("/v1/ethereum", post(handle_ethereum))

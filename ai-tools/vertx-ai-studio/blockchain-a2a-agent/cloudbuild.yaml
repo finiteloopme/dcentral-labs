@@ -1,0 +1,23 @@
+# Cloud Build config for blockchain-a2a-agent
+# Usage: gcloud builds submit --config=cloudbuild.yaml .
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
+      - '.'
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: rust-agents
+  _IMAGE: blockchain-a2a-agent
+
+options:
+  logging: CLOUD_LOGGING_ONLY
