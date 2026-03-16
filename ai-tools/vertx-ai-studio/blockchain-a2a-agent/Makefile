@@ -6,8 +6,8 @@
 
 # Configurable variables (override via env or command line)
 GOOGLE_CLOUD_PROJECT ?= $(shell gcloud config get-value project 2>/dev/null)
-VERTEX_LOCATION      ?= us-central1
-GEMINI_MODEL         ?= gemini-3.0-flash
+VERTEX_LOCATION      ?= global
+GEMINI_MODEL         ?= gemini-3.1-flash-lite-preview
 PORT                 ?= 8080
 
 .PHONY: build test run run-llm run-keyword clean fmt lint check help

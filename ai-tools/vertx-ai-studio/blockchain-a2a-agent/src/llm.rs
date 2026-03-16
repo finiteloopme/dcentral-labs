@@ -38,9 +38,9 @@ impl GeminiClient {
     pub async fn try_new(http: reqwest::Client) -> Option<Self> {
         let project = std::env::var("GOOGLE_CLOUD_PROJECT").ok()?;
         let location =
-            std::env::var("VERTEX_LOCATION").unwrap_or_else(|_| "us-central1".into());
+            std::env::var("VERTEX_LOCATION").unwrap_or_else(|_| "global".into());
         let model =
-            std::env::var("GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.0-flash".into());
+            std::env::var("GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.1-flash-lite-preview".into());
 
         let auth = gcp_auth::provider()
             .await
@@ -56,8 +56,14 @@ impl GeminiClient {
         let scopes = &["https://www.googleapis.com/auth/cloud-platform"];
         let token = self.auth.token(scopes).await.context("failed to get ADC token")?;
 
+        let host = if self.location == "global" {
+            "aiplatform.googleapis.com".to_string()
+        } else {
+            format!("{}-aiplatform.googleapis.com", self.location)
+        };
         let url = format!(
-            "https://{loc}-aiplatform.googleapis.com/v1/projects/{proj}/locations/{loc}/publishers/google/models/{model}:generateContent",
+            "https://{host}/v1/projects/{proj}/locations/{loc}/publishers/google/models/{model}:generateContent",
+            host = host,
             loc = self.location,
             proj = self.project,
             model = self.model,
