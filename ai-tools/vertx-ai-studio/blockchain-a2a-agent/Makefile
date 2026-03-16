@@ -97,8 +97,8 @@ info: ## Show deployment info (RUNTIME=vertex-ai|cloud-run)
 # ---- Vertex AI Prediction (default) ----
 
 deploy-vertex-ai: ## Deploy to Vertex AI Prediction
-	@echo "==> Uploading model to Vertex AI..."
-	gcloud ai models upload \
+	@echo "==> Uploading model to Vertex AI..." && \
+	MODEL_ID=$$(gcloud ai models upload \
 		--display-name=$(IMAGE_NAME) \
 		--container-image-uri=$(CONTAINER_IMAGE) \
 		--container-predict-route=/v1/messages \
@@ -107,32 +107,30 @@ deploy-vertex-ai: ## Deploy to Vertex AI Prediction
 		--container-env-vars="VERTEX_LOCATION=$(VERTEX_LOCATION),GEMINI_MODEL=$(GEMINI_MODEL)" \
 		--region=$(REGION) \
 		--project=$(GOOGLE_CLOUD_PROJECT) \
-		--format="value(model)" | tee /tmp/.a2a-model-id
-	$(eval MODEL_ID := $(shell cat /tmp/.a2a-model-id | grep -oP 'models/\K[0-9]+'))
-	@echo "==> Model uploaded: $(MODEL_ID)"
-	@echo "==> Creating endpoint..."
-	gcloud ai endpoints create \
+		--format="value(model)" | grep -oP 'models/\K[0-9]+') && \
+	echo "==> Model uploaded: $$MODEL_ID" && \
+	echo "==> Creating endpoint..." && \
+	ENDPOINT_ID=$$(gcloud ai endpoints create \
 		--display-name=$(IMAGE_NAME)-endpoint \
 		--region=$(REGION) \
 		--project=$(GOOGLE_CLOUD_PROJECT) \
-		--format="value(name)" | tee /tmp/.a2a-endpoint-id
-	$(eval ENDPOINT_ID := $(shell cat /tmp/.a2a-endpoint-id | grep -oP 'endpoints/\K[0-9]+'))
-	@echo "==> Endpoint created: $(ENDPOINT_ID)"
-	@echo "==> Deploying model to endpoint (this takes ~15-20 min)..."
-	gcloud ai endpoints deploy-model $(ENDPOINT_ID) \
-		--model=$(MODEL_ID) \
+		--format="value(name)" | grep -oP 'endpoints/\K[0-9]+') && \
+	echo "==> Endpoint created: $$ENDPOINT_ID" && \
+	echo "==> Deploying model to endpoint (this takes ~15-20 min)..." && \
+	gcloud ai endpoints deploy-model $$ENDPOINT_ID \
+		--model=$$MODEL_ID \
 		--display-name=$(IMAGE_NAME)-v1 \
 		--machine-type=$(MACHINE_TYPE) \
 		--min-replica-count=$(MIN_REPLICAS) \
 		--max-replica-count=$(MAX_REPLICAS) \
 		--region=$(REGION) \
-		--project=$(GOOGLE_CLOUD_PROJECT)
-	@echo "==> Deployed! Query with:"
-	@echo '  curl -X POST \'
-	@echo '    -H "Authorization: Bearer $$(gcloud auth print-access-token)" \'
-	@echo '    -H "Content-Type: application/json" \'
-	@echo '    "https://$(REGION)-aiplatform.googleapis.com/v1/projects/$(GOOGLE_CLOUD_PROJECT)/locations/$(REGION)/endpoints/$(ENDPOINT_ID):rawPredict" \'
-	@echo '    -d '"'"'{"jsonrpc":"2.0","id":"1","params":{"message":{"role":"user","parts":[{"text":"Bitcoin block height"}]}}}'"'"''
+		--project=$(GOOGLE_CLOUD_PROJECT) && \
+	echo "==> Deployed! Query with:" && \
+	echo "  curl -X POST \\" && \
+	echo "    -H \"Authorization: Bearer $$(gcloud auth print-access-token)\" \\" && \
+	echo "    -H \"Content-Type: application/json\" \\" && \
+	echo "    \"https://$(REGION)-aiplatform.googleapis.com/v1/projects/$(GOOGLE_CLOUD_PROJECT)/locations/$(REGION)/endpoints/$$ENDPOINT_ID:rawPredict\" \\" && \
+	echo "    -d '{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"params\":{\"message\":{\"role\":\"user\",\"parts\":[{\"text\":\"Bitcoin block height\"}]}}}'"
 
 undeploy-vertex-ai: ## Undeploy from Vertex AI Prediction
 	@echo "Listing Vertex AI endpoints for $(IMAGE_NAME)..."
