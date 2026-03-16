@@ -228,6 +228,13 @@ async fn handle_message(
 
 #[tokio::main]
 async fn main() {
+    // Explicitly install the aws-lc-rs CryptoProvider to avoid a panic when
+    // both `aws-lc-rs` and `ring` features are enabled on rustls 0.23+ via
+    // transitive dependencies (reqwest → aws-lc-rs, gcp_auth → ring).
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install default CryptoProvider");
+
     let http_client = reqwest::Client::new();
     let gemini = llm::GeminiClient::try_new(http_client.clone()).await;
 
