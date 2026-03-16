@@ -4,11 +4,40 @@ This agent provides real-time block information for Bitcoin, Ethereum, and Solan
 
 ## Architecture
 
-The agent is built in Rust using Axum and is designed to be called by Vertex AI Studio as a peer agent.
+The agent is built in Rust using Axum and is designed to be called by Vertex AI Studio as a peer agent. It supports two deployment runtimes:
 
-## Deployment Steps
+| Runtime | Default | Description |
+|---------|---------|-------------|
+| **Vertex AI Prediction** | Yes | Native Vertex AI Studio integration via `gcloud ai models upload`. Query with `rawPredict`. |
+| **Cloud Run** | No | Full A2A protocol support (all routes, Agent Card discovery). |
 
-### 1. Create Artifact Registry
+## Prerequisites
+
+- [Rust 1.85+](https://www.rust-lang.org/tools/install)
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+- Authenticated: `gcloud auth login && gcloud auth application-default login`
+- Project set: `gcloud config set project YOUR_PROJECT_ID`
+
+## Local Development
+
+```bash
+cd blockchain-a2a-agent
+
+# Run with LLM-powered smart routing
+make run-llm
+
+# Run with keyword fallback only (no GCP needed)
+make run-keyword
+
+# Test locally
+curl -X POST http://localhost:8080/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{"id":"1","params":{"message":{"parts":[{"text":"latest blocks"}]}}}'
+```
+
+## Deployment
+
+### One-time setup: Create Artifact Registry
 
 ```bash
 gcloud artifacts repositories create rust-agents \
@@ -17,36 +46,74 @@ gcloud artifacts repositories create rust-agents \
     --description="Rust-based AI Agents"
 ```
 
-### 2. Build and Push Container
+### Deploy (Vertex AI — default)
 
 ```bash
-gcloud builds submit --tag us-central1-docker.pkg.dev/sol-grpc/rust-agents/blockchain-a2a-agent .
+cd blockchain-a2a-agent
+make deploy
 ```
 
-### 3. Deploy to Cloud Run
+This runs `push` (Cloud Build) then `deploy-vertex-ai`, which:
+1. Uploads the container as a Vertex AI model
+2. Creates a Vertex AI endpoint
+3. Deploys the model to the endpoint (~15-20 min)
+
+Query the deployed agent:
+```bash
+ENDPOINT_ID=<from deploy output>
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  "https://us-central1-aiplatform.googleapis.com/v1/projects/$(gcloud config get-value project)/locations/us-central1/endpoints/${ENDPOINT_ID}:rawPredict" \
+  -d '{"jsonrpc":"2.0","id":"1","params":{"message":{"role":"user","parts":[{"text":"Bitcoin block height"}]}}}'
+```
+
+### Deploy (Cloud Run)
 
 ```bash
-gcloud run deploy blockchain-a2a-agent \
-    --image us-central1-docker.pkg.dev/sol-grpc/rust-agents/blockchain-a2a-agent \
-    --platform managed \
-    --region us-central1 \
-    --allow-unauthenticated
+cd blockchain-a2a-agent
+make deploy RUNTIME=cloud-run
+```
+
+The Agent Card URL is printed after deployment:
+```
+https://blockchain-a2a-agent-HASH.a.run.app/.well-known/agent.json
+```
+
+### Undeploy
+
+```bash
+make undeploy                    # Vertex AI (default)
+make undeploy RUNTIME=cloud-run  # Cloud Run
 ```
 
 ## Vertex AI Studio Integration
 
-1. Copy the **Service URL** from the Cloud Run deployment.
-2. In Vertex AI Studio (Agent Builder), create a new **Tool**.
-3. Set the type to **OpenAPI/Remote Agent**.
-4. Provide the URL: `<YOUR_CLOUD_RUN_URL>/.well-known/agent.json`.
+### Via Vertex AI Prediction (automated)
 
-## Testing your Working Agent Locally
+After `make deploy`, the agent is already registered in Vertex AI's model registry and accessible via endpoints. No additional registration needed.
 
-1. Run the agent: \`cargo run\`
-2. In a new terminal, simulate an A2A call:
+### Via Cloud Run (manual)
+
+1. Deploy with `make deploy RUNTIME=cloud-run`
+2. Copy the Agent Card URL from the output
+3. In Vertex AI Studio > Agent Builder > Add Tool > Remote Agent
+4. Paste the Agent Card URL
+
+## Configuration
+
+Override any variable via environment or command line:
 
 ```bash
-curl -X POST http://localhost:8080/v1/messages \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc":"2.0","id":"123","params":{"message":{"parts":[{"text":"latest blocks"}]}}}'
+make deploy RUNTIME=cloud-run REGION=europe-west1 GEMINI_MODEL=gemini-2.0-flash
 ```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUNTIME` | `vertex-ai` | Deployment runtime: `vertex-ai` or `cloud-run` |
+| `REGION` | `us-central1` | GCP region |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite-preview` | Gemini model for LLM routing |
+| `VERTEX_LOCATION` | `global` | Vertex AI model endpoint location |
+| `MACHINE_TYPE` | `e2-standard-2` | VM type for Vertex AI Prediction |
+| `MIN_REPLICAS` | `1` | Min replicas for Vertex AI |
+| `MAX_REPLICAS` | `3` | Max replicas for Vertex AI |
