@@ -96,54 +96,126 @@ info: ## Show deployment info (RUNTIME=vertex-ai|cloud-run)
 
 # ---- Vertex AI Prediction (default) ----
 
-deploy-vertex-ai: ## Deploy to Vertex AI Prediction
-	@echo "==> Uploading model to Vertex AI..." && \
-	MODEL_ID=$$(gcloud ai models upload \
-		--display-name=$(IMAGE_NAME) \
-		--container-image-uri=$(CONTAINER_IMAGE) \
-		--container-predict-route=/v1/messages \
-		--container-health-route=/health \
-		--container-ports=$(PORT) \
-		--container-env-vars="VERTEX_LOCATION=$(VERTEX_LOCATION),GEMINI_MODEL=$(GEMINI_MODEL)" \
+deploy-vertex-ai: ## Deploy to Vertex AI Prediction (idempotent)
+	@echo "==> Looking for existing model '$(IMAGE_NAME)'..." ; \
+	MODEL_ID=$$(gcloud ai models list \
+		--filter="displayName:$(IMAGE_NAME)" \
+		--format="value(name)" \
 		--region=$(REGION) \
-		--project=$(GOOGLE_CLOUD_PROJECT) \
-		--format="value(model)" | grep -oP 'models/\K[0-9]+') && \
-	echo "==> Model uploaded: $$MODEL_ID" && \
-	echo "==> Creating endpoint..." && \
-	ENDPOINT_ID=$$(gcloud ai endpoints create \
-		--display-name=$(IMAGE_NAME)-endpoint \
+		--project=$(GOOGLE_CLOUD_PROJECT) 2>/dev/null \
+		| head -1 | grep -oP 'models/\K[0-9]+' || true) ; \
+	if [ -n "$$MODEL_ID" ]; then \
+		echo "==> Found existing model: $$MODEL_ID — uploading new version..." ; \
+		MODEL_ID=$$(gcloud ai models upload \
+			--parent-model=projects/$(GOOGLE_CLOUD_PROJECT)/locations/$(REGION)/models/$$MODEL_ID \
+			--display-name=$(IMAGE_NAME) \
+			--container-image-uri=$(CONTAINER_IMAGE) \
+			--container-predict-route=/v1/messages \
+			--container-health-route=/health \
+			--container-ports=$(PORT) \
+			--container-env-vars="VERTEX_LOCATION=$(VERTEX_LOCATION),GEMINI_MODEL=$(GEMINI_MODEL)" \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--format="value(model)" | grep -oP 'models/\K[0-9]+') ; \
+		echo "==> New model version uploaded: $$MODEL_ID" ; \
+	else \
+		echo "==> No existing model found — creating new model..." ; \
+		MODEL_ID=$$(gcloud ai models upload \
+			--display-name=$(IMAGE_NAME) \
+			--container-image-uri=$(CONTAINER_IMAGE) \
+			--container-predict-route=/v1/messages \
+			--container-health-route=/health \
+			--container-ports=$(PORT) \
+			--container-env-vars="VERTEX_LOCATION=$(VERTEX_LOCATION),GEMINI_MODEL=$(GEMINI_MODEL)" \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--format="value(model)" | grep -oP 'models/\K[0-9]+') ; \
+		echo "==> Model created: $$MODEL_ID" ; \
+	fi ; \
+	echo "==> Looking for existing endpoint '$(IMAGE_NAME)-endpoint'..." ; \
+	ENDPOINT_ID=$$(gcloud ai endpoints list \
+		--filter="displayName:$(IMAGE_NAME)-endpoint" \
+		--format="value(name)" \
 		--region=$(REGION) \
-		--project=$(GOOGLE_CLOUD_PROJECT) \
-		--format="value(name)" | grep -oP 'endpoints/\K[0-9]+') && \
-	echo "==> Endpoint created: $$ENDPOINT_ID" && \
-	echo "==> Deploying model to endpoint (this takes ~15-20 min)..." && \
+		--project=$(GOOGLE_CLOUD_PROJECT) 2>/dev/null \
+		| head -1 | grep -oP 'endpoints/\K[0-9]+' || true) ; \
+	if [ -n "$$ENDPOINT_ID" ]; then \
+		echo "==> Using existing endpoint: $$ENDPOINT_ID" ; \
+	else \
+		echo "==> No existing endpoint found — creating..." ; \
+		ENDPOINT_ID=$$(gcloud ai endpoints create \
+			--display-name=$(IMAGE_NAME)-endpoint \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--format="value(name)" | grep -oP 'endpoints/\K[0-9]+') ; \
+		echo "==> Endpoint created: $$ENDPOINT_ID" ; \
+	fi ; \
+	echo "==> Deploying model $$MODEL_ID to endpoint $$ENDPOINT_ID (this takes ~15-20 min)..." ; \
 	gcloud ai endpoints deploy-model $$ENDPOINT_ID \
 		--model=$$MODEL_ID \
 		--display-name=$(IMAGE_NAME)-v1 \
 		--machine-type=$(MACHINE_TYPE) \
 		--min-replica-count=$(MIN_REPLICAS) \
 		--max-replica-count=$(MAX_REPLICAS) \
+		--traffic-split=0=100 \
 		--region=$(REGION) \
-		--project=$(GOOGLE_CLOUD_PROJECT) && \
-	echo "==> Deployed! Query with:" && \
-	echo "  curl -X POST \\" && \
-	echo "    -H \"Authorization: Bearer $$(gcloud auth print-access-token)\" \\" && \
-	echo "    -H \"Content-Type: application/json\" \\" && \
-	echo "    \"https://$(REGION)-aiplatform.googleapis.com/v1/projects/$(GOOGLE_CLOUD_PROJECT)/locations/$(REGION)/endpoints/$$ENDPOINT_ID:rawPredict\" \\" && \
+		--project=$(GOOGLE_CLOUD_PROJECT) ; \
+	echo "==> Deployed! Query with:" ; \
+	echo "  curl -X POST \\" ; \
+	echo "    -H \"Authorization: Bearer $$(gcloud auth print-access-token)\" \\" ; \
+	echo "    -H \"Content-Type: application/json\" \\" ; \
+	echo "    \"https://$(REGION)-aiplatform.googleapis.com/v1/projects/$(GOOGLE_CLOUD_PROJECT)/locations/$(REGION)/endpoints/$$ENDPOINT_ID:rawPredict\" \\" ; \
 	echo "    -d '{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"params\":{\"message\":{\"role\":\"user\",\"parts\":[{\"text\":\"Bitcoin block height\"}]}}}'"
 
-undeploy-vertex-ai: ## Undeploy from Vertex AI Prediction
-	@echo "Listing Vertex AI endpoints for $(IMAGE_NAME)..."
-	@gcloud ai endpoints list \
-		--region=$(REGION) \
-		--project=$(GOOGLE_CLOUD_PROJECT) \
+undeploy-vertex-ai: ## Undeploy from Vertex AI Prediction (full cleanup)
+	@echo "==> Looking for endpoint '$(IMAGE_NAME)-endpoint'..." ; \
+	ENDPOINT_ID=$$(gcloud ai endpoints list \
 		--filter="displayName:$(IMAGE_NAME)-endpoint" \
-		--format="table(name,displayName,deployedModels[0].id)"
-	@echo ""
-	@echo "Use these commands to clean up:"
-	@echo "  gcloud ai endpoints undeploy-model ENDPOINT_ID --deployed-model-id=DEPLOYED_MODEL_ID --region=$(REGION) --project=$(GOOGLE_CLOUD_PROJECT)"
-	@echo "  gcloud ai endpoints delete ENDPOINT_ID --region=$(REGION) --project=$(GOOGLE_CLOUD_PROJECT)"
-	@echo "  gcloud ai models delete MODEL_ID --region=$(REGION) --project=$(GOOGLE_CLOUD_PROJECT)"
+		--format="value(name)" \
+		--region=$(REGION) \
+		--project=$(GOOGLE_CLOUD_PROJECT) 2>/dev/null \
+		| head -1 | grep -oP 'endpoints/\K[0-9]+' || true) ; \
+	if [ -n "$$ENDPOINT_ID" ]; then \
+		echo "==> Found endpoint: $$ENDPOINT_ID" ; \
+		DEPLOYED=$$(gcloud ai endpoints describe $$ENDPOINT_ID \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--format="value(deployedModels[].id)" 2>/dev/null || true) ; \
+		for DM_ID in $$DEPLOYED; do \
+			echo "==> Undeploying model $$DM_ID from endpoint $$ENDPOINT_ID..." ; \
+			gcloud ai endpoints undeploy-model $$ENDPOINT_ID \
+				--deployed-model-id=$$DM_ID \
+				--region=$(REGION) \
+				--project=$(GOOGLE_CLOUD_PROJECT) \
+				--quiet ; \
+		done ; \
+		echo "==> Deleting endpoint $$ENDPOINT_ID..." ; \
+		gcloud ai endpoints delete $$ENDPOINT_ID \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--quiet ; \
+		echo "==> Endpoint deleted." ; \
+	else \
+		echo "==> No endpoint found — nothing to undeploy." ; \
+	fi ; \
+	echo "==> Looking for model '$(IMAGE_NAME)'..." ; \
+	MODEL_ID=$$(gcloud ai models list \
+		--filter="displayName:$(IMAGE_NAME)" \
+		--format="value(name)" \
+		--region=$(REGION) \
+		--project=$(GOOGLE_CLOUD_PROJECT) 2>/dev/null \
+		| head -1 | grep -oP 'models/\K[0-9]+' || true) ; \
+	if [ -n "$$MODEL_ID" ]; then \
+		echo "==> Deleting model $$MODEL_ID..." ; \
+		gcloud ai models delete $$MODEL_ID \
+			--region=$(REGION) \
+			--project=$(GOOGLE_CLOUD_PROJECT) \
+			--quiet ; \
+		echo "==> Model deleted." ; \
+	else \
+		echo "==> No model found — nothing to delete." ; \
+	fi ; \
+	echo "==> Vertex AI cleanup complete."
 
 info-vertex-ai: ## Show Vertex AI deployment info
 	@echo "==> Vertex AI Models:"
