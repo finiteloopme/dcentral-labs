@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import type { TaskStore } from '@a2a-js/sdk/server';
 import { InMemoryTaskStore, DefaultRequestHandler } from '@a2a-js/sdk/server';
 import { A2AExpressApp } from '@a2a-js/sdk/server/express';
@@ -48,9 +49,11 @@ async function main() {
     agentExecutor
   );
 
-  // 4. Create and setup A2AExpressApp
+  // 4. Create and setup A2AExpressApp with CORS middleware
   const appBuilder = new A2AExpressApp(requestHandler);
-  const expressApp = appBuilder.setupRoutes(express(), '');
+  const app = express();
+  app.use(cors());
+  const expressApp = appBuilder.setupRoutes(app, '');
 
   // 5. Add health check endpoint
   expressApp.get('/health', (_req, res) => {
