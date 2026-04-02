@@ -74,12 +74,13 @@ You can also use Gemini's API directly:
 python example.py
 ```
 
-## Intent Resolution Integration
+## Intent Resolution Integration (Phase 2)
 
-The new `intent-integration.py` example shows how to:
+The `intent-integration.py` example shows how to:
 1. Use Gemini to enhance vague user requests
 2. Send clarified intents to ABI Assistant
 3. Process structured responses with protocol suggestions
+4. Build transactions ready for signing
 
 ```bash
 # Install dependencies
@@ -94,6 +95,35 @@ This demonstrates the full pipeline:
 - Gemini: Enhances to "swap 100 USDC for ETH"
 - ABI Assistant: Returns protocol suggestions (Uniswap, Sushiswap, etc.)
 - Result: Ready-to-execute transaction parameters
+
+## Transaction Building (Phase 3)
+
+The system now supports complete transaction lifecycle:
+
+### Build Transactions
+```python
+# Using the MCP API
+response = mcp_call("build_transaction", {
+    "transaction_type": "swap",
+    "protocol": "uniswap_v2",
+    "parameters": {
+        "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+        "token_in": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
+        "token_out": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", # WETH
+        "amount_in": "1000000000",  # 1000 USDC
+        "slippage": "0.5"
+    }
+})
+```
+
+### Export for Signing
+```python
+# Export in various formats
+response = mcp_call("export_for_signing", {
+    "transaction": tx_data,
+    "format": "ethers_js"  # or: raw_json, eip712, qr_code, wallet_connect, raw_hex
+})
+```
 
 ## Troubleshooting
 

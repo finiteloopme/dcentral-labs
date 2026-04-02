@@ -1,7 +1,7 @@
-# Development container with all tools
-FROM docker.io/rust:1.79-bookworm
+# Development Dockerfile with hot reload
+FROM docker.io/rust:latest
 
-# Install development dependencies
+# Install development tools
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -12,11 +12,28 @@ RUN apt-get update && apt-get install -y \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust development tools
-RUN rustup component add rustfmt clippy
+# Install cargo-watch for hot reload
+RUN cargo install cargo-watch
 
-# Create workspace
+# Create app directory
 WORKDIR /workspace
 
-# Keep container running for development
-CMD ["tail", "-f", "/dev/null"]
+# Create non-root user for development
+RUN useradd -m -u 1000 -s /bin/bash developer && \
+    chown -R developer:developer /workspace
+
+# Switch to non-root user
+USER developer
+
+# Set development environment variables
+ENV RUST_LOG=debug \
+    DATABASE_URL=sqlite:///workspace/data/abi_assistant.db \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=3000 \
+    RUST_BACKTRACE=1
+
+# Expose ports
+EXPOSE 3000 8080
+
+# Default command for development
+CMD ["cargo", "watch", "-x", "run", "-w", "src/"]

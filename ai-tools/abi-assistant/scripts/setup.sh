@@ -11,15 +11,18 @@ log_info "Setting up ABI Assistant MCP Server..."
 check_prerequisites() {
     local missing=()
     
-    # Check for container runtime
-    if command -v podman &> /dev/null; then
-        log_success "Found podman"
-        CONTAINER_RUNTIME="podman"
-    elif command -v docker &> /dev/null; then
-        log_success "Found docker"
-        CONTAINER_RUNTIME="docker"
+    # Check for container runtime using common function
+    if [ -n "${CONTAINER_RUNTIME:-}" ]; then
+        log_success "Found container runtime: $CONTAINER_RUNTIME"
     else
         missing+=("podman or docker")
+    fi
+    
+    # Check for compose command
+    if [ -n "${COMPOSE_CMD:-}" ]; then
+        log_success "Found compose command: $COMPOSE_CMD"
+    else
+        missing+=("docker-compose or podman-compose")
     fi
     
     # Check for Rust (optional for local development)

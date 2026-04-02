@@ -61,18 +61,34 @@ function extractContractName(source: string): string {
  */
 export async function* compileCompact(
   message: Message,
-  _session?: SessionContext
+  session?: SessionContext
 ): AsyncGenerator<SkillEvent, void, unknown> {
   yield { type: 'status', message: 'Extracting Compact code...' };
 
   // Extract Compact code from the message
-  const compactCode = extractCompactCode(message);
+  let compactCode = extractCompactCode(message);
+
+  // Fallback to session artifacts if no code in message
+  // This enables "compile" command without re-sending the code
+  if (!compactCode && session?.artifacts) {
+    const contractArtifact = session.artifacts.find(
+      (a) =>
+        a.filename.endsWith('.compact') || a.filename === 'contract.compact'
+    );
+    if (contractArtifact) {
+      compactCode = contractArtifact.content;
+      console.log(
+        '[compile] Using contract from session artifacts:',
+        contractArtifact.filename
+      );
+    }
+  }
 
   if (!compactCode) {
     yield {
       type: 'error',
       message:
-        'No Compact code found in the message. Please provide code in a ```compact code block or as a .compact file.',
+        'No Compact code found in the message or session. Please provide code in a ```compact code block, as a .compact file, or generate a contract first.',
     };
     return;
   }
@@ -147,6 +163,12 @@ export async function* compileCompact(
       },
     };
 
+    // Add workflow hint to guide user to deployment
+    const deployHint = `
+
+---
+**Next step:** Say "deploy" or "yes" to deploy this contract to the network.`;
+
     yield {
       type: 'result',
       data: {
@@ -155,7 +177,7 @@ export async function* compileCompact(
         contractName,
         artifactCount: result.artifacts.length,
       },
-      message: `Compact contract "${contractName}" compiled successfully. Ready for deployment.`,
+      message: `Compact contract "${contractName}" compiled successfully. Ready for deployment.${deployHint}`,
     };
   } catch (error) {
     const errorMessage =

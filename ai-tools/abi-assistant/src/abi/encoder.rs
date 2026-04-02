@@ -56,8 +56,8 @@ impl AbiEncoder {
     /// Encode a uint256 parameter
     pub fn encode_uint256(value: &str) -> Result<String, Box<dyn Error>> {
         // Handle both decimal and hex input
-        let num = if value.starts_with("0x") {
-            u128::from_str_radix(&value[2..], 16)?
+        let num = if let Some(stripped) = value.strip_prefix("0x") {
+            u128::from_str_radix(stripped, 16)?
         } else {
             value.parse::<u128>()?
         };
@@ -67,8 +67,8 @@ impl AbiEncoder {
     
     /// Encode a bytes32 parameter
     pub fn encode_bytes32(value: &str) -> Result<String, Box<dyn Error>> {
-        let value = if value.starts_with("0x") {
-            &value[2..]
+        let value = if let Some(stripped) = value.strip_prefix("0x") {
+            stripped
         } else {
             value
         };
@@ -102,7 +102,7 @@ impl AbiEncoder {
         
         // Data (padded to 32 bytes)
         let mut data = hex::encode(bytes);
-        let padding = ((len + 31) / 32) * 32 * 2 - data.len();
+        let padding = len.div_ceil(32) * 32 * 2 - data.len();
         data.push_str(&"0".repeat(padding));
         encoded.push_str(&data);
         

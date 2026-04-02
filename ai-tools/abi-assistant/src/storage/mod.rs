@@ -6,8 +6,8 @@ use tracing::{info, debug};
 /// Initialize the database with required tables
 pub async fn init_database(db_url: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Extract path from SQLite URL
-    let path = if db_url.starts_with("sqlite://") {
-        &db_url[9..]
+    let path = if let Some(stripped) = db_url.strip_prefix("sqlite://") {
+        stripped
     } else {
         db_url
     };

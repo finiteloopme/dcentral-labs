@@ -88,7 +88,7 @@ pub async fn start_unified_server(
     config: &Config,
     service_factory: Arc<dyn Fn() -> AbiAssistantService + Send + Sync>,
 ) -> Result<ServerHandle> {
-    let bind_address = config.get_bind_address("sse");
+    let bind_address = config.get_bind_address("unified");
     info!("🚀 Starting Unified MCP Server on http://{}", bind_address);
     
     // Create SSE server configuration

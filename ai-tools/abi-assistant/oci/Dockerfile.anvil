@@ -1,18 +1,96 @@
-# Anvil container for local Ethereum testing
+# Platform-agnostic Anvil container
+# Works on local Docker, GCP Cloud Run, AWS ECS, etc.
+
 FROM ghcr.io/foundry-rs/foundry:latest
 
-# Expose the RPC port
-EXPOSE 8545
+# The foundry image already has necessary tools
+# Create flexible entrypoint script
+USER root
+RUN mkdir -p /usr/local/bin && \
+    cat <<'EOF' > /usr/local/bin/docker-entrypoint.sh
+#!/bin/sh
+set -e
 
-# Set up healthcheck
-HEALTHCHECK --interval=3s --timeout=3s --start-period=5s --retries=5 \
-  CMD cast block-number --rpc-url http://localhost:8545 || exit 1
+# Handle platform-specific PORT variable (Cloud Run, Heroku, etc.)
+if [ -n "$PORT" ]; then
+    export ANVIL_PORT="${ANVIL_PORT:-$PORT}"
+fi
 
-# Default entrypoint with common test settings
-ENTRYPOINT ["anvil"]
+# Set default values
+export ANVIL_PORT="${ANVIL_PORT:-8545}"
+export ANVIL_HOST="${ANVIL_HOST:-0.0.0.0}"
 
-# Default arguments:
-# --host 0.0.0.0 - Listen on all interfaces (needed for container networking)
-# --fork-url - Optional: fork mainnet for testing real protocols
-# --block-time 1 - Mine a block every second (optional)
-CMD ["--host", "0.0.0.0", "--accounts", "10", "--balance", "10000", "--mnemonic", "test test test test test test test test test test test junk"]
+# Build anvil command with options
+ANVIL_CMD="anvil"
+ANVIL_CMD="$ANVIL_CMD --host $ANVIL_HOST"
+ANVIL_CMD="$ANVIL_CMD --port $ANVIL_PORT"
+
+# Add fork URL if provided
+if [ -n "$ANVIL_FORK_URL" ]; then
+    ANVIL_CMD="$ANVIL_CMD --fork-url $ANVIL_FORK_URL"
+fi
+
+# Add fork block if provided
+if [ -n "$ANVIL_FORK_BLOCK" ]; then
+    ANVIL_CMD="$ANVIL_CMD --fork-block-number $ANVIL_FORK_BLOCK"
+fi
+
+# Add chain ID if provided
+if [ -n "$ANVIL_CHAIN_ID" ]; then
+    ANVIL_CMD="$ANVIL_CMD --chain-id $ANVIL_CHAIN_ID"
+else
+    ANVIL_CMD="$ANVIL_CMD --chain-id 31337"
+fi
+
+# Configure accounts and balance
+ANVIL_CMD="$ANVIL_CMD --accounts ${ANVIL_ACCOUNTS:-10}"
+ANVIL_CMD="$ANVIL_CMD --balance ${ANVIL_BALANCE:-10000}"
+
+# Add mnemonic if provided, otherwise use default test mnemonic
+if [ -n "$ANVIL_MNEMONIC" ]; then
+    ANVIL_CMD="$ANVIL_CMD --mnemonic \"$ANVIL_MNEMONIC\""
+else
+    ANVIL_CMD="$ANVIL_CMD --mnemonic \"test test test test test test test test test test test junk\""
+fi
+
+# Configure block time
+if [ -n "$ANVIL_BLOCK_TIME" ]; then
+    ANVIL_CMD="$ANVIL_CMD --block-time $ANVIL_BLOCK_TIME"
+fi
+
+# Add any additional arguments passed to the container (if not from healthcheck)
+# Skip if the first argument looks like a healthcheck command
+if [ "$1" != "test" ] && [ "$1" != "curl" ] && [ "$1" != "wget" ]; then
+    ANVIL_CMD="$ANVIL_CMD $@"
+fi
+
+# Log the configuration
+echo "Starting Anvil with configuration:"
+echo "  Host: $ANVIL_HOST"
+echo "  Port: $ANVIL_PORT"
+[ -n "$ANVIL_FORK_URL" ] && echo "  Fork URL: $ANVIL_FORK_URL"
+[ -n "$ANVIL_FORK_BLOCK" ] && echo "  Fork Block: $ANVIL_FORK_BLOCK"
+echo ""
+
+# Execute anvil
+exec $ANVIL_CMD
+EOF
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Default environment variables (can be overridden)
+ENV ANVIL_HOST=0.0.0.0 \
+    ANVIL_PORT=8545 \
+    ANVIL_ACCOUNTS=10 \
+    ANVIL_BALANCE=10000 \
+    ANVIL_CHAIN_ID=31337
+
+# Expose both standard Ethereum RPC ports
+EXPOSE 8545 8546
+
+# Health check disabled for now (curl/wget not available in base image)
+# To check health, use: docker exec <container> cast block-number
+# or from host: curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+
+# Use entrypoint script for flexibility
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

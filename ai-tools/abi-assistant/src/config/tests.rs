@@ -289,7 +289,7 @@ host = "invalid"
         let valid_transports = vec!["sse", "http", "unified"];
         
         for transport in valid_transports {
-            let config = Config::default();
+            let _config = Config::default();
             // Transport validation would happen at runtime
             // Here we just check the config can hold the values
             assert!(["sse", "http", "unified"].contains(&transport));
@@ -325,6 +325,9 @@ host = "invalid"
 
     #[test]
     fn test_env_override_precedence() {
+        // Store original value if it exists
+        let original_host = env::var("MCP_HOST").ok();
+        
         // Set environment variables
         env::set_var("MCP_HOST", "172.16.0.1");
         
@@ -337,10 +340,14 @@ host = "invalid"
         config.apply_env_overrides();
         
         // Env should override default
-        assert_eq!(config.server.host, "172.16.0.1");
+        assert_eq!(config.server.host, "172.16.0.1", 
+            "Environment override should change host to 172.16.0.1");
         
-        // Clean up
-        env::remove_var("MCP_HOST");
+        // Clean up - restore original or remove
+        match original_host {
+            Some(host) => env::set_var("MCP_HOST", host),
+            None => env::remove_var("MCP_HOST"),
+        }
     }
 
     #[test]

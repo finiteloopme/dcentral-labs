@@ -165,19 +165,19 @@ cmd_clean() {
 
 cmd_compose_build() {
   log_header "Building all container images with compose"
-  podman-compose build
+  podman-compose --env-file .env.generated build
   log_success "All container images built"
 }
 
 cmd_compose_up() {
   log_header "Starting all containers with compose"
-  podman-compose up -d
+  podman-compose --env-file .env.generated up -d
   log_success "All containers started"
 }
 
 cmd_compose_down() {
   log_header "Stopping all containers with compose"
-  podman-compose down
+  podman-compose --env-file .env.generated down
   log_success "All containers stopped"
 }
 

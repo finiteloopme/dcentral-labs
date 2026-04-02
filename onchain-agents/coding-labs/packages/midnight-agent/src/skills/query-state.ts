@@ -17,14 +17,14 @@ type Network = 'preview' | 'preprod' | 'local';
  */
 function detectNetwork(text: string): Network {
   const lower = text.toLowerCase();
-  if (lower.includes('local') || lower.includes('localhost')) {
-    return 'local';
-  }
   if (lower.includes('preprod') || lower.includes('pre-prod')) {
     return 'preprod';
   }
-  // Default to preview
-  return 'preview';
+  if (lower.includes('preview')) {
+    return 'preview';
+  }
+  // Default to local dev chain (pre-funded, no faucet needed)
+  return 'local';
 }
 
 /**

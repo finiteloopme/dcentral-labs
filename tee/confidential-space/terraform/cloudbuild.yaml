@@ -1,0 +1,58 @@
+# -----------------------------------------------------------------------------
+# Cloud Build config for running Terraform operations.
+#
+# Submitted via:
+#   gcloud builds submit terraform/ \
+#     --config=terraform/cloudbuild.yaml \
+#     --substitutions=_TF_COMMAND=plan,_TF_STATE_BUCKET=my-bucket
+#
+# Supported _TF_COMMAND values: plan, apply, destroy, output
+# -----------------------------------------------------------------------------
+
+substitutions:
+  _TF_COMMAND: "plan"
+  _TF_STATE_BUCKET: ""
+
+steps:
+  # Step 1: terraform init
+  - id: "tf-init"
+    name: "hashicorp/terraform:1.9"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        terraform init \
+          -backend-config="bucket=${_TF_STATE_BUCKET}" \
+          -input=false
+
+  # Step 2: run the requested terraform command
+  - id: "tf-command"
+    name: "hashicorp/terraform:1.9"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        set -e
+        case "${_TF_COMMAND}" in
+          plan)
+            terraform plan -var-file=terraform.tfvars -input=false
+            ;;
+          apply)
+            terraform apply -var-file=terraform.tfvars -input=false -auto-approve
+            ;;
+          destroy)
+            terraform destroy -var-file=terraform.tfvars -input=false -auto-approve
+            ;;
+          output)
+            terraform output -json
+            ;;
+          *)
+            echo "Unknown command: ${_TF_COMMAND}"
+            exit 1
+            ;;
+        esac
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: "1200s"

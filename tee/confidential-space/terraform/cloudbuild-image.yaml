@@ -1,0 +1,27 @@
+# -----------------------------------------------------------------------------
+# Cloud Build config for building and pushing the workload container image.
+#
+# Submitted via:
+#   gcloud builds submit . \
+#     --config=terraform/cloudbuild-image.yaml \
+#     --substitutions=_IMAGE_URI=us-docker.pkg.dev/PROJECT/REPO/IMAGE:latest
+#
+# The `images` field tells Cloud Build to push the built image to Artifact
+# Registry automatically after the build step succeeds.
+# -----------------------------------------------------------------------------
+
+substitutions:
+  _IMAGE_URI: ""
+
+steps:
+  - id: "build-image"
+    name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "${_IMAGE_URI}", "."]
+
+images:
+  - "${_IMAGE_URI}"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: "1200s"

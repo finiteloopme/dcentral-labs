@@ -142,13 +142,10 @@ ENV MIDNIGHT_DEFAULT_NETWORK=preview
 ENV MIDNIGHT_VERSION=${MIDNIGHT_VERSION}
 ENV COMPACTC_VERSION=${COMPACTC_VERSION}
 
-# Directories for contracts and intents
-RUN mkdir -p /data/contracts /data/intents /data/state
-ENV CONTRACTS_DIR=/data/contracts
-ENV INTENTS_DIR=/data/intents
-ENV STATE_DIR=/data/state
+# Work directories use /tmp by default (set in code) for Cloud Run compatibility.
+# No need to create /data/* directories - /tmp is always writable.
 
-# toolkit-js path for generate-intent command
+# toolkit-js path for generate-intent command (read-only, module resolution)
 ENV TOOLKIT_JS_PATH=/toolkit-js
 # Node module resolution for contract.config.ts execution
 ENV NODE_PATH=/toolkit-js/node_modules

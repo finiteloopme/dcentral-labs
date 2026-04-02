@@ -585,6 +585,7 @@ Forked Tests    → Test against real protocols
 - [x] implement `estimate_gas` (placeholder for RPC integration)
 - [x] implement `build_transaction` (multiple transaction types)
 - [x] implement `export_for_signing` (6 export formats)
+- [x] implement `sign_transaction_unsafe` (TEST-ONLY with security warnings)
 
 ### Phase 4: Dynamic Protocol Integration
 - [ ] Protocol-agnostic ABI discovery system

@@ -22,7 +22,9 @@ make setup
 
 # Configure environment (if not already done)
 cp .env.example .env
-# Edit .env with your RPC endpoints and API keys
+# Edit .env with your RPC endpoints:
+#   - ETH_RPC_URL: Points to Anvil (http://localhost:8545)
+#   - ANVIL_FORK_URL: Optional mainnet fork URL for testing with real protocols
 
 # Run development server (HTTP mode on port 3000)
 make dev
@@ -228,6 +230,41 @@ Response:
 }
 ```
 
+### Transaction Signing (⚠️ TEST ONLY)
+
+> **🔴 CRITICAL SECURITY WARNING 🔴**
+> 
+> The `sign_transaction_unsafe` tool is for **TESTING PURPOSES ONLY**!
+> 
+> **NEVER**:
+> - Use this with real private keys
+> - Use this on mainnet
+> - Share private keys through any API
+> - Store private keys in code or configuration files
+> 
+> **For Production, Always Use**:
+> - Hardware wallets (Ledger, Trezor)
+> - MetaMask or secure browser wallets
+> - WalletConnect protocol
+> - Multi-signature wallets
+
+```json
+{
+  "tool": "sign_transaction_unsafe",
+  "params": {
+    "transaction": {
+      "to": "0x...",
+      "value": "0x...",
+      "data": "0x..."
+    },
+    "private_key": "TEST_KEY_ONLY",
+    "chain_id": 31337
+  }
+}
+```
+
+This tool will **only** work with known test keys (like Anvil/Hardhat default keys) for safety.
+
 ## Configuration
 
 Environment variables (`.env`):
@@ -289,21 +326,6 @@ make build
 make docker-build
 ```
 
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Run tests (`make test`)
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
 ## License
 
 MIT
-
-## Support
-
-For issues and questions:
-- GitHub Issues: [github.com/yourusername/abi-assistant/issues](https://github.com/yourusername/abi-assistant/issues)
-- Documentation: [docs/](./docs/)

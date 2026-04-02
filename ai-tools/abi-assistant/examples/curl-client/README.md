@@ -21,11 +21,14 @@ cargo run
 
 ## Available Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `quick-test.sh` | Quick connectivity test (7 checks) |
-| `mcp-curl-demo.sh` | Complete feature demonstration |
-| `defi-operations.sh` | DeFi-specific examples |
+| Script | Purpose | Phase |
+|--------|---------|-------|
+| `quick-test.sh` | Quick connectivity test (7 checks) | 1 |
+| `mcp-curl-demo.sh` | Complete feature demonstration | 1 |
+| `intent-resolution.sh` | Test intent interpretation system | 2 |
+| `defi-operations.sh` | DeFi-specific examples | 2 |
+| `transaction-tools.sh` | Transaction building and export examples | 3 |
+| `test-signing.sh` | ⚠️ TEST-ONLY signing demonstration | 3 |
 
 ## Basic Usage
 
@@ -58,10 +61,18 @@ curl -X POST http://127.0.0.1:3000/ \
 
 ## Available Tools
 
-- `interpret_intent` - Convert natural language to contract calls
-- `encode_function_call` - Encode smart contract functions
+### Phase 1 - Foundation
+- `encode_function_call` - Encode smart contract functions with ABI
 - `decode_transaction` - Decode transaction data
-- `estimate_gas` - Estimate gas costs
+
+### Phase 2 - Intent Resolution
+- `interpret_intent` - Convert natural language to contract calls
+- `estimate_gas` - Estimate gas costs (placeholder)
+
+### Phase 3 - Transaction Building
+- `build_transaction` - Build complete transactions for various protocols
+- `export_for_signing` - Export transactions in 6 different wallet formats
+- `sign_transaction_unsafe` - ⚠️ TEST-ONLY signing with private key
 
 ## Tips
 

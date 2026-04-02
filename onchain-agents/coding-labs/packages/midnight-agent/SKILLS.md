@@ -310,6 +310,76 @@ witness outputs within the circuit using assertions or commitments.
 
 ---
 
+## Privacy and Disclosure (Compact 0.20+)
+
+In Compact 0.20+, function parameters and local variables are **witness values** by default.
+They cannot be directly used in ledger operations without explicit disclosure.
+
+### The `disclose()` Function
+
+To use a witness value (parameter, local variable, or witness return) in a ledger operation,
+you must wrap it with `disclose()`:
+
+```compact
+// WRONG - amount is a witness value, cannot be used directly in ledger operation
+export circuit transfer(to: Bytes<32>, amount: Uint<64>): [] {
+  balances[to] += amount;  // ERROR: witness value in ledger write
+}
+
+// CORRECT - disclose the value first
+export circuit transfer(to: Bytes<32>, amount: Uint<64>): [] {
+  balances[disclose(to)] += disclose(amount);  // OK: disclosed values can be used
+}
+```
+
+### When to Use disclose()
+
+| Operation | Needs disclose()? |
+|-----------|-------------------|
+| Ledger state reads with parameter key | **Yes** |
+| Ledger state writes using parameter | **Yes** |
+| Comparisons with ledger values | **Yes** |
+| Pure arithmetic with parameters | No |
+| Assertions with parameters | **Yes** |
+| Return values to caller | No |
+
+### Examples
+
+```compact
+// Counter with disclosed increment amount
+export ledger counter: Counter;
+
+export circuit increment(amount: Uint<16>): [] {
+  counter.increment(disclose(amount));  // amount must be disclosed
+}
+
+// Map access with disclosed key
+export ledger balances: Map<Bytes<32>, Uint<64>>;
+
+export circuit getBalance(addr: Bytes<32>): Uint<64> {
+  return balances[disclose(addr)];  // key must be disclosed for map access
+}
+
+// Multiple disclosures
+export circuit updateBalance(addr: Bytes<32>, newBalance: Uint<64>): [] {
+  balances[disclose(addr)] = disclose(newBalance);
+}
+```
+
+### Witness Naming Convention
+
+Witness functions should use the `private_` prefix by convention:
+
+```compact
+witness private_getSecretKey(): Bytes<32>;
+witness private_signMessage(msg: Bytes<32>): Bytes<64>;
+witness private_computeAmount(): Uint<64>;
+```
+
+This makes it clear which functions are implemented off-chain in TypeScript.
+
+---
+
 ## Control Flow
 
 ### If Statements

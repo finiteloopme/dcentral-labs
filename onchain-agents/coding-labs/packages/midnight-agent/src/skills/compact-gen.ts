@@ -11,8 +11,24 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { generateText } from 'ai';
 import { model } from '../genkit.js';
-import type { SkillEvent } from './index.js';
+import type { SkillEvent, Artifact } from './index.js';
 import { extractTextFromMessage } from './index.js';
+
+/**
+ * Extract a meaningful contract name from Compact source code.
+ * Looks for the first `export ledger` or `export circuit` declaration.
+ */
+function extractContractName(source: string): string {
+  // Try to find a meaningful name from the ledger declarations
+  const ledgerMatch = source.match(/export\s+ledger\s+(\w+)/);
+  if (ledgerMatch) return ledgerMatch[1];
+
+  // Try circuit name
+  const circuitMatch = source.match(/export\s+circuit\s+(\w+)/);
+  if (circuitMatch) return circuitMatch[1];
+
+  return 'contract';
+}
 
 // Load SKILLS.md as context for the LLM
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -130,11 +146,35 @@ export async function* generateCompact(
         content: compactCode,
         mimeType: 'text/x-compact',
       };
+
+      // Store in session for compile skill to use
+      // This enables "compile" command without re-sending the code
+      const contractName = extractContractName(compactCode);
+      const artifact: Artifact = {
+        filename: 'contract.compact',
+        content: compactCode,
+      };
+      yield {
+        type: 'session-update',
+        context: {
+          artifacts: [artifact],
+          contractName,
+        },
+      };
+      console.log(
+        `[compact-gen] Stored contract "${contractName}" in session for compilation`
+      );
     }
+
+    // Add workflow hint to guide user to next step
+    const workflowHint = `
+
+---
+**Next step:** Say "compile" or "yes" to compile this contract, or describe any changes you'd like.`;
 
     yield {
       type: 'result',
-      data: generatedText,
+      data: generatedText + workflowHint,
       message: 'Compact contract generated successfully',
     };
   } catch (error) {

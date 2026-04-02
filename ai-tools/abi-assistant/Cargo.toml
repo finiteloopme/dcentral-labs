@@ -70,6 +70,14 @@ path = "examples/library-usage.rs"
 name = "intent-resolution"
 path = "examples/intent-resolution.rs"
 
+[[example]]
+name = "transaction-building"
+path = "examples/transaction-building.rs"
+
+[[example]]
+name = "phase3-demo"
+path = "examples/phase3-demo.rs"
+
 [workspace]
 # Ensures we use resolver v2 which handles dependencies better
 resolver = "2"

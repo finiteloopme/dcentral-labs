@@ -1,227 +1,213 @@
 /// Example: Using abi-assistant as a library
 /// 
-/// This example demonstrates how to use the abi-assistant MCP server
+/// This example demonstrates how to use the abi-assistant components
 /// as a library in your own Rust application.
+/// 
+/// Note: This example assumes an MCP server is already running on localhost:3000
 
 use abi_assistant::{
-    server::Server,
+    abi::{encoder::AbiEncoder, decoder::AbiDecoder},
+    intent::resolver::IntentResolver,
+    transaction::builder::TransactionBuilder,
     config::Config,
-    mcp_service::AbiAssistantService,
 };
 use anyhow::Result;
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Example 1: Simple server with default configuration
-    simple_server().await?;
+    println!("=== ABI Assistant Library Usage Examples ===\n");
+    println!("Note: This example demonstrates using the library components directly.");
+    println!("      It assumes an MCP server is already running on localhost:3000.\n");
     
-    // Example 2: Custom configuration
-    // custom_config_server().await?;
+    // Example 1: Direct ABI encoding
+    example_abi_encoding()?;
     
-    // Example 3: Custom service factory
-    // custom_service_server().await?;
+    // Example 2: Intent resolution
+    example_intent_resolution()?;
     
-    // Example 4: Programmatic server without database
-    // programmatic_server().await?;
+    // Example 3: Transaction building
+    example_transaction_building()?;
+    
+    // Example 4: Configuration loading
+    example_config_loading()?;
+    
+    // Example 5: Making MCP calls to running server
+    example_mcp_client().await?;
     
     Ok(())
 }
 
-/// Example 1: Simple server with default configuration
-async fn simple_server() -> Result<()> {
-    println!("Starting simple server with defaults...");
+/// Example 1: Direct ABI encoding without server
+fn example_abi_encoding() -> Result<()> {
+    println!("1. ABI ENCODING (Library Usage)");
+    println!("--------------------------------");
     
-    let server = Server::builder()
-        .with_default_config()?
-        .build()
-        .await?;
+    // Encode a transfer function call
+    let encoded = AbiEncoder::encode_transfer(
+        "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7",
+        "1000000000000000000", // 1 ETH
+    ).map_err(|e| anyhow::anyhow!("Encoding error: {}", e))?;
     
-    server.run().await?;
+    println!("  Transfer encoded: {}", encoded);
+    
+    // Encode a generic function
+    let params = json!(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7", "1000"]);
+    let generic = AbiEncoder::encode_function("transfer(address,uint256)", &params)
+        .map_err(|e| anyhow::anyhow!("Encoding error: {}", e))?;
+    
+    println!("  Generic encoded: {}", generic);
+    
+    // Decode a transaction
+    let decoded = AbiDecoder::decode_function_call(&encoded)
+        .map_err(|e| anyhow::anyhow!("Decoding error: {}", e))?;
+    println!("  Decoded: {} with {} params\n", decoded.function, decoded.params);
+    
     Ok(())
 }
 
-/// Example 2: Server with custom configuration
-#[allow(dead_code)]
-async fn custom_config_server() -> Result<()> {
-    println!("Starting server with custom configuration...");
+/// Example 2: Intent resolution without server
+fn example_intent_resolution() -> Result<()> {
+    println!("2. INTENT RESOLUTION (Library Usage)");
+    println!("------------------------------------");
     
-    // Create custom configuration
-    let mut config = Config::load()?;
-    config.server.port = 8080;
-    config.server.transport = "http".to_string();
+    let resolver = IntentResolver::new();
     
-    let server = Server::builder()
-        .with_config(config)
-        .build()
-        .await?;
+    let intents = vec![
+        "swap 100 USDC for ETH",
+        "stake 32 ETH on Lido",
+        "provide liquidity to Uniswap",
+    ];
     
-    server.run().await?;
+    for intent in intents {
+        let result = resolver.resolve(intent)
+            .map_err(|e| anyhow::anyhow!("Resolution error: {}", e))?;
+        println!("  Intent: \"{}\"", intent);
+        println!("    Category: {}", result.category.as_string());
+        println!("    Confidence: {:.1}%", result.confidence * 100.0);
+        if !result.contract_calls.is_empty() {
+            println!("    Suggested: {} ({})", 
+                result.contract_calls[0].protocol_name,
+                result.contract_calls[0].function_name
+            );
+        }
+        println!();
+    }
+    
     Ok(())
 }
 
-/// Example 3: Server with custom service factory
-#[allow(dead_code)]
-async fn custom_service_server() -> Result<()> {
-    println!("Starting server with custom service factory...");
+/// Example 3: Transaction building without server
+fn example_transaction_building() -> Result<()> {
+    println!("3. TRANSACTION BUILDING (Library Usage)");
+    println!("---------------------------------------");
     
-    let server = Server::builder()
-        .with_default_config()?
-        .with_service_factory(|| {
-            // You could customize the service here
-            println!("Creating custom service instance");
-            AbiAssistantService::new()
-        })
-        .build()
-        .await?;
+    let tx = TransactionBuilder::new()
+        .to("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") // USDC
+        .from("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7")
+        .value("0")
+        .data("0xa9059cbb") // transfer selector
+        .gas(65000)
+        .build();
     
-    server.run().await?;
+    println!("  Built transaction:");
+    println!("    To: {}", tx.to);
+    println!("    From: {:?}", tx.from);
+    println!("    Gas: {:?}", tx.gas);
+    println!("    Data: {}...\n", &tx.data[..10]);
+    
     Ok(())
 }
 
-/// Example 4: Programmatic server for testing/development
-#[allow(dead_code)]
-async fn programmatic_server() -> Result<()> {
-    println!("Starting programmatic server...");
+/// Example 4: Configuration loading
+fn example_config_loading() -> Result<()> {
+    println!("4. CONFIGURATION (Library Usage)");
+    println!("--------------------------------");
     
-    let server = Server::builder()
-        .with_default_config()?
-        .init_logging(true)      // Initialize logging
-        .init_database(false)    // Skip database initialization
-        .log_config(false)       // Don't log configuration
-        .build()
-        .await?;
+    // Load configuration
+    let config = Config::load()?;
     
-    // You can also run specific transport modes
-    // server.run_sse().await?;
-    // server.run_http().await?;
-    // server.run_unified().await?;
+    println!("  Server: {} v{}", config.server.name, config.server.version);
+    println!("  Transport: {}", config.server.transport);
+    println!("  Port: {}", config.server.port);
+    println!("  Database: {}", config.database.url);
+    println!("  Intent strategy: {}", config.intent.strategy);
+    println!("  Gas strategy: {}\n", config.gas.price_strategy);
     
-    server.run().await?;
     Ok(())
 }
 
-/// Example 5: Server with custom configuration from code
-#[allow(dead_code)]
-async fn fully_custom_server() -> Result<()> {
-    use abi_assistant::config::*;
-    use std::collections::HashMap;
+/// Example 5: Making MCP calls to running server
+
+/// Example 5: Making MCP calls to running server
+async fn example_mcp_client() -> Result<()> {
+    println!("5. MCP CLIENT (Connecting to localhost:3000)");
+    println!("--------------------------------------------");
     
-    println!("Starting fully custom server...");
+    // Simple HTTP client to test the running server
+    let client = reqwest::Client::new();
+    let base_url = "http://localhost:3000";
     
-    // Build configuration programmatically
-    let config = Config {
-        server: ServerConfig {
-            name: "my-mcp-server".to_string(),
-            version: "1.0.0".to_string(),
-            description: "Custom MCP Server".to_string(),
-            host: "0.0.0.0".to_string(),
-            port: 9000,
-            transport: "unified".to_string(),
-            protocol_version: "2024-11-05".to_string(),
-            sse: SseConfig {
-                path: "/events".to_string(),
-                message_path: "/msg".to_string(),
-                keep_alive_interval: Some(30),
-            },
-            http: HttpConfig {
-                health_path: "/status".to_string(),
-                port_offset: 0, // Same port for unified mode
-            },
-        },
-        database: DatabaseConfig {
-            url: "sqlite://./custom.db".to_string(),
-        },
-        blockchain: BlockchainConfig {
-            ethereum: ChainConfig {
-                rpc_url: Some("https://eth.llamarpc.com".to_string()),
-                chain_id: 1,
-                name: "Ethereum".to_string(),
-                enabled: Some(true),
-                backup_rpcs: None,
-            },
-            polygon: None,
-            arbitrum: None,
-            optimism: None,
-            base: None,
-        },
-        api_keys: ApiKeysConfig {
-            etherscan_api_key: None,
-            polygonscan_api_key: None,
-            arbiscan_api_key: None,
-            optimistic_etherscan_api_key: None,
-            basescan_api_key: None,
-            infura_api_key: None,
-            alchemy_api_key: None,
-        },
-        features: FeaturesConfig {
-            fetch_abi_from_explorers: true,
-            simulate_transactions: true,
-            gas_optimization: true,
-            mev_protection: false,
-            cross_chain: false,
-            cache_abis: true,
-            debug_mode: false,
-        },
-        intent: IntentConfig {
-            strategy: "gemini_first".to_string(),
-            confidence_threshold: 0.8,
-            max_suggestions: 5,
-            fuzzy_matching: true,
-            protocols: HashMap::new(),
-            gemini: None,
-        },
-        gas: GasConfig {
-            default_gas_limit: 200000,
-            price_strategy: "fast".to_string(),
-            custom_gas_price: 50,
-            gas_buffer_percent: 15,
-            max_gas_price: 1000,
-        },
-        cache: CacheConfig {
-            enabled: true,
-            ttl: 3600,
-            max_size: 1000,
-            max_cached_abis: 200,
-            abi_cache_ttl: 7200,
-            max_cached_intents: 100,
-            intent_cache_ttl: 600,
-            normalize_queries: true,
-        },
-        logging: LoggingConfig {
-            level: "debug".to_string(),
-            format: "pretty".to_string(),
-            file: None,
-            max_file_size: None,
-            max_backups: None,
-        },
-        security: SecurityConfig {
-            rate_limiting: true,
-            max_requests_per_minute: 120,
-            require_signatures: false,
-            allowed_origins: vec!["*".to_string()],
-            max_body_size: 2097152,
-            request_timeout: 60,
-        },
-        monitoring: MonitoringConfig {
-            enabled: false,
-            format: None,
-            endpoint: None,
-            detailed_metrics: None,
-        },
-        development: DevelopmentConfig {
-            hot_reload: false,
-            log_requests: true,
-            mock_mode: false,
-            pretty_json: true,
-            test_wallets: None,
-        },
-    };
+    // Test health endpoint
+    let health_response = client
+        .get(format!("{}/health", base_url))
+        .send()
+        .await;
     
-    let server = Server::builder()
-        .with_config(config)
-        .build()
-        .await?;
+    match health_response {
+        Ok(resp) if resp.status().is_success() => {
+            println!("  ✅ Server is running and healthy");
+            
+            // Test MCP endpoint
+            let mcp_request = json!({
+                "jsonrpc": "2.0",
+                "method": "tools/list",
+                "params": {},
+                "id": 1
+            });
+            
+            let mcp_response = client
+                .post(format!("{}/message", base_url))
+                .json(&mcp_request)
+                .send()
+                .await;
+            
+            match mcp_response {
+                Ok(resp) if resp.status().is_success() => {
+                    let body: serde_json::Value = resp.json().await?;
+                    if let Some(result) = body.get("result") {
+                        if let Some(tools) = result.get("tools").and_then(|t| t.as_array()) {
+                            println!("  Available MCP tools: {} tools found", tools.len());
+                            for tool in tools.iter().take(3) {
+                                if let Some(name) = tool.get("name").and_then(|n| n.as_str()) {
+                                    println!("    - {}", name);
+                                }
+                            }
+                            if tools.len() > 3 {
+                                println!("    ... and {} more", tools.len() - 3);
+                            }
+                        }
+                    }
+                }
+                Ok(resp) => {
+                    println!("  ⚠️  MCP endpoint returned: {}", resp.status());
+                }
+                Err(e) => {
+                    println!("  ⚠️  Could not connect to MCP endpoint: {}", e);
+                }
+            }
+        }
+        Ok(resp) => {
+            println!("  ⚠️  Server returned status: {}", resp.status());
+            println!("  Make sure the MCP server is running on localhost:3000");
+        }
+        Err(_) => {
+            println!("  ⚠️  Could not connect to server at {}", base_url);
+            println!("  Please start the MCP server first:");
+            println!("    cargo run");
+        }
+    }
     
-    server.run().await?;
+    println!("\n✅ Library usage examples complete!");
     Ok(())
 }

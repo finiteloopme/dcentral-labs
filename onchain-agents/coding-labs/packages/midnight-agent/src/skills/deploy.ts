@@ -69,8 +69,9 @@ function extractEmbeddedArtifacts(message: Message): Artifact[] {
 function detectNetwork(text: string): 'preview' | 'preprod' | 'local' {
   const lower = text.toLowerCase();
   if (lower.includes('preprod')) return 'preprod';
-  if (lower.includes('local') || lower.includes('standalone')) return 'local';
-  return 'preview';
+  if (lower.includes('preview')) return 'preview';
+  // Default to local dev chain (pre-funded, no faucet needed)
+  return 'local';
 }
 
 /**

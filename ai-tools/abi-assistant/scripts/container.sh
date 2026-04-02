@@ -93,6 +93,8 @@ run() {
                 -v "$PROJECT_ROOT:/workspace:Z" \
                 -v cargo-cache:/usr/local/cargo/registry \
                 -e RUST_LOG=debug \
+                -e MCP_TRANSPORT=unified \
+                -e MCP_HOST=0.0.0.0 \
                 "$DEV_IMAGE" \
                 cargo watch -x 'run' -w src/
             
@@ -119,6 +121,8 @@ run() {
                 -v "$PROJECT_ROOT/data:/data:Z" \
                 -v "$PROJECT_ROOT/logs:/logs:Z" \
                 -e RUST_LOG=info \
+                -e MCP_TRANSPORT=unified \
+                -e MCP_HOST=0.0.0.0 \
                 "$PROD_IMAGE"
             
             log_success "Production container started!"

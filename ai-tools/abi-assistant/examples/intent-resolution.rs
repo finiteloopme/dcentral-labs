@@ -185,7 +185,7 @@ fn example_cache_system() -> anyhow::Result<()> {
     println!("\nSecond query (same): {}", query);
     let start = std::time::Instant::now();
     
-    if let Some(cached_intent) = cache.get(query) {
+    if let Some(_cached_intent) = cache.get(query) {
         let duration2 = start.elapsed();
         println!("  Time: {:?} (cache hit)", duration2);
         println!("  Speed improvement: {:.1}x", duration1.as_nanos() as f64 / duration2.as_nanos() as f64);

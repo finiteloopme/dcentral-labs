@@ -84,8 +84,8 @@ impl AbiDecoder {
     /// Decode a transfer function call
     pub fn decode_transfer(data: &str) -> Result<Value, Box<dyn Error>> {
         // Remove 0x prefix
-        let data = if data.starts_with("0x") {
-            &data[2..]
+        let data = if let Some(stripped) = data.strip_prefix("0x") {
+            stripped
         } else {
             data
         };
@@ -111,8 +111,8 @@ impl AbiDecoder {
     /// Decode an approve function call
     pub fn decode_approve(data: &str) -> Result<Value, Box<dyn Error>> {
         // Remove 0x prefix
-        let data = if data.starts_with("0x") {
-            &data[2..]
+        let data = if let Some(stripped) = data.strip_prefix("0x") {
+            stripped
         } else {
             data
         };
@@ -138,8 +138,8 @@ impl AbiDecoder {
     /// Generic function call decoder
     pub fn decode_function_call(data: &str) -> Result<DecodedCall, Box<dyn Error>> {
         // Remove 0x prefix
-        let data = if data.starts_with("0x") {
-            &data[2..]
+        let data = if let Some(stripped) = data.strip_prefix("0x") {
+            stripped
         } else {
             data
         };

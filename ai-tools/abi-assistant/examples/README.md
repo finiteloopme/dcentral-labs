@@ -1,11 +1,42 @@
 # ABI Assistant Examples
 
-This directory contains comprehensive examples demonstrating the ABI Assistant MCP server capabilities, with special focus on the Phase 2 intent resolution system.
+This directory contains comprehensive examples demonstrating the ABI Assistant MCP server capabilities, covering Phases 1-3 of the implementation.
 
 ## 📚 Available Examples
 
-### 1. **Intent Resolution** (`intent-resolution.rs`) 🆕
-Demonstrates the Phase 2 intent resolution system with:
+### 1. **Phase 3 Complete Demo** (`phase3-demo.rs`) ⭐ NEW
+Comprehensive demonstration of all Phase 3 features:
+- Generic ABI encoding for any function signature
+- Enhanced transaction decoding with protocol detection
+- Multi-protocol transaction building
+- 6 export formats for different wallet types
+- Complete non-custodial transaction lifecycle
+
+```bash
+# Run the complete demo
+cargo run --example phase3-demo
+```
+
+### 2. **Transaction Building** (`transaction-building.rs`) - Phase 3
+Detailed transaction construction examples:
+- Build ERC20 transfers and approvals
+- Uniswap swap transactions
+- Aave lending operations
+- Export in multiple wallet formats
+
+```bash
+# Run the example
+cargo run --example transaction-building
+```
+
+**Key Features:**
+- Build complex DeFi transactions
+- Export in formats: JSON, EIP-712, QR Code, WalletConnect, Ethers.js, Raw Hex
+- Support for Uniswap, Aave, Compound, Lido protocols
+- Complete non-custodial workflow
+
+### 3. **Intent Resolution** (`intent-resolution.rs`) - Phase 2
+Advanced intent interpretation system:
 - Local pattern-based resolution
 - Gemini AI integration (mock)
 - Hybrid resolution strategies (5 different modes)
@@ -17,13 +48,13 @@ Demonstrates the Phase 2 intent resolution system with:
 cargo run --example intent-resolution
 ```
 
-**Key Features Demonstrated:**
+**Features:**
 - Parse natural language DeFi intents
 - Extract parameters (amounts, tokens, slippage)
 - Suggest appropriate protocols
 - Cache results for performance
 
-### 2. **Library Usage** (`library-usage.rs`)
+### 4. **Library Usage** (`library-usage.rs`)
 Shows how to embed ABI Assistant in your Rust application:
 - Custom configuration
 - Direct API usage
@@ -33,28 +64,33 @@ Shows how to embed ABI Assistant in your Rust application:
 cargo run --example library-usage
 ```
 
-### 3. **cURL Client** (`curl-client/`)
+### 5. **cURL Client** (`curl-client/`)
 Shell scripts for testing MCP endpoints:
 
-| Script | Purpose |
-|--------|---------|
-| `intent-resolution.sh` 🆕 | Test intent resolution via MCP |
-| `mcp-curl-demo.sh` | Basic MCP protocol demo |
-| `defi-operations.sh` | Common DeFi operations |
-| `quick-test.sh` | Quick connectivity test |
+| Script | Purpose | Phase |
+|--------|---------|-------|
+| `transaction-tools.sh` ⭐ | Test Phase 3 transaction tools | 3 |
+| `test-signing.sh` | Test transaction signing flow | 3 |
+| `intent-resolution.sh` | Test intent resolution via MCP | 2 |
+| `defi-operations.sh` | Common DeFi operations | 2 |
+| `mcp-curl-demo.sh` | Basic MCP protocol demo | 1 |
+| `quick-test.sh` | Quick connectivity test | 1 |
 
 ```bash
 cd curl-client
-./intent-resolution.sh  # Test the new intent system
+./transaction-tools.sh  # Test Phase 3 transaction building
+./intent-resolution.sh  # Test Phase 2 intent system
+./test-signing.sh      # Test the signing workflow
 ```
 
-### 4. **Gemini Agent** (`gemini-agent/`)
+### 6. **Gemini Agent** (`gemini-agent/`)
 Integration with Google's Gemini AI:
 
-- **intent-integration.py** 🆕 - Shows the complete pipeline:
+- **intent-integration.py** - Complete AI-powered pipeline:
   1. Gemini enhances vague user requests
   2. ABI Assistant resolves to specific protocols
   3. Returns ready-to-execute parameters
+  4. Builds and exports transactions for signing
 
 ```bash
 cd gemini-agent
@@ -72,19 +108,48 @@ cargo run
 
 2. **Run examples** (in another terminal):
 ```bash
-# Test intent resolution
-cargo run --example intent-resolution
+# Test Phase 3 - Complete Demo
+cargo run --example phase3-demo
 
-# Test via HTTP/MCP
+# Test Phase 3 - Transaction Building
+cargo run --example transaction-building
+./curl-client/transaction-tools.sh
+
+# Test Phase 2 - Intent Resolution
+cargo run --example intent-resolution
 ./curl-client/intent-resolution.sh
 
 # Test with Gemini integration
 cd gemini-agent && python intent-integration.py
 ```
 
-## 🎯 Intent Resolution Examples
+## 🎯 Phase 3 Transaction Building
 
-The Phase 2 intent system understands various natural language requests:
+Build and export transactions in multiple formats:
+
+### Supported Transaction Types
+| Type | Protocols | Parameters |
+|------|-----------|------------|
+| `transfer` | ERC20 | token_address, to, amount |
+| `approve` | ERC20 | token_address, spender, amount |
+| `swap` | Uniswap V2/V3 | router, token_in, token_out, amount, slippage |
+| `supply` | Aave, Compound | protocol, asset, amount |
+| `borrow` | Aave, Compound | protocol, asset, amount, rate_mode |
+| `stake` | Lido | amount |
+
+### Export Formats
+| Format | Use Case | Example Output |
+|--------|----------|----------------|
+| `raw_json` | Web3 libraries | `{"to": "0x...", "data": "0x...", "value": "0x0"}` |
+| `eip712` | Smart wallets | Typed structured data |
+| `qr_code` | Mobile wallets | QR code with transaction data |
+| `wallet_connect` | WalletConnect | Deep link URL |
+| `ethers_js` | Ethers.js apps | JavaScript code snippet |
+| `raw_hex` | Direct signing | `0x...` hex string |
+
+## 🎯 Phase 2 Intent Resolution
+
+The intent system understands various natural language requests:
 
 | User Input | Category | Confidence | Suggested Protocols |
 |------------|----------|------------|-------------------|
@@ -148,14 +213,53 @@ Run the intent-resolution example to see performance differences:
 
 ## 🧪 Testing Different Scenarios
 
-### Simple Intent
+### Phase 3: Build & Export Transaction
+```bash
+# Build a token transfer
+curl -X POST http://localhost:3000/sse/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "method":"tools/call",
+    "params":{
+      "name":"build_transaction",
+      "arguments":{
+        "transaction_type":"transfer",
+        "parameters":{
+          "token_address":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "to":"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7",
+          "amount":"1000000000"
+        }
+      }
+    },
+    "id":1
+  }'
+
+# Export for MetaMask
+curl -X POST http://localhost:3000/sse/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "method":"tools/call",
+    "params":{
+      "name":"export_for_signing",
+      "arguments":{
+        "transaction": { ... },
+        "format":"ethers_js"
+      }
+    },
+    "id":2
+  }'
+```
+
+### Phase 2: Intent Resolution
 ```bash
 curl -X POST http://localhost:3000/sse/message \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"interpret_intent","arguments":{"intent":"swap USDC for ETH"}},"id":1}'
 ```
 
-### Complex Multi-step
+### Complex Multi-step Operation
 ```bash
 # The system can understand complex operations
 "borrow 5000 USDC against my ETH, then swap half for DAI and provide liquidity"

@@ -601,9 +601,9 @@ export interface GenerateDeployIntentResult {
  *
  * This creates an intent file (.bin) that can be sent via send-intent.
  *
- * NOTE: The toolkit-js TypeScript runtime requires configs to be in its directory
- * so that @midnight-ntwrk/* modules can be resolved. We create a symlink to the
- * work directory and run from toolkit-js.
+ * NOTE: The toolkit command runs with cwd=TOOLKIT_JS_PATH for module resolution,
+ * but the work directory is in /tmp for Cloud Run compatibility.
+ * NODE_PATH is set to /toolkit-js/node_modules in the container environment.
  */
 export async function generateDeployIntent(
   params: GenerateDeployIntentParams
@@ -618,8 +618,9 @@ export async function generateDeployIntent(
 
   await ensureDir(outputDir);
 
-  // Create a unique temp directory within toolkit-js for this deployment
-  // This allows the TypeScript runtime to resolve @midnight-ntwrk/* modules
+  // Create a unique temp directory INSIDE toolkit-js for module resolution
+  // The toolkit's TypeScript compilation needs @midnight-ntwrk/* modules
+  // which are only resolvable from within the toolkit-js directory tree
   const tempName = `deploy-${randomUUID().slice(0, 8)}`;
   const toolkitWorkDir = join(TOOLKIT_JS_PATH, tempName);
 
@@ -949,8 +950,8 @@ export interface GenerateCircuitIntentResult {
 /**
  * Generate a circuit call intent using the toolkit's generate-intent circuit command.
  *
- * NOTE: Like generateDeployIntent, this must run from the toolkit-js directory
- * so that @midnight-ntwrk/* modules can be resolved by the TypeScript runtime.
+ * NOTE: Like generateDeployIntent, the toolkit runs with cwd=TOOLKIT_JS_PATH for
+ * module resolution, but work directory is in /tmp for Cloud Run compatibility.
  */
 export async function generateCircuitIntent(
   params: GenerateCircuitIntentParams
@@ -970,8 +971,9 @@ export async function generateCircuitIntent(
 
   await ensureDir(outputDir);
 
-  // Create a unique temp directory within toolkit-js for this circuit call
-  // This allows the TypeScript runtime to resolve @midnight-ntwrk/* modules
+  // Create a unique temp directory INSIDE toolkit-js for module resolution
+  // The toolkit's TypeScript compilation needs @midnight-ntwrk/* modules
+  // which are only resolvable from within the toolkit-js directory tree
   const tempName = `circuit-${randomUUID().slice(0, 8)}`;
   const toolkitWorkDir = join(TOOLKIT_JS_PATH, tempName);
 

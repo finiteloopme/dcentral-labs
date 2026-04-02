@@ -77,9 +77,12 @@ export class MidnightAgentExecutor implements AgentExecutor {
       eventBus.publish(initialTask);
     }
 
-    // 2. Extract user text and detect skill
+    // 2. Get or create session context for this conversation (needed for skill detection)
+    let session = this.sessionContexts.get(contextId) || {};
+
+    // 3. Extract user text and detect skill (session-aware)
     const userText = extractTextFromMessage(userMessage);
-    const skillId = detectSkill(userText);
+    const skillId = detectSkill(userText, session);
 
     console.log(`[MidnightAgent] Detected skill: ${skillId}`);
 
@@ -141,10 +144,7 @@ export class MidnightAgentExecutor implements AgentExecutor {
       return;
     }
 
-    // 5. Get or create session context for this conversation
-    let session = this.sessionContexts.get(contextId) || {};
-
-    // 6. Execute skill and stream events
+    // 5. Execute skill and stream events
     try {
       const artifacts: string[] = [];
 

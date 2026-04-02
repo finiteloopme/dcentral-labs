@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::error::Error;
 
 /// Format options for transaction export
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ExportFormat {
     /// Raw JSON format for web3 libraries
     RawJson,

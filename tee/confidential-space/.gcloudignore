@@ -1,0 +1,7 @@
+# Exclude from gcloud builds submit uploads
+target/
+.git/
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan

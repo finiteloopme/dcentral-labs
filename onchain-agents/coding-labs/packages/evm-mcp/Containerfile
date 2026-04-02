@@ -48,10 +48,12 @@ RUN forge --version && cast --version && anvil --version
 
 WORKDIR /app
 
-# Copy built package
+# Copy built package and package.json
 COPY --from=builder /app/packages/evm-mcp/dist ./dist
 COPY --from=builder /app/packages/evm-mcp/package.json ./
-COPY --from=builder /app/packages/evm-mcp/node_modules ./node_modules
+
+# Install production dependencies with npm (not pnpm, to avoid symlink issues)
+RUN npm install --production --ignore-scripts
 
 # Create temp directory for Foundry projects
 RUN mkdir -p /tmp/foundry-projects

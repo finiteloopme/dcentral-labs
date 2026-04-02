@@ -1,40 +1,83 @@
 version: '3.8'
 
 services:
-  abi-assistant:
+  # Anvil local blockchain
+  anvil:
+    build:
+      context: ..
+      dockerfile: oci/Dockerfile.anvil
+    container_name: abi-assistant-anvil
+    ports:
+      - "8545:8545"
+    environment:
+      - ANVIL_HOST=0.0.0.0
+      - ANVIL_PORT=8545
+      - ANVIL_ACCOUNTS=10
+      - ANVIL_BALANCE=10000
+      - ANVIL_CHAIN_ID=31337
+      - ANVIL_BLOCK_TIME=1
+      # Fork mainnet for testing real protocols (from .env file)
+      - ANVIL_FORK_URL=${ANVIL_FORK_URL}
+      - ANVIL_FORK_BLOCK=${ANVIL_FORK_BLOCK}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "http://localhost:8545", "-H", "Content-Type: application/json", "-d", '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - abi-network
+    restart: unless-stopped
+
+  # MCP Server
+  mcp-server:
     build:
       context: ..
       dockerfile: oci/Dockerfile
-    container_name: abi-assistant-server
+    container_name: abi-assistant-mcp
     ports:
       - "3000:3000"
     volumes:
       - ../data:/data:Z
       - ../logs:/logs:Z
-      - ../resources:/home/abi-assistant/resources:Z
+      - ../resources:/app/resources:Z
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DATABASE_URL=sqlite:///data/abi_assistant.db
       - MCP_HOST=0.0.0.0
       - MCP_PORT=3000
+      - MCP_TRANSPORT=unified
+      # Use Anvil as the default RPC endpoint
+      - ETH_RPC_URL=http://anvil:8545
+      # Override with external RPC for production
+      # - ETH_RPC_URL=${ETH_RPC_URL:-http://anvil:8545}
+      - POLYGON_RPC_URL=${POLYGON_RPC_URL}
+      - ARBITRUM_RPC_URL=${ARBITRUM_RPC_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     env_file:
       - ../.env
+    depends_on:
+      anvil:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 15s
+    networks:
+      - abi-network
     restart: unless-stopped
 
+  # Development container with hot reload (optional - use with --profile dev)
   dev:
     build:
       context: ..
       dockerfile: oci/Dockerfile.dev
     container_name: abi-assistant-dev
     ports:
-      - "3000:3000"
-      - "8080:8080"  # For documentation server
+      - "3001:3000"  # Different port to avoid conflict
+      - "8080:8080"  # Documentation server
     volumes:
       - ..:/workspace:Z
       - cargo-cache:/usr/local/cargo/registry
@@ -44,11 +87,27 @@ services:
       - DATABASE_URL=sqlite:///workspace/data/abi_assistant.db
       - MCP_HOST=0.0.0.0
       - MCP_PORT=3000
+      - MCP_TRANSPORT=unified
+      - ETH_RPC_URL=http://anvil:8545
+      - POLYGON_RPC_URL=${POLYGON_RPC_URL}
+      - ARBITRUM_RPC_URL=${ARBITRUM_RPC_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     env_file:
       - ../.env
+    depends_on:
+      anvil:
+        condition: service_healthy
     command: cargo watch -x 'run' -w src/
     stdin_open: true
     tty: true
+    networks:
+      - abi-network
+    profiles:
+      - dev
+
+networks:
+  abi-network:
+    driver: bridge
 
 volumes:
   cargo-cache:

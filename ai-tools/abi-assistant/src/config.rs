@@ -227,6 +227,10 @@ impl Config {
     /// Apply environment variable overrides
     fn with_env_overrides(mut self) -> Self {
         // Server overrides
+        if let Ok(host) = env::var("MCP_HOST") {
+            self.server.host = host;
+        }
+        
         if let Ok(port) = env::var("MCP_PORT") {
             if let Ok(port) = port.parse() {
                 self.server.port = port;
@@ -327,12 +331,15 @@ impl Config {
     /// Get the bind address for a specific transport
     pub fn get_bind_address(&self, transport: &str) -> String {
         match transport {
-            "sse" => format!("{}:{}", self.server.host, self.server.port),
-            "http" => {
+            "http" if self.server.transport == "both" => {
+                // Only apply port offset when running both transports separately
                 let http_port = self.server.port + self.server.http.port_offset;
                 format!("{}:{}", self.server.host, http_port)
             },
-            _ => format!("{}:{}", self.server.host, self.server.port),
+            _ => {
+                // For "sse", "unified", or any other mode, use the main port
+                format!("{}:{}", self.server.host, self.server.port)
+            }
         }
     }
 }

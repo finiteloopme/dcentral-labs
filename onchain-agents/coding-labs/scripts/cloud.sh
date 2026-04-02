@@ -307,13 +307,13 @@ case "${1:-}" in
     ;;
   *)
     show_usage "cloud.sh" "
-  setup       One-time setup (APIs, Artifact Registry, IAM)
-  deploy      Build and deploy to Cloud Run
-  status      Show Cloud Run service status
-  urls        Show service URLs
-  logs [svc]  View logs (default: opencode-web)
-  delete      Delete all Cloud Run services
-  sync-users  Sync IAP allowed users from config.toml
+  setup              One-time setup (APIs, Artifact Registry, IAM)
+  deploy             Build and deploy to Cloud Run
+  status             Show Cloud Run service status
+  urls               Show service URLs
+  logs [svc]         View logs (default: opencode-web)
+  delete             Delete all Cloud Run services
+  sync-users         Sync IAP allowed users from config.toml
 
 Environment variables:
   GCP_PROJECT  GCP project ID (default: kunal-scratch)

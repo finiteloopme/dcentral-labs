@@ -1,0 +1,18 @@
+# Rust
+/target/
+Cargo.lock
+!Cargo.lock
+
+# Environment overrides
+.env
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan
+terraform/terraform.tfvars
+
+# OS
+.DS_Store

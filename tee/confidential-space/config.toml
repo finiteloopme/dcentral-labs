@@ -1,0 +1,25 @@
+[gcp]
+project_id = "kunal-scratch"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+[app]
+name = "cs-hello-world"
+port = 8080
+
+[compute]
+machine_type      = "n2d-standard-2"
+confidential_type = "SEV"
+mig_min_replicas  = 1
+mig_max_replicas  = 3
+
+[docker]
+registry   = "us-docker.pkg.dev"
+repository = "confidential-space-repo"
+
+[cloudbuild]
+service_account = "cs-terraform"
+
+[deploy]
+# "debug" or "prod"
+environment = "debug"
