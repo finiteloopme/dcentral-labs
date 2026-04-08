@@ -27,13 +27,18 @@ variable "app_port" {
 variable "machine_type" {
   description = "GCE machine type"
   type        = string
-  default     = "n2d-standard-2"
+  default     = "c3-standard-4"
 }
 
 variable "confidential_type" {
   description = "Confidential Computing technology: SEV or TDX"
   type        = string
-  default     = "SEV"
+  default     = "TDX"
+
+  validation {
+    condition     = contains(["SEV", "TDX"], var.confidential_type)
+    error_message = "confidential_type must be \"SEV\" or \"TDX\"."
+  }
 }
 
 variable "image_family" {

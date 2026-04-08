@@ -8,8 +8,8 @@ name = "cs-hello-world"
 port = 8080
 
 [compute]
-machine_type      = "n2d-standard-2"
-confidential_type = "SEV"
+machine_type      = "c3-standard-4"
+confidential_type = "TDX"
 mig_min_replicas  = 1
 mig_max_replicas  = 3
 

@@ -21,20 +21,23 @@ Backend Service ◄── Health Check (HTTP GET /health :8080)
 Managed Instance Group (auto-healing, autoscaler 1-3 replicas)
    │
    ▼
-Confidential Space VMs (AMD SEV, N2D)
+Confidential Space VMs (Intel TDX, C3)
    └─ Container-Optimized OS pulls container image from Artifact Registry
       └─ Runs axum Rust server on :8080
+              ▲
+              │ (outbound via Cloud NAT — no external IPs on instances)
 ```
 
 | Component | Detail |
 |-----------|--------|
-| Confidential Computing | AMD SEV on `n2d-standard-2` (supports live migration) |
+| Confidential Computing | Intel TDX on `c3-standard-4` (requires terminate on host maintenance) |
 | OS Image | `confidential-space-debug` or `confidential-space` from `confidential-space-images` project |
 | Container Runtime | Built-in launcher pulls image ref from VM metadata (`tee-image-reference`) |
 | Health Check | HTTP `GET /health` on port 8080 — interval 10s, healthy after 2, unhealthy after 3 |
 | Auto-healing | MIG replaces instances that fail health check (300s initial delay for boot + container pull) |
 | Rolling Updates | Proactive update policy — MIG automatically replaces instances when the template changes (surge 1, unavailable 0) |
 | Autoscaler | 1–3 replicas, 60% CPU utilisation target |
+| Networking | Internal IPs only — outbound internet via Cloud NAT (auto-allocated IPs) |
 | Terraform Execution | Cloud Build (`gcloud builds submit`) using a dedicated `cs-terraform` service account — no local Terraform binary required |
 
 ---
@@ -67,7 +70,7 @@ confidential-space/
     ├── cloudbuild.yaml               # Cloud Build steps for Terraform (hashicorp/terraform:1.9)
     ├── cloudbuild-image.yaml         # Cloud Build steps for container image build + push
     └── modules/
-        ├── networking/               # Firewall rules (health-check probes, IAP SSH), reserved LB IP
+        ├── networking/               # Firewall rules, reserved LB IP, Cloud Router + Cloud NAT
         ├── compute/                  # Service account, instance template, MIG, autoscaler
         └── lb/                       # Backend service, URL map, HTTP proxy, forwarding rule
 ```
@@ -91,8 +94,8 @@ name = "cs-hello-world"
 port = 8080
 
 [compute]
-machine_type      = "n2d-standard-2"
-confidential_type = "SEV"
+machine_type      = "c3-standard-4"
+confidential_type = "TDX"
 mig_min_replicas  = 1
 mig_max_replicas  = 3
 
@@ -315,13 +318,15 @@ All Terraform runs inside Cloud Build using the `hashicorp/terraform:1.9` image,
 | `google_compute_firewall.allow_health_check` | Allow Google health-check probes (`130.211.0.0/22`, `35.191.0.0/16`) on app port |
 | `google_compute_firewall.allow_iap_ssh` | Allow IAP SSH access (debug only, conditional) |
 | `google_compute_global_address.lb_ip` | Reserved static IP for the load balancer |
+| `google_compute_router.nat_router` | Cloud Router for NAT gateway |
+| `google_compute_router_nat.nat` | Cloud NAT for outbound internet without external IPs |
 
 ### modules/compute
 
 | Resource | Purpose |
 |----------|---------|
 | `google_service_account.workload` | Workload SA with `workloadUser`, `artifactregistry.reader`, `logging.logWriter` roles |
-| `google_compute_instance_template.cs_workload` | Confidential VM template: SEV, secure boot, CS image, container metadata |
+| `google_compute_instance_template.cs_workload` | Confidential VM template: TDX (default), secure boot, CS image, container metadata |
 | `google_compute_instance_group_manager.mig` | Zonal MIG with named port `http:8080`, auto-healing (300s delay), proactive rolling updates |
 | `google_compute_autoscaler.mig` | 1–3 replicas, 60% CPU target, 120s cooldown |
 

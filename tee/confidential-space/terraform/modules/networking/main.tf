@@ -2,6 +2,7 @@
 # Networking module
 # - Firewall rules for health check probes and app traffic
 # - Reserved global static IP for the load balancer
+# - Cloud Router + Cloud NAT for outbound internet (instances have no external IPs)
 # -----------------------------------------------------------------------------
 
 # Allow Google health check probes to reach the app port
@@ -46,4 +47,27 @@ resource "google_compute_firewall" "allow_iap_ssh" {
 resource "google_compute_global_address" "lb_ip" {
   name    = "${var.app_name}-lb-ip"
   project = var.project_id
+}
+
+# Cloud Router (required by Cloud NAT)
+resource "google_compute_router" "nat_router" {
+  name    = "${var.app_name}-router"
+  project = var.project_id
+  region  = var.region
+  network = var.network
+}
+
+# Cloud NAT — provides outbound internet for instances without external IPs
+resource "google_compute_router_nat" "nat" {
+  name                               = "${var.app_name}-nat"
+  project                            = var.project_id
+  region                             = var.region
+  router                             = google_compute_router.nat_router.name
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
 }
