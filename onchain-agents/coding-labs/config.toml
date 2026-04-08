@@ -47,6 +47,10 @@ port = 4004
 host = "localhost"
 port = 4005
 
+[default.services.security-agent]
+host = "localhost"
+port = 4006
+
 [default.services.midnight-mcp]
 host = "localhost"
 port = 4010
@@ -107,6 +111,14 @@ description = "x402 payment facilitator and buyer-side agent. Handles USDC payme
 service = "payment-agent"
 chain_id = 0
 keywords = ["pay", "payment", "settle", "x402", "usdc", "transfer", "facilitator", "checkout", "invoice"]
+enabled = true
+
+[default.agents.security]
+name = "Security Agent"
+description = "Security auditing, vulnerability scanning, and protocol risk assessment for smart contracts and blockchain ecosystems."
+service = "security-agent"
+chain_id = 0
+keywords = ["security", "audit", "vulnerability", "risk", "exploit", "reentrancy", "scan", "safety", "assessment"]
 enabled = true
 
 # -----------------------------------------------------------------------------
@@ -239,6 +251,7 @@ model = "claude-opus-4-5"
 somnia-agent = "vertex-anthropic"
 sonic-agent = "vertex-gemini"
 midnight-agent = "vertex-anthropic"
+security-agent = "vertex-anthropic"
 opencode = "vertex-anthropic"
 
 # -----------------------------------------------------------------------------
@@ -250,7 +263,7 @@ opencode = "vertex-anthropic"
 [default.a2a]
 # Explicit list of agent IDs enabled by default
 # These must match agent IDs defined in [default.agents.*]
-default_agents = ["somnia", "sonic", "midnight", "store", "payment"]
+default_agents = ["somnia", "sonic", "midnight", "store", "payment", "security"]
 
 # -----------------------------------------------------------------------------
 # Authentication (IAP user whitelist)
@@ -294,6 +307,9 @@ host = "0.0.0.0"
 host = "0.0.0.0"
 
 [production.services.payment-agent]
+host = "0.0.0.0"
+
+[production.services.security-agent]
 host = "0.0.0.0"
 
 [production.services.evm-mcp]
