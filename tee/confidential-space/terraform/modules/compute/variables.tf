@@ -31,6 +31,11 @@ variable "machine_type" {
 variable "confidential_type" {
   description = "Confidential Computing technology: SEV or TDX"
   type        = string
+
+  validation {
+    condition     = contains(["SEV", "TDX"], var.confidential_type)
+    error_message = "confidential_type must be \"SEV\" or \"TDX\"."
+  }
 }
 
 variable "image_family" {

@@ -45,12 +45,13 @@ resource "google_compute_health_check" "http" {
 }
 
 # ---------------------------------------------------------------------------
-# Networking: firewall rules + reserved LB IP
+# Networking: firewall rules + reserved LB IP + Cloud NAT
 # ---------------------------------------------------------------------------
 module "networking" {
   source = "./modules/networking"
 
   project_id  = var.project_id
+  region      = var.region
   app_name    = var.app_name
   app_port    = var.app_port
   environment = var.environment

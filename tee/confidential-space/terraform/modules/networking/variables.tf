@@ -3,6 +3,11 @@ variable "project_id" {
   type        = string
 }
 
+variable "region" {
+  description = "GCP region (required for Cloud Router and NAT)"
+  type        = string
+}
+
 variable "app_name" {
   description = "Application name, used for resource naming"
   type        = string

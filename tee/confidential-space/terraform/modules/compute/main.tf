@@ -68,10 +68,8 @@ resource "google_compute_instance_template" "cs_workload" {
 
   network_interface {
     network = "default"
-
-    access_config {
-      # Ephemeral external IP for outbound connectivity (pulling container image)
-    }
+    # No access_config — instances use internal IPs only.
+    # Outbound connectivity is provided by Cloud NAT (see networking module).
   }
 
   metadata = {
