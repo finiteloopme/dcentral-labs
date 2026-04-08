@@ -13,65 +13,64 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 ```
 ┌──────────────┐       ┌──────────────────┐       ┌──────────────────┐
 │    Login     │       │   OpenCode Web   │       │  Agent Registry  │
-│   (4098)     │ ───→  │     (3000)       │ ───→  │     (4000)       │
+│              │ ───→  │                  │ ───→  │                  │
 └──────────────┘       └──────────────────┘       └────────┬─────────┘
                                                            │
                                                     A2A Protocol
                                                            │
-               ┌──────────────┬──────────────┬─────────────┼─────────────┐
-               │              │              │             │             │
-               ▼              ▼              ▼             ▼             ▼
-        ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌──────────┐
-        │   Somnia   │ │   Sonic    │ │  Midnight  │ │  Store   │ │ Payment  │
-        │   (4001)   │ │  (4002)    │ │  (4003)    │ │ (4004)   │ │ (4005)   │
-        │            │ │            │ │            │ │ preview  │ │ preview  │
-        └────────────┘ └────────────┘ └────────────┘ └──────────┘ └──────────┘
+        ┌──────────────┬──────────────┬─────────────┬──────┴──────┬──────────────┐
+        │              │              │             │             │              │
+        ▼              ▼              ▼             ▼             ▼              ▼
+ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐
+ │   Somnia   │ │   Sonic    │ │  Midnight  │ │  Store   │ │ Payment  │ │  Security  │
+ │            │ │            │ │            │ │ preview  │ │ preview  │ │            │
+ └────────────┘ └────────────┘ └────────────┘ └──────────┘ └──────────┘ └────────────┘
 ```
 
 **Detailed Architecture**
 
 ```
 ┌──────────────────────┐         ┌─────────────────────────────────────────────┐
-│   opencode-login     │         │           opencode-web (port 3000)          │
-│   (port 4098)        │         │  ┌─────────────────────────────────────┐    │
+│   opencode-login     │         │              opencode-web                   │
+│                      │         │  ┌─────────────────────────────────────┐    │
 │                      │         │  │            OpenCode Web             │    │
 │   dCoder Landing     │  ──→    │  │       (Primary User Interface)      │    │
 │   "Sign in with      │  click  │  │                                     │    │
 │    Google" button    │         │  │  - Browser-based coding session     │    │
 │                      │         │  │  - Wallet connection (MetaMask)     │    │
 │   (Public)           │         │  │  - A2A Client integrated            │    │
-└──────────────────────┘         │  │  - Routes to chain agents           │    │
-                                 │  └──────────────────┬──────────────────┘    │
+│                      │         │  │  - Routes to chain agents           │    │
+└──────────────────────┘         │  └──────────────────┬──────────────────┘    │
                                  │    (IAP Protected)  │                       │
                                  └─────────────────────┼───────────────────────┘
                                                        │ A2A Protocol (HTTP+JSON)
-       ┌───────────────────┬───────────────────────────┼──────────────────┬──────────────────────┐
-       ▼                   ▼                           ▼                  ▼                      ▼
-┌─────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐
-│  Somnia Agent   │ │  Sonic Agent    │ │  Midnight Agent  │ │  Store Agent    │ │  Payment Agent   │
-│  (port 4001)    │ │  (port 4002)    │ │  (port 4003)     │ │  (port 4004)    │ │  (port 4005)     │
-├─────────────────┤ ├─────────────────┤ ├──────────────────┤ │  [preview]      │ │  [preview]       │
-│ - Solidity Gen  │ │ - Solidity Gen  │ │ - Compact Gen    │ ├─────────────────┤ ├──────────────────┤
-│ - Deploy        │ │ - Compile       │ │ - Compile        │ │ - Browse        │ │ - Pay            │
-│ - Tx Status     │ │ - Deploy        │ │ - Deploy         │ │ - Item Detail   │ │ - Verify Payment │
-│ - Query State   │ │ - Call          │ │ - Call           │ │ - Purchase      │ │ - Payment Status │
-│ - Reactivity    │ │ - Tx Status     │ │ - (query-state)  │ │ - Confirm       │ │ - Supported      │
-│ - Data Streams  │ │ - (FeeM Info)   │ │ - (private-state)│ │                 │ │   Networks       │
-└─────────────────┘ └────────┬────────┘ └────────┬─────────┘ └─────────────────┘ └──────────────────┘
+       ┌──────────────┬──────────────┬─────────────────┼──────────────┬──────────────┬──────────────────┐
+       ▼              ▼              ▼                  ▼              ▼              ▼                  ▼
+┌─────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐
+│  Somnia Agent   │ │  Sonic Agent    │ │  Midnight Agent  │ │  Store Agent    │ │  Payment Agent   │ │ Security Agent  │
+│                 │ │                 │ │                  │ │  [preview]      │ │  [preview]       │ │                 │
+├─────────────────┤ ├─────────────────┤ ├──────────────────┤ ├─────────────────┤ ├──────────────────┤ ├─────────────────┤
+│ - Solidity Gen  │ │ - Solidity Gen  │ │ - Compact Gen    │ │ - Browse        │ │ - Pay            │ │ - Audit Contract│
+│ - Deploy        │ │ - Compile       │ │ - Compile        │ │ - Item Detail   │ │ - Verify Payment │ │ - Vuln Scan     │
+│ - Tx Status     │ │ - Deploy        │ │ - Deploy         │ │ - Purchase      │ │ - Payment Status │ │ - Risk Assess   │
+│ - Query State   │ │ - Call          │ │ - Call           │ │ - Confirm       │ │ - Supported      │ │ - Explain       │
+│ - Reactivity    │ │ - Tx Status     │ │ - (query-state)  │ │                 │ │   Networks       │ │ - Compare       │
+│ - Data Streams  │ │ - (FeeM Info)   │ │ - (private-state)│ │                 │ │                  │ │                 │
+└─────────────────┘ └────────┬────────┘ └────────┬─────────┘ └─────────────────┘ └──────────────────┘ └─────────────────┘
                              │                   │
                     ┌────────┘                   └────────┐
                     ▼                                     ▼
           ┌──────────────────┐                 ┌───────────────────┐
           │    EVM MCP       │                 │   Midnight MCP    │
-          │   (port 4011)    │                 │   (port 4010)     │
+          │                  │                 │                   │
           └──────────────────┘                 └─────────┬─────────┘
                                                          │
                                         ┌────────────────┼────────────────┐
                                         ▼                ▼                ▼
                                 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
                                 │ midnight-node│ │  midnight-   │ │  midnight-   │
-                                │   (9944)     │ │  indexer     │ │ proof-server │
-                                │              │ │  (8088)      │ │  (6300)      │
+                                │              │ │  indexer     │ │ proof-server │
+                                │              │ │              │ │              │
                                 └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
@@ -82,6 +81,7 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | **Somnia Agent** | [Somnia](https://somnia.network) | Active | High-performance EVM L1 (1M+ TPS) |
 | **Sonic Agent** | [Sonic](https://soniclabs.com) | Active | High-performance EVM L1 with FeeM monetization |
 | **Midnight Agent** | [Midnight](https://midnight.network) | Active | Privacy-focused blockchain with Compact language |
+| **Security Agent** | Cross-chain | Active | Smart contract security auditing and protocol risk assessment |
 | Store Agent | — | Preview | Mock stationery store for x402 protocol demo |
 | Payment Agent | — | Preview | x402 payment facilitator for crypto purchases |
 
@@ -115,8 +115,18 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 | `compile` | Active | Compile Compact contracts (Midnight MCP) |
 | `deploy` | Active | Deploy contracts with auto-funding (Midnight MCP) |
 | `call` | Active | Execute circuit calls with ZK proofs (Midnight MCP) |
-| `query-state` | Planned | Query ledger state |
+| `query-state` | Active | Query ledger state |
 | `private-state` | Planned | Manage private state |
+
+### Security Agent Skills
+
+| Skill | Status | Description |
+|-------|--------|-------------|
+| `audit-contract` | Active | Comprehensive security audit of Solidity or Compact contracts |
+| `scan-vulnerabilities` | Active | Quick targeted vulnerability pattern scan |
+| `assess-risk` | Active | Protocol/ecosystem risk assessment |
+| `explain-finding` | Active | Deep-dive explanation of a specific vulnerability |
+| `compare-protocols` | Active | Compare security posture of different protocols/chains |
 
 ## Quick Start
 
@@ -175,6 +185,7 @@ Then open http://localhost:3000 in your browser.
 | Midnight Agent | 4003 | A2A server for Midnight blockchain |
 | Store Agent | 4004 | Mock store agent (preview) |
 | Payment Agent | 4005 | x402 payment agent (preview) |
+| Security Agent | 4006 | A2A server for cross-chain security analysis |
 | Midnight MCP | 4010 | MCP tool server for Midnight |
 | EVM MCP | 4011 | MCP tool server for EVM chains |
 | OpenCode Backend | 4097 | API server with A2A plugin |
@@ -203,6 +214,7 @@ make down
 | somnia-agent | 4001 | A2A server for Somnia blockchain |
 | sonic-agent | 4002 | A2A server for Sonic blockchain |
 | midnight-agent | 4003 | A2A server for Midnight blockchain |
+| security-agent | 4006 | A2A server for cross-chain security |
 | midnight-mcp | 4010 | MCP tool server for Midnight |
 | evm-mcp | 4011 | MCP tool server for EVM chains |
 | midnight-node | 9944 | Midnight development node |
