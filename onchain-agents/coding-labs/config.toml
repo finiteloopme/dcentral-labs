@@ -59,6 +59,10 @@ port = 4010
 host = "localhost"
 port = 4011
 
+[default.services.adk-backend]
+host = "localhost"
+port = 8181
+
 [default.services.opencode-server]
 host = "localhost"
 port = 4097
@@ -252,6 +256,7 @@ somnia-agent = "vertex-anthropic"
 sonic-agent = "vertex-gemini"
 midnight-agent = "vertex-anthropic"
 security-agent = "vertex-anthropic"
+adk-backend = "vertex-gemini"
 opencode = "vertex-anthropic"
 
 # -----------------------------------------------------------------------------
@@ -268,7 +273,7 @@ default_agents = ["somnia", "sonic", "midnight", "store", "payment", "security"]
 # -----------------------------------------------------------------------------
 # Authentication (IAP user whitelist)
 # -----------------------------------------------------------------------------
-# Users listed here will be granted access to opencode-web via IAP.
+# Users listed here will be granted access to the ADK backend via IAP.
 #
 # Workflow:
 #   1. Add/remove emails from allowed_users list
@@ -314,6 +319,10 @@ host = "0.0.0.0"
 
 [production.services.evm-mcp]
 host = "0.0.0.0"
+
+[production.services.adk-backend]
+host = "0.0.0.0"
+port = 8080
 
 [production.services.opencode-server]
 host = "0.0.0.0"

@@ -10,13 +10,13 @@
 #   6. Deploy somnia-agent (with AGENT_REGISTRY_URL)
 #   7. Deploy midnight-agent (with AGENT_REGISTRY_URL + MIDNIGHT_MCP_URL)
 #   8. Deploy opencode-login (public landing page)
-#   9. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
+#   9. Deploy adk-backend (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
 #
 # Services:
 #   - midnight-node, midnight-indexer, midnight-proof-server: Public (Midnight infra)
 #   - agent-registry, somnia-agent, midnight-agent, midnight-mcp: Public (no auth)
 #   - opencode-login: Public (landing page)
-#   - opencode-web: IAP protected (requires Google sign-in)
+#   - adk-backend: IAP protected (requires Google sign-in)
 #
 # Midnight Infrastructure Versions:
 #   - Node: 0.20.1
@@ -80,17 +80,17 @@ steps:
       - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'build-opencode'
+    id: 'build-adk-backend'
     waitFor: ['-'] # Start immediately (parallel with others)
     args:
       - 'build'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/adk-backend:${_TAG}'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:latest'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/adk-backend:latest'
       - '-f'
-      - 'opencode/Containerfile.web'
-      - './opencode'
+      - 'packages/adk-backend/Containerfile'
+      - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-midnight-mcp'
@@ -208,12 +208,12 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/midnight-agent'
 
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-opencode'
-    waitFor: ['build-opencode']
+    id: 'push-adk-backend'
+    waitFor: ['build-adk-backend']
     args:
       - 'push'
       - '--all-tags'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/adk-backend'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-midnight-mcp'
@@ -761,7 +761,7 @@ steps:
         echo "Security URL: $$(cat /workspace/security-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 5: opencode-login (public landing page)
+  # DEPLOY: opencode-login (public landing page)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -800,11 +800,11 @@ steps:
         echo "Login URL: $$(cat /workspace/login-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 6: opencode-web (depends on all agents + login page, IAP protected)
+  # DEPLOY: adk-backend (depends on all agents + login page, IAP protected)
   # ===========================================================================
 
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-opencode'
+    id: 'deploy-adk-backend'
     waitFor:
       [
         'get-somnia-url',
@@ -814,13 +814,12 @@ steps:
         'get-payment-url',
         'get-security-url',
         'get-login-url',
-        'push-opencode',
+        'push-adk-backend',
       ]
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        REGISTRY_URL=$$(cat /workspace/registry-url.txt)
         SOMNIA_URL=$$(cat /workspace/somnia-url.txt)
         SONIC_URL=$$(cat /workspace/sonic-url.txt)
         MIDNIGHT_URL=$$(cat /workspace/midnight-url.txt)
@@ -828,8 +827,8 @@ steps:
         PAYMENT_URL=$$(cat /workspace/payment-url.txt)
         SECURITY_URL=$$(cat /workspace/security-url.txt)
         LOGIN_URL=$$(cat /workspace/login-url.txt)
-        gcloud beta run deploy opencode-web \
-          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
+        gcloud beta run deploy adk-backend \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/adk-backend:${_TAG} \
           --region=${_REGION} \
           --platform=managed \
           --no-allow-unauthenticated \
@@ -838,9 +837,9 @@ steps:
           --port=8080 \
           --memory=1Gi \
           --cpu=1 \
-          --min-instances=0 \
+          --min-instances=1 \
           --max-instances=10 \
-          --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},SECURITY_AGENT_URL=$${SECURITY_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
+          --set-env-vars="NODE_ENV=production,PORT=8080,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1,SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},SECURITY_AGENT_URL=$${SECURITY_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
   # ===========================================================================
   # SETUP IAP: Grant IAP service agent run.invoker role
@@ -848,7 +847,7 @@ steps:
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'setup-iap'
-    waitFor: ['deploy-opencode']
+    waitFor: ['deploy-adk-backend']
     entrypoint: 'bash'
     args:
       - '-c'
@@ -856,8 +855,8 @@ steps:
         # Get project number
         PROJECT_NUMBER=$$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
 
-        # Grant IAP service agent the invoker role on opencode-web
-        gcloud run services add-iam-policy-binding opencode-web \
+        # Grant IAP service agent the invoker role on adk-backend
+        gcloud run services add-iam-policy-binding adk-backend \
           --region=${_REGION} \
           --member="serviceAccount:service-$${PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" \
           --role=roles/run.invoker \
@@ -889,22 +888,22 @@ steps:
           --update-env-vars="SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},SECURITY_AGENT_URL=$${SECURITY_URL}"
 
   # ===========================================================================
-  # UPDATE opencode-login with APP_URL (opencode-web URL)
+  # UPDATE opencode-login with APP_URL (adk-backend URL)
   # ===========================================================================
   # The login page needs to know the main app URL for the "Sign in" button.
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'update-login'
-    waitFor: ['deploy-opencode', 'deploy-login']
+    waitFor: ['deploy-adk-backend', 'deploy-login']
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
+        ADK_URL=$$(gcloud run services describe adk-backend --region=${_REGION} --format='value(status.url)')
         gcloud run services update opencode-login \
           --region=${_REGION} \
-          --update-env-vars="APP_URL=$${OPENCODE_URL}"
-        echo "Updated opencode-login with APP_URL=$${OPENCODE_URL}"
+          --update-env-vars="APP_URL=$${ADK_URL}"
+        echo "Updated opencode-login with APP_URL=$${ADK_URL}"
 
   # ===========================================================================
   # PRINT FINAL URLs
@@ -912,7 +911,7 @@ steps:
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'print-urls'
-    waitFor: ['deploy-opencode', 'update-registry', 'update-login']
+    waitFor: ['deploy-adk-backend', 'update-registry', 'update-login']
     entrypoint: 'bash'
     args:
       - '-c'
@@ -938,8 +937,8 @@ steps:
         echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
         echo "  evm-mcp:         $$(cat /workspace/evm-mcp-url.txt)"
         echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
-        OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
-        echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"
+        ADK_URL=$$(gcloud run services describe adk-backend --region=${_REGION} --format='value(status.url)')
+        echo "  adk-backend:     $${ADK_URL} (IAP protected)"
         echo ""
         echo "Access the application via the login page: $$(cat /workspace/login-url.txt)"
         echo ""

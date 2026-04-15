@@ -1,0 +1,22 @@
+{
+  "name": "@coding-labs/adk-backend",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "npx adk web ./agents --port 8181 --a2a",
+    "build": "pnpm exec tsc",
+    "start": "npx adk web ./agents --port ${PORT:-8181} --a2a",
+    "clean": "rm -rf dist",
+    "typecheck": "pnpm exec tsc --noEmit"
+  },
+  "dependencies": {
+    "@coding-labs/shared": "workspace:*",
+    "@google/adk": "^0.6.1",
+    "@google/adk-devtools": "^0.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.8.0"
+  }
+}
