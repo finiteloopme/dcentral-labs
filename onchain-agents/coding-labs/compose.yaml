@@ -362,34 +362,40 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # OpenCode Web - Frontend + Backend with wallet connection and A2A routing
+  # ADK Backend - Google ADK TypeScript server + adk-web Angular frontend
   # ---------------------------------------------------------------------------
-  # Runs both the OpenCode server (with A2A plugin) and serves the static frontend.
-  # In local dev, these are separate (Vite dev server + opencode web), but in
-  # containers they're combined via `opencode serve` with OPENCODE_STATIC_DIR.
-  opencode-web:
+  # Replaces opencode-web. Serves both the ADK REST API and the adk-web UI.
+  # Uses RemoteA2AAgent to route messages to blockchain agents via A2A protocol.
+  adk-backend:
     build:
-      context: ./opencode
-      dockerfile: Containerfile.web
-    container_name: opencode-web
+      context: .
+      dockerfile: packages/adk-backend/Containerfile
+    container_name: adk-backend
     ports:
-      # Container runs on 8080 (set in Containerfile.web), map to host port 3000
-      - '${OPENCODE_FRONTEND_PORT:-3000}:8080'
+      # Container runs on 8181, map to host port 8181
+      - '${ADK_BACKEND_PORT:-8181}:8181'
     env_file:
       - .env.generated
     environment:
       - NODE_ENV=development
-      - HOST=0.0.0.0
-      - PORT=8080
-      # Agent Registry URL for A2A plugin
-      - AGENT_REGISTRY_URL=http://agent-registry:4000
+      - PORT=8181
+      - ADK_BACKEND_HOST=0.0.0.0
+      # Use Vertex AI for Gemini model calls
+      - GOOGLE_GENAI_USE_VERTEXAI=true
       # GCloud credentials for Vertex AI
       - GOOGLE_APPLICATION_CREDENTIALS=/creds/application_default_credentials.json
-      # LLM config comes from .env.generated (GOOGLE_CLOUD_PROJECT, VERTEX_LOCATION)
-      # which is generated from config.toml [default.llm.components.opencode]
+      # Override agent URLs for container networking
+      - SOMNIA_AGENT_URL=http://somnia-agent:4001
+      - SONIC_AGENT_URL=http://sonic-agent:4002
+      - MIDNIGHT_AGENT_URL=http://midnight-agent:4003
+      - STORE_AGENT_URL=http://store-agent:4004
+      - PAYMENT_AGENT_URL=http://payment-agent:4005
+      - SECURITY_AGENT_URL=http://security-agent:4006
     volumes:
       # Mount gcloud credentials for Vertex AI
       - ${HOME}/.config/gcloud:/creds:ro
+      # Mount config.toml for agent discovery
+      - ./config.toml:/app/config.toml:ro
     depends_on:
       - agent-registry
       - somnia-agent
@@ -399,11 +405,14 @@ services:
       - payment-agent
     healthcheck:
       test:
-        ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/global/health']
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://localhost:8181/list-apps'').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -424,7 +433,7 @@ services:
       - NODE_ENV=development
       - PORT=8080
       # URL of the main app (for "Sign in with Google" button)
-      - APP_URL=http://localhost:${OPENCODE_FRONTEND_PORT:-3000}
+      - APP_URL=http://localhost:${ADK_BACKEND_PORT:-8181}
     healthcheck:
       test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/health']
       interval: 30s
@@ -456,7 +465,7 @@ services:
 #   agent-registry ◄────────────────────────┤
 #                                           │
 #                                           ▼
-#                                     opencode-web
+#                                      adk-backend
 #
 # ===========================================================================
 # Local Development (without containers)
@@ -466,7 +475,7 @@ services:
 # Or individually:
 #   make registry-dev     (Agent Registry on :4000)
 #   make dev              (Somnia Agent on :4001)
-#   make opencode-server  (OpenCode Backend on :4097)
+#   make adk-dev          (ADK Backend on :8181)
 #
 # Service URLs (containers):
 #   Node RPC:      ws://localhost:9944
@@ -479,7 +488,7 @@ services:
 #   Midnight:      http://localhost:4003
 #   Store:         http://localhost:4004
 #   Payment:       http://localhost:4005
-#   OpenCode:      http://localhost:3000
+#   ADK Backend:   http://localhost:8181
 #
 # With login page:
 #   docker compose --profile login up -d
