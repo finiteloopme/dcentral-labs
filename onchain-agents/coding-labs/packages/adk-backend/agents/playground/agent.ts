@@ -9,12 +9,7 @@
  */
 
 import { LlmAgent, RemoteA2AAgent } from '@google/adk';
-import {
-  loadConfigFile,
-  getEnabledAgents,
-  getServiceConfig,
-  getServiceUrl,
-} from '@coding-labs/shared/config';
+import { loadConfigFile, getEnabledAgents } from '@coding-labs/shared/config';
 
 /**
  * Build the base URL for a blockchain agent from config.
