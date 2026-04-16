@@ -13,9 +13,7 @@
   "dependencies": {
     "@coding-labs/shared": "workspace:*",
     "@google/adk": "^0.6.1",
-    "@google/adk-devtools": "^0.6.1"
-  },
-  "devDependencies": {
+    "@google/adk-devtools": "^0.6.1",
     "@types/node": "^22.13.0",
     "typescript": "^5.8.0"
   }
