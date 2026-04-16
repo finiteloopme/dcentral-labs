@@ -14,6 +14,7 @@ FROM base AS builder
 
 # Copy workspace files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY .npmrc ./
 COPY tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/adk-backend/package.json packages/adk-backend/
