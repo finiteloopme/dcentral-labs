@@ -50,7 +50,6 @@ importers:
       '@google/adk-devtools':
         specifier: ^0.6.1
         version: 0.6.1(dcncqlyal6hi2vohl23pozlfqe)
-    devDependencies:
       '@types/node':
         specifier: ^22.13.0
         version: 22.19.11
