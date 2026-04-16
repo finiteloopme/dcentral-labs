@@ -1,41 +1,12 @@
 /**
- * LLM Configuration - AI SDK + Vertex AI Anthropic
+ * LLM Configuration for Somnia Agent
  *
- * Provides Claude models via Google Vertex AI using the AI SDK.
- * Authentication uses Google ADC (gcloud auth application-default login
- * or GOOGLE_APPLICATION_CREDENTIALS env var).
+ * Uses the shared model factory to create the correct LLM provider
+ * based on config.toml settings. For somnia-agent, config.toml assigns
+ * the "vertex-anthropic" provider (Claude via Vertex AI).
  */
 
-import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
-import type { LanguageModel } from 'ai';
+import { createModelForComponent } from '@coding-labs/shared/llm';
 
-// Read from component-specific env vars (generated from config.toml)
-// Falls back to generic env vars for backward compatibility
-const projectId =
-  process.env.SOMNIA_AGENT_LLM_PROJECT ||
-  process.env.GOOGLE_CLOUD_PROJECT ||
-  'kunal-scratch';
-
-const location =
-  process.env.SOMNIA_AGENT_LLM_LOCATION ||
-  process.env.GOOGLE_CLOUD_LOCATION ||
-  'global';
-
-const modelId = process.env.SOMNIA_AGENT_LLM_MODEL || 'claude-opus-4-5';
-
-// Create the Vertex Anthropic provider
-const vertexAnthropic = createVertexAnthropic({
-  project: projectId,
-  location: location,
-});
-
-// Export model instance for use in skills
-export const model: LanguageModel = vertexAnthropic(modelId);
-
-// Export config for logging
-export { projectId, location, modelId };
-
-console.log(`[somnia-agent] LLM initialized with Vertex AI Anthropic`);
-console.log(`[somnia-agent]   Project: ${projectId}`);
-console.log(`[somnia-agent]   Location: ${location}`);
-console.log(`[somnia-agent]   Model: ${modelId}`);
+// Create model from config.toml (respects env var overrides)
+export const model = createModelForComponent('somnia-agent');
