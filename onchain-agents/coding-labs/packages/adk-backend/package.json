@@ -4,9 +4,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "dev": "npx adk web ./agents --port 8181 --a2a",
+    "dev": "pnpm exec adk web ./agents --port 8181 --a2a",
     "build": "pnpm exec tsc",
-    "start": "npx adk web ./agents --port ${PORT:-8181} --a2a",
+    "start": "pnpm exec adk web ./agents --port ${PORT:-8181} --a2a",
     "clean": "rm -rf dist",
     "typecheck": "pnpm exec tsc --noEmit"
   },

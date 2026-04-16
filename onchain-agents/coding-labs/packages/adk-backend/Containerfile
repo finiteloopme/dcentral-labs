@@ -65,4 +65,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 
 # Run - adk web serves both the API and the adk-web frontend
 WORKDIR /app/packages/adk-backend
-CMD npx adk web ./agents --port ${PORT:-8181} --host 0.0.0.0 --a2a
+CMD pnpm exec adk web ./agents --port ${PORT:-8181} --host 0.0.0.0 --a2a
