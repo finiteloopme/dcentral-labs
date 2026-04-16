@@ -23,8 +23,11 @@ function getAgentBaseUrl(agentUrl: string): string {
 
 /**
  * Create RemoteA2AAgent instances for all enabled blockchain agents.
+ * Pre-fetches agent cards and overrides the url field with the known
+ * container/Cloud Run URL (the agent card's url field contains the
+ * bind address 0.0.0.0 which is not routable from other containers).
  */
-function createRemoteAgents(): RemoteA2AAgent[] {
+async function createRemoteAgents(): Promise<RemoteA2AAgent[]> {
   const config = loadConfigFile();
   const env = process.env.NODE_ENV || 'development';
   const enabledAgents = getEnabledAgents(config, env);
@@ -35,20 +38,39 @@ function createRemoteAgents(): RemoteA2AAgent[] {
     const baseUrl = getAgentBaseUrl(agent.url);
     console.log(`[adk-backend] Registering remote agent: ${agent.name} → ${baseUrl}`);
 
-    const remoteAgent = new RemoteA2AAgent({
-      name: agent.id.replace(/-/g, '_'), // ADK requires alphanumeric + underscore
-      description: agent.description,
-      agentCard: baseUrl,
-    });
+    try {
+      // Pre-fetch the agent card and override the url with the routable address.
+      // The agent card's url field contains the bind address (0.0.0.0) which is
+      // not reachable from other containers or Cloud Run services.
+      const cardUrl = `${baseUrl}/.well-known/agent-card.json`;
+      const response = await fetch(cardUrl);
 
-    remoteAgents.push(remoteAgent);
+      if (!response.ok) {
+        console.warn(`[adk-backend] Failed to fetch agent card from ${cardUrl}: ${response.status}, skipping ${agent.name}`);
+        continue;
+      }
+
+      const card = await response.json();
+      card.url = baseUrl; // Override with the known, routable URL
+
+      const remoteAgent = new RemoteA2AAgent({
+        name: agent.id.replace(/-/g, '_'), // ADK requires alphanumeric + underscore
+        description: card.description || agent.description,
+        agentCard: card, // Pass pre-loaded card with corrected URL
+      });
+
+      remoteAgents.push(remoteAgent);
+      console.log(`[adk-backend] ✓ Registered ${agent.name} (${card.skills?.length || 0} skills)`);
+    } catch (err) {
+      console.warn(`[adk-backend] ⚠ Could not reach ${agent.name} at ${baseUrl}, skipping: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   return remoteAgents;
 }
 
-// Create sub-agents from config
-const subAgents = createRemoteAgents();
+// Create sub-agents from config (async with top-level await)
+const subAgents = await createRemoteAgents();
 
 /**
  * Root agent - "Agent Playground"
