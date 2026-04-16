@@ -1,40 +1,12 @@
 /**
- * LLM Configuration - AI SDK + Vertex AI Anthropic
+ * LLM Configuration for Security Agent
  *
- * Provides Claude models via Google Vertex AI using the AI SDK.
- * Authentication uses Google ADC (gcloud auth application-default login
- * or GOOGLE_APPLICATION_CREDENTIALS env var).
+ * Uses the shared model factory to create the correct LLM provider
+ * based on config.toml settings. For security-agent, config.toml assigns
+ * the "vertex-anthropic" provider (Claude via Vertex AI).
  */
 
-import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
-import type { LanguageModel } from 'ai';
+import { createModelForComponent } from '@coding-labs/shared/llm';
 
-// Read from component-specific env vars (generated from config.toml)
-const projectId =
-  process.env.SECURITY_AGENT_LLM_PROJECT ||
-  process.env.GOOGLE_CLOUD_PROJECT ||
-  'kunal-scratch';
-
-const location =
-  process.env.SECURITY_AGENT_LLM_LOCATION ||
-  process.env.GOOGLE_CLOUD_LOCATION ||
-  'global';
-
-const modelId = process.env.SECURITY_AGENT_LLM_MODEL || 'claude-opus-4-5';
-
-// Create the Vertex Anthropic provider
-const vertexAnthropic = createVertexAnthropic({
-  project: projectId,
-  location: location,
-});
-
-// Export model instance for use in skills
-export const model: LanguageModel = vertexAnthropic(modelId);
-
-// Export config for logging
-export { projectId, location, modelId };
-
-console.log(`[security-agent] LLM initialized with Vertex AI Anthropic`);
-console.log(`[security-agent]   Project: ${projectId}`);
-console.log(`[security-agent]   Location: ${location}`);
-console.log(`[security-agent]   Model: ${modelId}`);
+// Create model from config.toml (respects env var overrides)
+export const model = createModelForComponent('security-agent');

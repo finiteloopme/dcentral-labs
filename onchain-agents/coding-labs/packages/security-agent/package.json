@@ -22,7 +22,6 @@
   ],
   "dependencies": {
     "@a2a-js/sdk": "^0.3.10",
-    "@ai-sdk/google-vertex": "^3.0.98",
     "@coding-labs/shared": "workspace:*",
     "ai": "^5.0.0",
     "cors": "^2.8.6",
