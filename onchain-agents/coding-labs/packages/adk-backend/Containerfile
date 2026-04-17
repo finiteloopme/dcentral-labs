@@ -47,6 +47,11 @@ COPY --from=builder /app/packages/adk-backend/agents packages/adk-backend/agents
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
 
+# Apply Agent Playground branding to bundled adk-web UI
+COPY --from=builder /app/packages/adk-backend/scripts packages/adk-backend/scripts/
+COPY --from=builder /app/packages/adk-backend/assets packages/adk-backend/assets/
+RUN cd /app && bash packages/adk-backend/scripts/customize-ui.sh
+
 # Set environment
 ENV NODE_ENV=production
 # PORT is set by Cloud Run, default to 8181 for local development

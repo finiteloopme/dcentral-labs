@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285F4"/>
+      <stop offset="33%" style="stop-color:#A370F0"/>
+      <stop offset="66%" style="stop-color:#F87171"/>
+      <stop offset="100%" style="stop-color:#FBBC05"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="64" fill="#131314"/>
+  <path d="M256 96 L272 208 L384 256 L272 304 L256 416 L240 304 L128 256 L240 208 Z" fill="url(#sparkle)" opacity="0.9"/>
+  <text x="256" y="480" text-anchor="middle" fill="#E8EAED" font-family="Google Sans, sans-serif" font-size="36" font-weight="500">Agent Playground</text>
+</svg>

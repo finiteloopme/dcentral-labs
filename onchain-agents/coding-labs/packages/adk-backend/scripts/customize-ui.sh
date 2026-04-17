@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Customize adk-web UI bundled inside @google/adk-devtools
+# This script patches the bundled dev-ui files with Agent Playground branding
+# and Gemini-aligned styles. Run after pnpm install.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Find the bundled browser directory
+BROWSER_DIR="${PACKAGE_DIR}/node_modules/@google/adk-devtools/dist/browser"
+
+if [ ! -d "$BROWSER_DIR" ]; then
+  echo "[customize-ui] Browser directory not found at ${BROWSER_DIR}, skipping"
+  exit 0
+fi
+
+echo "[customize-ui] Customizing adk-web UI at ${BROWSER_DIR}..."
+
+# --- 1. Patch index.html ---
+INDEX_HTML="${BROWSER_DIR}/index.html"
+
+if [ -f "$INDEX_HTML" ]; then
+  # Replace page title
+  sed -i 's|<title>[^<]*</title>|<title>Agent Playground \| Google Cloud</title>|g' "$INDEX_HTML"
+
+  # Inject Gemini branding CSS and feature flag overrides before </head>
+  # Only inject if not already present (idempotent)
+  if ! grep -q "agent-playground-branding" "$INDEX_HTML"; then
+    sed -i '/<\/head>/i \
+<!-- Agent Playground Branding -->\
+<style id="agent-playground-branding">\
+  /* === Gemini Sparkle Gradients === */\
+  html.dark-theme {\
+    /* Canvas/builder header title gradient - Gemini sparkle colors */\
+    --builder-canvas-header-title-gradient: linear-gradient(135deg, #4285F4, #A370F0, #F87171, #FBBC05);\
+    --builder-canvas-container-background: linear-gradient(135deg, #0c0b0f 0%, #131314 50%, #0f1218 100%);\
+    --builder-canvas-node-badge-background: linear-gradient(135deg, rgba(66, 133, 244, 0.2), rgba(163, 112, 240, 0.3));\
+    --builder-canvas-add-btn-shadow: 0 4px 12px rgba(66, 133, 244, 0.35);\
+    \
+    /* Gemini purple accent on active/focused elements */\
+    --chat-panel-bot-message-focus-within-message-card-border-color: #A370F0;\
+    --event-tab-event-list-active-indicator-color: #A370F0;\
+    \
+    /* Subtle blue-purple tint on surfaces (vs pure gray) */\
+    --chat-side-drawer-background-color: #18161e;\
+    --chat-toolbar-background-color: #1a1820;\
+    --side-panel-details-panel-container-background-color: #1e1c26;\
+  }\
+  \
+  /* === Hide elements for clean Agent Playground UX === */\
+  /* Hide Dev UI disclaimer banner */\
+  .developer-disclaimer, [class*="disclaimer"] {\
+    display: none !important;\
+  }\
+  /* Hide eval tab (endpoints return 501 in adk-js) */\
+  [aria-label="Eval"], mat-tab[aria-label="Eval"] {\
+    display: none !important;\
+  }\
+  /* Hide bidi streaming controls (not implemented in adk-js) */\
+  .bidi-streaming-controls, [class*="bidi"] {\
+    display: none !important;\
+  }\
+</style>' "$INDEX_HTML"
+    echo "[customize-ui] ✓ Injected Gemini branding CSS"
+  else
+    echo "[customize-ui] Branding CSS already present, skipping"
+  fi
+fi
+
+# --- 2. Replace favicon ---
+CUSTOM_FAVICON="${PACKAGE_DIR}/assets/favicon.svg"
+if [ -f "$CUSTOM_FAVICON" ]; then
+  cp "$CUSTOM_FAVICON" "${BROWSER_DIR}/adk_favicon.svg"
+  echo "[customize-ui] ✓ Replaced favicon"
+fi
+
+# --- 3. Replace logo ---
+CUSTOM_LOGO="${PACKAGE_DIR}/assets/logo.svg"
+if [ -f "$CUSTOM_LOGO" ]; then
+  mkdir -p "${BROWSER_DIR}/assets"
+  cp "$CUSTOM_LOGO" "${BROWSER_DIR}/assets/ADK-512-color.svg"
+  echo "[customize-ui] ✓ Replaced logo"
+fi
+
+echo "[customize-ui] Done!"
