@@ -4,6 +4,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
+    "postinstall": "bash scripts/customize-ui.sh",
     "dev": "pnpm exec adk web ./agents --port 8181 --a2a",
     "build": "pnpm exec tsc",
     "start": "pnpm exec adk web ./agents --port ${PORT:-8181} --a2a",
@@ -13,7 +14,7 @@
   "dependencies": {
     "@coding-labs/shared": "workspace:*",
     "@google/adk": "^0.6.1",
-    "@google/adk-devtools": "^0.6.1",
+    "@google/adk-devtools": "latest",
     "@types/node": "^22.13.0",
     "typescript": "^5.8.0"
   }

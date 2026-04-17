@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sparkle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4285F4"/>
+      <stop offset="40%" stop-color="#A370F0"/>
+      <stop offset="70%" stop-color="#F87171"/>
+      <stop offset="100%" stop-color="#FBBC05"/>
+    </linearGradient>
+  </defs>
+  <!-- Main sparkle -->
+  <path fill="url(#sparkle-grad)" d="M256 32C256 32 296 192 480 256C296 320 256 480 256 480C256 480 216 320 32 256C216 192 256 32 256 32Z"/>
+  <!-- Small accent sparkle -->
+  <path fill="#8AB4F8" opacity="0.6" d="M400 80C400 80 410 110 440 120C410 130 400 160 400 160C400 160 390 130 360 120C390 110 400 80 400 80Z"/>
+</svg>
