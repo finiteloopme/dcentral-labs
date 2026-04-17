@@ -48,7 +48,7 @@ importers:
         specifier: ^0.6.1
         version: 0.6.1(wkzf5kwjfuvixwc24cddqbocoy)
       '@google/adk-devtools':
-        specifier: ^0.6.1
+        specifier: latest
         version: 0.6.1(dcncqlyal6hi2vohl23pozlfqe)
       '@types/node':
         specifier: ^22.13.0

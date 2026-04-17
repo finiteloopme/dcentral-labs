@@ -8,6 +8,9 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="64" fill="#131314"/>
+  <!-- Main sparkle -->
   <path d="M256 96 L272 208 L384 256 L272 304 L256 416 L240 304 L128 256 L240 208 Z" fill="url(#sparkle)" opacity="0.9"/>
+  <!-- Small accent sparkle -->
+  <path fill="#8AB4F8" opacity="0.5" d="M400 100C400 100 408 124 432 132C408 140 400 164 400 164C400 164 392 140 368 132C392 124 400 100 400 100Z"/>
   <text x="256" y="480" text-anchor="middle" fill="#E8EAED" font-family="Google Sans, sans-serif" font-size="36" font-weight="500">Agent Playground</text>
 </svg>
