@@ -117,4 +117,16 @@ if [ -f "$CUSTOM_LOGO" ]; then
   echo "[customize-ui] ✓ Replaced logo"
 fi
 
+# --- 4. Copy Agent Playground injection script ---
+if [ -f "$SCRIPT_DIR/../assets/agent-playground.js" ]; then
+  cp "$SCRIPT_DIR/../assets/agent-playground.js" "$BROWSER_DIR/agent-playground.js"
+  echo "[customize-ui] ✓ Copied agent-playground.js"
+fi
+
+# --- 5. Inject agent-playground.js script tag before </body> ---
+if [ -f "$BROWSER_DIR/agent-playground.js" ]; then
+  perl -i -pe 's|</body>|<script src="./agent-playground.js"></script></body>|' "$BROWSER_DIR/index.html"
+  echo "[customize-ui] ✓ Injected agent-playground.js script tag"
+fi
+
 echo "[customize-ui] Done!"
