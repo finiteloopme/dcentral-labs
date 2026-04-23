@@ -964,13 +964,14 @@ steps:
 # Substitutions
 # -----------------------------------------------------------------------------
 # _FIREBASE_API_KEY and _FIREBASE_AUTH_DOMAIN are PUBLIC Firebase config values
-# (browser-safe). Get them from the Identity Toolkit admin/v2/projects API.
-# See gcip-magiclink-setup.md Phase 0. They are passed to opencode-login as
-# environment variables so the page can initialize the Firebase JS SDK.
+# used by opencode-login to render the magic-link sign-in UI.
 #
-# To override on the command line:
+# Get current values by running: make cloud-setup-gcip-magiclink
+# (it emits the substitution flags ready to copy-paste).
+#
+# Example invocation:
 #   gcloud builds submit \
-#     --substitutions=_FIREBASE_API_KEY=AIza...,_FIREBASE_AUTH_DOMAIN=kunal-scratch.firebaseapp.com,...
+#     --substitutions=_FIREBASE_API_KEY=$_FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,...
 substitutions:
   _REGION: us-central1
   _REPO: coding-labs
