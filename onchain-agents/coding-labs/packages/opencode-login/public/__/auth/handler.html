@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signing you in… | dCoder</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!--
+      Magic-link email return handler (issue #60).
+
+      The user lands here after clicking the link sent to their inbox. This
+      page completes the Firebase email-link sign-in flow against the GCIP
+      tenant configured for the project, then redirects back to the original
+      target URL (which is then handled by IAP at the LB backend service).
+
+      This page is reachable at /__/auth/handler on the SAME hostname as the
+      protected app (dcoder.<base_domain>); the LB URL map routes /__/auth/*
+      to the opencode-login backend (no IAP), while /* defaults to the
+      IAP-protected opencode-web backend.
+    -->
+    <div class="dcoder-content" style="text-align: center; padding: 60px 20px;">
+      <h1 id="status-title">Signing you in…</h1>
+      <p id="status-message">Please wait while we complete your sign-in.</p>
+      <p id="status-error" class="signin-error" hidden></p>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+      import {
+        getAuth,
+        isSignInWithEmailLink,
+        signInWithEmailLink,
+      } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
+
+      function showError(msg) {
+        document.getElementById('status-title').textContent = 'Sign-in error';
+        document.getElementById('status-message').hidden = true;
+        const err = document.getElementById('status-error');
+        err.textContent = msg + ' Return to the ';
+        const link = document.createElement('a');
+        link.href = '/login';
+        link.textContent = 'sign-in page';
+        link.style.color = 'var(--accent-orange)';
+        err.appendChild(link);
+        err.appendChild(document.createTextNode('.'));
+        err.hidden = false;
+      }
+
+      async function completeSignIn() {
+        let config;
+        try {
+          const response = await fetch('/config');
+          config = await response.json();
+        } catch (err) {
+          console.error('[handler] Failed to fetch /config:', err);
+          showError('Sign-in is not available.');
+          return;
+        }
+
+        if (!config.firebase || !config.firebase.apiKey) {
+          showError('Sign-in is not configured.');
+          return;
+        }
+
+        const app = initializeApp(config.firebase);
+        const auth = getAuth(app);
+
+        if (!isSignInWithEmailLink(auth, window.location.href)) {
+          showError('This link is invalid or expired. Please request a new one.');
+          return;
+        }
+
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+          // The user opened the link on a different device/browser than the
+          // one that issued it. Confirm the email manually.
+          email = window.prompt(
+            'Please confirm your email address to complete sign-in:'
+          );
+          if (!email) {
+            showError('Email required to complete sign-in.');
+            return;
+          }
+        }
+
+        try {
+          await signInWithEmailLink(auth, email, window.location.href);
+          window.localStorage.removeItem('emailForSignIn');
+
+          // Redirect back to the original target. IAP's gcipSettings flow
+          // sets a `state` (or `continueUri`) query parameter with the
+          // original URL the user requested. Fall back to '/' if neither is
+          // present (e.g., a user invoked the link directly).
+          //
+          // NOTE: the precise IAP+GCIP redirect-back contract may require
+          // additional steps (e.g. POSTing the ID token to an IAP-specific
+          // endpoint, or relying on the Firebase JS SDK's automatic
+          // session-cookie behaviour when authDomain matches the IAP-bound
+          // hostname). The simple redirect-to-target pattern shown here is
+          // the documented "happy path" for the agent flow.
+          // See: https://cloud.google.com/iap/docs/external-identities
+          const params = new URLSearchParams(window.location.search);
+          const continueUri =
+            params.get('continueUri') || params.get('state') || '/';
+          window.location.href = continueUri;
+        } catch (err) {
+          console.error('[handler] signInWithEmailLink failed:', err);
+          showError(err.message || 'Sign-in failed. Try again.');
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', completeSignIn);
+    </script>
+  </body>
+</html>

@@ -969,3 +969,113 @@ body {
     transition: none;
   }
 }
+
+/* =========================================
+   MAGIC-LINK SIGN-IN UI (issue #60)
+   ========================================= */
+#signin-container {
+  width: 100%;
+  max-width: 420px;
+  margin: 16px auto 0;
+  text-align: left;
+}
+
+.email-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 1rem;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  font-family: 'Google Sans Text', Roboto, Arial, sans-serif;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.email-input::placeholder {
+  color: var(--text-muted);
+}
+
+.email-input:focus {
+  outline: none;
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(255, 119, 0, 0.18);
+}
+
+#email-input-state .signin-button {
+  width: 100%;
+}
+
+.email-icon {
+  flex-shrink: 0;
+}
+
+.signin-error {
+  color: #ff8a80; /* dark-theme friendly red */
+  font-size: 0.9rem;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.check-email-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.check-email-title {
+  color: var(--text-primary);
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 1.25rem;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.check-email-body {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  text-align: center;
+  word-break: break-all;
+}
+
+.signin-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.signin-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid var(--accent-orange);
+  color: var(--accent-orange);
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.signin-button-secondary:hover {
+  background: rgba(255, 119, 0, 0.1);
+}
+
+.signin-button-secondary:active {
+  background: rgba(255, 119, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .email-input,
+  .signin-button-secondary {
+    transition: none;
+  }
+}
