@@ -9,14 +9,27 @@
 #   5. Deploy midnight-mcp (depends on Midnight infrastructure URLs)
 #   6. Deploy somnia-agent (with AGENT_REGISTRY_URL)
 #   7. Deploy midnight-agent (with AGENT_REGISTRY_URL + MIDNIGHT_MCP_URL)
-#   8. Deploy opencode-login (public landing page)
-#   9. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, IAP protected)
+#   8. Deploy opencode-login (magic-link sign-in UI; LB-only ingress, public)
+#   9. Deploy opencode-web (with all agent URLs + LOGIN_PAGE_URL, LB-only)
 #
 # Services:
 #   - midnight-node, midnight-indexer, midnight-proof-server: Public (Midnight infra)
 #   - agent-registry, somnia-agent, midnight-agent, midnight-mcp: Public (no auth)
-#   - opencode-login: Public (landing page)
-#   - opencode-web: IAP protected (requires Google sign-in)
+#   - opencode-login: LB-only, no auth (renders the magic-link sign-in page)
+#   - opencode-web:   LB-only, IAP via gcipSettings agent flow at backend
+#                     service layer (NOT direct Cloud Run --iap)
+#
+# Authentication architecture (issue #60):
+#   External Application LB + IAP at LB backend service + GCIP "agent flow"
+#   + magic-link email sign-in. See gcip-magiclink-setup.md.
+#
+#   The LB resources, IAP enablement, gcipSettings YAML, and IAP IAM bindings
+#   are NOT provisioned by this pipeline. They are managed by:
+#     make cloud-setup-dns
+#     make cloud-setup-lb
+#     make cloud-setup-gcip-magiclink
+#     make cloud-sync-iap-users
+#   plus a one-time manual `gcloud beta iap settings set` for gcipSettings.
 #
 # Midnight Infrastructure Versions:
 #   - Node: 0.20.1
@@ -761,8 +774,17 @@ steps:
         echo "Security URL: $$(cat /workspace/security-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 5: opencode-login (public landing page)
+  # DEPLOY 5: opencode-login (magic-link sign-in UI; LB-only, public)
   # ===========================================================================
+  # The login UI hosts the email-input page (/login) and the Firebase email-link
+  # return handler (/__/auth/handler). It MUST remain unauthenticated (no IAP)
+  # because it IS the sign-in page, but it should only be reachable through the
+  # External LB (path-based routing on dcoder.<base_domain>) so it cannot be
+  # accessed via the raw run.app URL.
+  #
+  # Firebase config values (FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN) are
+  # browser-safe public values — security comes from authorized domains in the
+  # Firebase Console, not from secrecy. Pass via _FIREBASE_* substitutions.
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-login'
@@ -775,13 +797,13 @@ steps:
       - '--region=${_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--ingress=all'
+      - '--ingress=internal-and-cloud-load-balancing'
       - '--port=8080'
       - '--memory=256Mi'
       - '--cpu=1'
       - '--min-instances=0'
       - '--max-instances=2'
-      - '--set-env-vars=NODE_ENV=production'
+      - '--set-env-vars=NODE_ENV=production,FIREBASE_API_KEY=${_FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN},FIREBASE_PROJECT_ID=${PROJECT_ID}'
 
   # ===========================================================================
   # GET opencode-login URL
@@ -800,8 +822,11 @@ steps:
         echo "Login URL: $$(cat /workspace/login-url.txt)"
 
   # ===========================================================================
-  # DEPLOY 6: opencode-web (depends on all agents + login page, IAP protected)
+  # DEPLOY 6: opencode-web (depends on all agents + login page; LB-only ingress)
   # ===========================================================================
+  # No --iap flag here. IAP is enabled at the LB backend service layer
+  # (`opencode-web-backend`) with gcipSettings.tenantIds = ["_<project_number>"]
+  # for the GCIP "agent flow" pattern. See gcip-magiclink-setup.md.
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-opencode'
@@ -828,13 +853,12 @@ steps:
         PAYMENT_URL=$$(cat /workspace/payment-url.txt)
         SECURITY_URL=$$(cat /workspace/security-url.txt)
         LOGIN_URL=$$(cat /workspace/login-url.txt)
-        gcloud beta run deploy opencode-web \
+        gcloud run deploy opencode-web \
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/opencode-web:${_TAG} \
           --region=${_REGION} \
           --platform=managed \
           --no-allow-unauthenticated \
-          --iap \
-          --ingress=all \
+          --ingress=internal-and-cloud-load-balancing \
           --port=8080 \
           --memory=1Gi \
           --cpu=1 \
@@ -842,28 +866,14 @@ steps:
           --max-instances=10 \
           --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},SECURITY_AGENT_URL=$${SECURITY_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
-  # ===========================================================================
-  # SETUP IAP: Grant IAP service agent run.invoker role
-  # ===========================================================================
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'setup-iap'
-    waitFor: ['deploy-opencode']
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Get project number
-        PROJECT_NUMBER=$$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
-
-        # Grant IAP service agent the invoker role on opencode-web
-        gcloud run services add-iam-policy-binding opencode-web \
-          --region=${_REGION} \
-          --member="serviceAccount:service-$${PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" \
-          --role=roles/run.invoker \
-          --quiet 2>/dev/null || true
-
-        echo "IAP service agent granted run.invoker role"
+  # NOTE: The previous `setup-iap` step (which granted the IAP service agent
+  # run.invoker via Cloud Run direct IAP) has been REMOVED.
+  #
+  # In the new architecture, IAP is enabled at the LB backend service
+  # (opencode-web-backend), and the LB serverless NEG service agent (NOT the
+  # IAP service agent) needs run.invoker on the Cloud Run service. That binding
+  # is provisioned by `make cloud-setup-lb` / managed manually one-time.
+  # See gcip-magiclink-setup.md.
 
   # ===========================================================================
   # UPDATE agent-registry with agent URLs
@@ -891,7 +901,10 @@ steps:
   # ===========================================================================
   # UPDATE opencode-login with APP_URL (opencode-web URL)
   # ===========================================================================
-  # The login page needs to know the main app URL for the "Sign in" button.
+  # The login page needs APP_URL as a fallback for "return to app" links.
+  # Under the LB-fronted architecture, the post-auth target is the deployment
+  # FQDN (dcoder.<base_domain>); APP_URL here is just the raw run.app URL of
+  # opencode-web for backward compat with non-LB local-dev fallbacks.
 
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'update-login'
@@ -937,17 +950,33 @@ steps:
         echo "  security-agent:  $$(cat /workspace/security-url.txt)"
         echo "  midnight-mcp:    $$(cat /workspace/midnight-mcp-url.txt)"
         echo "  evm-mcp:         $$(cat /workspace/evm-mcp-url.txt)"
-        echo "  opencode-login:  $$(cat /workspace/login-url.txt) (public landing page)"
+        echo "  opencode-login:  $$(cat /workspace/login-url.txt) (LB-only; reach via /login on the LB FQDN)"
         OPENCODE_URL=$$(gcloud run services describe opencode-web --region=${_REGION} --format='value(status.url)')
-        echo "  opencode-web:    $${OPENCODE_URL} (IAP protected)"
+        echo "  opencode-web:    $${OPENCODE_URL} (LB-only; IAP via gcipSettings on opencode-web-backend)"
         echo ""
-        echo "Access the application via the login page: $$(cat /workspace/login-url.txt)"
+        echo "Reach the application via the deployment FQDN configured in"
+        echo "config.toml [default.dns] (e.g. https://dcoder.<base_domain>/)."
+        echo "Run 'make cloud-setup-dns && make cloud-setup-lb' if you have"
+        echo "not yet provisioned the LB."
         echo ""
 
+# -----------------------------------------------------------------------------
+# Substitutions
+# -----------------------------------------------------------------------------
+# _FIREBASE_API_KEY and _FIREBASE_AUTH_DOMAIN are PUBLIC Firebase config values
+# (browser-safe). Get them from the Identity Toolkit admin/v2/projects API.
+# See gcip-magiclink-setup.md Phase 0. They are passed to opencode-login as
+# environment variables so the page can initialize the Firebase JS SDK.
+#
+# To override on the command line:
+#   gcloud builds submit \
+#     --substitutions=_FIREBASE_API_KEY=AIza...,_FIREBASE_AUTH_DOMAIN=kunal-scratch.firebaseapp.com,...
 substitutions:
   _REGION: us-central1
   _REPO: coding-labs
   _TAG: latest
+  _FIREBASE_API_KEY: ''
+  _FIREBASE_AUTH_DOMAIN: ''
 
 options:
   logging: CLOUD_LOGGING_ONLY
