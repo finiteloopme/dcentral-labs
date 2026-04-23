@@ -304,13 +304,13 @@ default_agents = ["somnia", "sonic", "midnight", "store", "payment", "security"]
 # The DNS zone lives in a separate Argolis project; the Cloud Build SA must
 # have roles/dns.recordSetEditor on that project.
 #
-# Workflow:
+# Workflow (issue #69 consolidation):
 #   1. Fill in placeholders below with actual values
-#   2. Grant cross-project IAM (see gcip-magiclink-setup.md)
-#   3. Run: make cloud-setup-gcip-magiclink
-#   4. Run: make cloud-setup-dns
-#   5. Run: make cloud-setup-lb
-#   6. Run: make cloud-sync-iap-users
+#   2. Fill in [default.auth.google].client_id (see gcip-google-signin-setup.md
+#      Phase 0) and copy .env.example to .env with GOOGLE_OAUTH_CLIENT_SECRET
+#   3. Run: make cloud-setup       # one-time: project + DNS + LB + auth
+#   4. Run: make cloud-deploy
+#   5. Run: make cloud-sync-users  # bind allowed_users to IAP IAM
 
 [default.dns]
 # Argolis project hosting the Cloud DNS managed zone (cross-project)
@@ -337,13 +337,30 @@ subdomain = "dcoder"
 #
 # Workflow:
 #   1. Add/remove emails from allowed_users list
-#   2. Run: make cloud-sync-iap-users    # Sync IAP bindings on backend service
+#   2. Run: make cloud-sync-users        # Sync IAP bindings on backend service
 #   3. Changes take effect immediately
 
 [default.auth]
 allowed_users = [
   "admin@kunall.altostrat.com",
 ]
+
+# =============================================================================
+# Google OAuth (cross-project bridge for GCIP Google IdP)
+# =============================================================================
+# The Google OAuth Web Client must be created in a non-Argolis project
+# (Argolis projects lock the OAuth Consent Screen to User Type: Internal).
+# See gcip-google-signin-setup.md Phase 1 for setup.
+#
+# client_id is PUBLIC by Google's design (it's an identifier, not a secret) —
+# safe to commit. Security comes from the redirect URI whitelist on the OAuth
+# client itself.
+#
+# client_secret is sensitive — store in .env (gitignored), NOT here.
+# See .env.example for the template.
+
+[default.auth.google]
+client_id = "<GOOGLE_OAUTH_CLIENT_ID>"  # e.g. 954632890046-...apps.googleusercontent.com
 
 # =============================================================================
 # PRODUCTION OVERRIDES

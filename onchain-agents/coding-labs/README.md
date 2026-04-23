@@ -346,19 +346,32 @@ make help  # Show all available targets
 | `container-clean` | Remove containers and images |
 
 #### Cloud
+
+Operator workflow (3 commands; no manual gcloud follow-ups across redeploys):
+
+```bash
+make cloud-setup         # One-time bootstrap: project + DNS + LB + auth
+make cloud-deploy        # Build + deploy services (auto Firebase substitutions)
+make cloud-sync-users    # Bind allowed_users from config.toml to IAP IAM
+```
+
+See [`gcip-google-signin-setup.md`](./gcip-google-signin-setup.md) for the
+one-time pre-setup steps (OAuth client in non-Argolis project, populating
+`config.toml` and `.env`).
+
 | Target | Description |
 |--------|-------------|
-| `cloud-setup` | One-time cloud infrastructure setup |
-| `cloud-deploy` | Deploy all services to Cloud Run |
+| `cloud-setup` | One-time bootstrap (project + DNS + LB + auth) |
+| `cloud-deploy` | Build + deploy services (auto-supplies Firebase substitutions) |
+| `cloud-sync-users` | Sync `allowed_users` from `config.toml` to IAP IAM |
 | `cloud-status` | Show Cloud Run service status |
 | `cloud-urls` | Print Cloud Run service URLs |
 | `cloud-logs SVC=<name>` | View Cloud Run logs |
-| `cloud-delete` | Delete all Cloud Run services |
-| `cloud-setup-dns` | Create cross-project DNS A record from `config.toml` |
-| `cloud-setup-lb` | Provision LB resources (NEGs, backend services, URL map, cert) |
-| `cloud-setup-gcip-magiclink` | (Legacy/unused) Enable GCIP email-link sign-in — superseded by Google sign-in (#67); see `gcip-google-signin-setup.md` |
-| `cloud-sync-iap-users` | Sync IAP allowed users from `config.toml` to `opencode-web-backend` |
-| `cloud-teardown-lb` | DESTRUCTIVE: tear down LB resources |
+| `cloud-teardown` | DESTRUCTIVE: tear down all infrastructure (LB + Cloud Run services) |
+| `cloud-setup-project` | (advanced) Project APIs + IAM only |
+| `cloud-setup-dns` | (advanced) Cross-project DNS A record from `config.toml` |
+| `cloud-setup-lb` | (advanced) LB resources (NEGs, backend services, URL map, cert) |
+| `cloud-setup-auth` | (advanced) GCIP Google IdP + authorizedDomains + IAP gcipSettings |
 
 #### Utilities
 | Target | Description |

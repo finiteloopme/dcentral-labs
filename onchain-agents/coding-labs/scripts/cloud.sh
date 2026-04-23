@@ -1,13 +1,29 @@
 #!/usr/bin/env bash
-# Cloud deployment operations for Cloud Run
+# Cloud deployment operations for Cloud Run + LB + IAP + GCIP
 #
-# Commands:
-#   setup   - One-time setup (APIs, Artifact Registry, IAM)
-#   deploy  - Build and deploy to Cloud Run
-#   status  - Show Cloud Run service status
-#   urls    - Show service URLs
-#   logs    - View logs (default: opencode-web)
-#   delete  - Delete all Cloud Run services
+# Operator workflow (one-time per environment):
+#   1. make cloud-setup       (bootstraps project + DNS + LB + auth)
+#   2. make cloud-deploy      (build + deploy services; auto Firebase substitutions)
+#   3. make cloud-sync-users  (bind allowed_users from config.toml to IAP IAM)
+#
+# Recurring:
+#   make cloud-deploy         (re-deploy code; no manual env-var fixes needed)
+#   make cloud-sync-users     (when allowed_users changes)
+#
+# Commands (top-level):
+#   setup            One-time meta bootstrap (project + dns + lb + auth)
+#   deploy           Build and deploy to Cloud Run (auto Firebase substitutions)
+#   status           Show Cloud Run service status
+#   urls             Show service URLs
+#   logs [svc]       View logs (default: opencode-web)
+#   sync-users       Sync IAP allowed_users from config.toml
+#   teardown         DESTRUCTIVE: tear down LB + Cloud Run services
+#
+# Commands (advanced sub-targets, called by `setup`; useful for recovery):
+#   setup-project    APIs + project IAM only
+#   setup-dns        Cross-project DNS A record only
+#   setup-lb         LB resources + URL map + IAP enable
+#   setup-auth       GCIP Google IdP + authorizedDomains + IAP gcipSettings
 
 source "$(dirname "$0")/common.sh"
 cd_project_root
@@ -17,14 +33,118 @@ PROJECT_ID="${GCP_PROJECT:-kunal-scratch}"
 REGION="${GCP_REGION:-us-central1}"
 REPO="coding-labs"
 
+# -----------------------------------------------------------------------------
+# Helpers for parsing [default.dns] from config.toml via smol-toml + bun
+# -----------------------------------------------------------------------------
+_dns_field() {
+  # $1 = field name (project_id, zone_name, base_domain, subdomain)
+  bun -e "
+    const fs = require('fs');
+    const { parse } = require('smol-toml');
+    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
+    console.log(config.default?.dns?.['$1'] || '');
+  " 2>/dev/null
+}
+
+_require_dns_config() {
+  # Read all DNS fields and validate they're populated (not placeholder values).
+  # Sets DNS_PROJECT, ZONE_NAME, BASE_DOMAIN, SUBDOMAIN, FQDN as globals.
+  DNS_PROJECT=$(_dns_field project_id)
+  ZONE_NAME=$(_dns_field zone_name)
+  BASE_DOMAIN=$(_dns_field base_domain)
+  SUBDOMAIN=$(_dns_field subdomain)
+
+  if [[ -z "$DNS_PROJECT" || "$DNS_PROJECT" == "<DNS_PROJECT_ID>" ]]; then
+    log_error "config.toml [default.dns].project_id is not set."
+    log_error "Edit config.toml and fill in the [default.dns] block first."
+    log_error "See gcip-google-signin-setup.md for guidance."
+    return 1
+  fi
+  if [[ -z "$ZONE_NAME" || "$ZONE_NAME" == "<ZONE_NAME>" ]]; then
+    log_error "config.toml [default.dns].zone_name is not set."
+    return 1
+  fi
+  if [[ -z "$BASE_DOMAIN" || "$BASE_DOMAIN" == "<BASE_DOMAIN>" ]]; then
+    log_error "config.toml [default.dns].base_domain is not set."
+    return 1
+  fi
+  if [[ -z "$SUBDOMAIN" ]]; then
+    log_error "config.toml [default.dns].subdomain is not set."
+    return 1
+  fi
+
+  # Construct FQDN. base_domain may end with a dot (Cloud DNS convention).
+  # Strip trailing dot, concat subdomain, then re-add trailing dot.
+  FQDN="${SUBDOMAIN}.${BASE_DOMAIN%.}."
+  return 0
+}
+
+# Source .env file if present (for GOOGLE_OAUTH_CLIENT_SECRET, etc.)
+_load_env() {
+  local env_file
+  env_file="$(cd_project_root && pwd)/.env"
+  if [[ -f "$env_file" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$env_file"
+    set +a
+  fi
+}
+
+# Read OAuth Client ID from config.toml [default.auth.google].client_id
+_oauth_client_id() {
+  bun -e "
+    const fs = require('fs');
+    const { parse } = require('smol-toml');
+    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
+    console.log(config.default?.auth?.google?.client_id || '');
+  " 2>/dev/null
+}
+
+# Read OAuth Client Secret from environment (after _load_env has sourced .env)
+_oauth_client_secret() {
+  echo "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+}
+
+# Read deployment FQDN from config.toml [default.dns] (subdomain + base_domain)
+_deployment_fqdn() {
+  local sub base
+  sub=$(_dns_field subdomain)
+  base=$(_dns_field base_domain | sed 's/\.$//')  # strip trailing dot
+  if [[ -z "$sub" || -z "$base" ]]; then
+    return 1
+  fi
+  echo "${sub}.${base}"
+}
+
+# -----------------------------------------------------------------------------
+# Meta: full one-time bootstrap (project + DNS + LB + auth)
+# -----------------------------------------------------------------------------
 cmd_setup() {
-  log_header "Setting up Cloud infrastructure"
-  
+  log_header "Full Cloud bootstrap"
+  cmd_setup_project || return 1
+  cmd_setup_dns || return 1
+  cmd_setup_lb || return 1
+  cmd_setup_auth || return 1
+  echo ""
+  log_success "Full Cloud bootstrap complete"
+  log_info ""
+  log_info "Next steps:"
+  log_info "  1. Run: make cloud-deploy"
+  log_info "  2. Run: make cloud-sync-users"
+}
+
+# -----------------------------------------------------------------------------
+# Project bootstrap: APIs + IAM (formerly cmd_setup)
+# -----------------------------------------------------------------------------
+cmd_setup_project() {
+  log_header "Setting up Cloud project (APIs + IAM)"
+
   log_info "Project: $PROJECT_ID"
   log_info "Region: $REGION"
   log_info "Repository: $REPO"
   echo ""
-  
+
   log_info "Enabling required APIs..."
   gcloud services enable \
     cloudbuild.googleapis.com \
@@ -43,7 +163,7 @@ cmd_setup() {
   log_info "Creating IAP service identity (idempotent)..."
   gcloud beta services identity create --service=iap.googleapis.com \
     --project="$PROJECT_ID" 2>/dev/null || true
-  
+
   log_info "Creating Artifact Registry repository..."
   if gcloud artifacts repositories describe "$REPO" \
     --location="$REGION" \
@@ -57,26 +177,26 @@ cmd_setup() {
       --description="Coding Labs container images"
     log_success "Repository '$REPO' created"
   fi
-  
+
   # Get project number
   PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
-  
+
   log_info "Granting Cloud Build permissions..."
-  
+
   # Cloud Build needs run.admin to deploy
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
     --role="roles/run.admin" \
     --condition=None \
     --quiet 2>/dev/null
-  
+
   # Cloud Build needs to act as service accounts
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
     --role="roles/iam.serviceAccountUser" \
     --condition=None \
     --quiet 2>/dev/null
-  
+
   # Default compute SA is used by Cloud Build for deploy steps
   # It needs Cloud Run admin and SA user permissions
   log_info "Granting Cloud Run permissions to default compute SA..."
@@ -85,13 +205,13 @@ cmd_setup() {
     --role="roles/run.admin" \
     --condition=None \
     --quiet 2>/dev/null
-  
+
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/iam.serviceAccountUser" \
     --condition=None \
     --quiet 2>/dev/null
-  
+
   # Default compute SA needs Vertex AI access for LLM calls
   log_info "Granting Vertex AI access to default compute SA..."
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -99,7 +219,7 @@ cmd_setup() {
     --role="roles/aiplatform.user" \
     --condition=None \
     --quiet 2>/dev/null
-  
+
   log_info "Checking config.toml for cross-project DNS configuration..."
   DNS_PROJECT=$(_dns_field project_id 2>/dev/null || echo '')
 
@@ -144,40 +264,61 @@ cmd_setup() {
   fi
 
   echo ""
-  log_success "Cloud infrastructure setup complete"
-  echo ""
-  log_info "Next steps:"
-  log_info "  1. Fill in config.toml [default.dns] if not done; re-run 'make cloud-setup' to grant cross-project IAM"
-  log_info "  2. Run: make cloud-setup-gcip-magiclink (enables email-link + emits Firebase config)"
-  log_info "  3. Run: make cloud-deploy"
-  log_info "  4. Run: make cloud-setup-dns"
-  log_info "  5. Run: make cloud-setup-lb"
-  log_info "  6. Manual: apply IAP gcipSettings YAML (see gcip-magiclink-setup.md Phase 4)"
-  log_info "  7. Run: make cloud-sync-iap-users"
+  log_success "Cloud project setup complete"
 }
 
+# -----------------------------------------------------------------------------
+# Deploy: build + push + deploy. Auto-supplies Firebase substitutions.
+# -----------------------------------------------------------------------------
 cmd_deploy() {
   log_header "Deploying to Cloud Run"
-  
+
   # Get git short SHA for image tagging
   local tag
   tag=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
-  
+
   log_info "Project: $PROJECT_ID"
   log_info "Region: $REGION"
   log_info "Repository: $REPO"
   log_info "Tag: $tag"
   echo ""
-  
+
+  # Auto-fetch Firebase public config so opencode-login renders the Google
+  # sign-in UI without manual substitution flags. Eliminates the recurring
+  # empty-env-var bug after redeploys.
+  log_info "Fetching current Firebase public config for substitutions..."
+  local access_token response api_key auth_domain
+  access_token=$(gcloud auth print-access-token 2>/dev/null)
+  response=$(curl -sS -H "Authorization: Bearer $access_token" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config" || echo '{}')
+  api_key=$(echo "$response" | bun -e "
+    const r = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
+    console.log(r.client?.apiKey || '');
+  ")
+  auth_domain="${PROJECT_ID}.firebaseapp.com"
+
+  if [[ -z "$api_key" ]]; then
+    log_error "Firebase apiKey unavailable from Identity Toolkit Admin API."
+    log_error "This would deploy opencode-login with an empty FIREBASE_API_KEY env var,"
+    log_error "causing the sign-in UI to show 'Sign-in is not configured'."
+    log_error ""
+    log_error "Fix: ensure GCIP is initialized for project ${PROJECT_ID}."
+    log_error "Run: make cloud-setup-auth"
+    log_error ""
+    log_error "Aborting deploy to prevent silent failure."
+    return 1
+  fi
+
   log_info "Submitting build to Cloud Build..."
   echo ""
-  
+
   gcloud builds submit \
     --config=cloudbuild.yaml \
     --project="$PROJECT_ID" \
-    --substitutions="_REGION=$REGION,_REPO=$REPO,_TAG=$tag" \
+    --substitutions="_REGION=$REGION,_REPO=$REPO,_TAG=$tag,_FIREBASE_API_KEY=$api_key,_FIREBASE_AUTH_DOMAIN=$auth_domain" \
     .
-  
+
   echo ""
   log_success "Deployment complete"
   echo ""
@@ -195,7 +336,7 @@ cmd_status() {
 cmd_urls() {
   log_header "Service URLs"
   local found=false
-  
+
   echo "Midnight Infrastructure:"
   for service in midnight-node midnight-indexer midnight-proof-server; do
     url=$(gcloud run services describe "$service" \
@@ -207,7 +348,7 @@ cmd_urls() {
       found=true
     fi
   done
-  
+
   echo ""
   echo "Application Services:"
   for service in agent-registry somnia-agent sonic-agent midnight-agent store-agent payment-agent midnight-mcp evm-mcp opencode-login opencode-web; do
@@ -220,7 +361,7 @@ cmd_urls() {
       found=true
     fi
   done
-  
+
   if [[ "$found" == "false" ]]; then
     log_warn "No services found. Run: make cloud-deploy"
   fi
@@ -235,72 +376,9 @@ cmd_logs() {
     --limit=50
 }
 
-cmd_delete() {
-  log_header "Deleting Cloud Run services"
-  log_warn "This will delete all services!"
-  read -p "Are you sure? (y/N) " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    # Delete in reverse dependency order
-    for service in opencode-web opencode-login payment-agent store-agent midnight-agent sonic-agent midnight-mcp evm-mcp somnia-agent agent-registry midnight-indexer midnight-proof-server midnight-node; do
-      log_info "Deleting $service..."
-      gcloud run services delete "$service" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --quiet 2>/dev/null || true
-    done
-    log_success "Services deleted"
-  else
-    log_info "Cancelled"
-  fi
-}
-
 # -----------------------------------------------------------------------------
-# Helpers for parsing [default.dns] from config.toml via smol-toml + bun
+# DNS: cross-project A record from config.toml
 # -----------------------------------------------------------------------------
-_dns_field() {
-  # $1 = field name (project_id, zone_name, base_domain, subdomain)
-  bun -e "
-    const fs = require('fs');
-    const { parse } = require('smol-toml');
-    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
-    console.log(config.default?.dns?.${1} || '');
-  " 2>/dev/null
-}
-
-_require_dns_config() {
-  # Read all DNS fields and validate they're populated (not placeholder values).
-  # Sets DNS_PROJECT, ZONE_NAME, BASE_DOMAIN, SUBDOMAIN, FQDN as globals.
-  DNS_PROJECT=$(_dns_field project_id)
-  ZONE_NAME=$(_dns_field zone_name)
-  BASE_DOMAIN=$(_dns_field base_domain)
-  SUBDOMAIN=$(_dns_field subdomain)
-
-  if [[ -z "$DNS_PROJECT" || "$DNS_PROJECT" == "<DNS_PROJECT_ID>" ]]; then
-    log_error "config.toml [default.dns].project_id is not set."
-    log_error "Edit config.toml and fill in the [default.dns] block first."
-    log_error "See gcip-magiclink-setup.md Phase 0 for guidance."
-    return 1
-  fi
-  if [[ -z "$ZONE_NAME" || "$ZONE_NAME" == "<ZONE_NAME>" ]]; then
-    log_error "config.toml [default.dns].zone_name is not set."
-    return 1
-  fi
-  if [[ -z "$BASE_DOMAIN" || "$BASE_DOMAIN" == "<BASE_DOMAIN>" ]]; then
-    log_error "config.toml [default.dns].base_domain is not set."
-    return 1
-  fi
-  if [[ -z "$SUBDOMAIN" ]]; then
-    log_error "config.toml [default.dns].subdomain is not set."
-    return 1
-  fi
-
-  # Construct FQDN. base_domain may end with a dot (Cloud DNS convention).
-  # Strip trailing dot, concat subdomain, then re-add trailing dot.
-  FQDN="${SUBDOMAIN}.${BASE_DOMAIN%.}."
-  return 0
-}
-
 cmd_setup_dns() {
   log_header "Setting up cross-project DNS A record"
 
@@ -341,6 +419,9 @@ cmd_setup_dns() {
   log_success "DNS A record set: $FQDN → $LB_IP"
 }
 
+# -----------------------------------------------------------------------------
+# LB: NEGs, backend services, URL map (path-routed), HTTPS proxy, cert, IAP
+# -----------------------------------------------------------------------------
 cmd_setup_lb() {
   log_header "Provisioning LB resources for opencode-web + opencode-login"
 
@@ -415,9 +496,12 @@ cmd_setup_lb() {
   done
 
   # 5) URL map with path-based routing
-  #    /login*       → opencode-login-backend
-  #    /__/auth/*    → opencode-login-backend
-  #    everything else (default) → opencode-web-backend
+  #    /login*, /config, /styles.css, /health → opencode-login-backend
+  #    everything else (default) → opencode-web-backend (IAP-protected)
+  #
+  # Note: /__/auth/* path was used by the old email-link handler.html (PR #62)
+  # but is no longer needed since the Google sign-in popup flow (PR #68) uses
+  # the firebaseapp.com handler directly.
   if ! gcloud compute url-maps describe opencode-url-map \
         --global --project="$PROJECT_ID" &>/dev/null; then
     log_info "Creating URL map: opencode-url-map"
@@ -425,15 +509,40 @@ cmd_setup_lb() {
       --default-service=opencode-web-backend \
       --global --project="$PROJECT_ID" --quiet
 
-    log_info "Adding path matcher (login + auth handlers → opencode-login-backend)"
+    log_info "Adding path matcher (login + assets → opencode-login-backend)"
     gcloud compute url-maps add-path-matcher opencode-url-map \
       --path-matcher-name=login-paths \
       --default-service=opencode-web-backend \
       --new-hosts="$CERT_DOMAIN" \
-      --backend-service-path-rules="/login=opencode-login-backend,/login/*=opencode-login-backend,/__/auth/*=opencode-login-backend" \
+      --backend-service-path-rules="/login=opencode-login-backend,/login/*=opencode-login-backend,/config=opencode-login-backend,/styles.css=opencode-login-backend,/health=opencode-login-backend" \
       --global --project="$PROJECT_ID" --quiet
   else
-    log_info "URL map opencode-url-map already exists"
+    log_info "URL map opencode-url-map already exists; checking path rules drift..."
+
+    # Existing path rules may be stale (e.g., still pointing /__/auth/* somewhere
+    # or missing /config, /styles.css, /health). Refresh idempotently.
+    EXISTING_RULES=$(gcloud compute url-maps describe opencode-url-map \
+      --global --project="$PROJECT_ID" \
+      --format='value(pathMatchers[0].pathRules[].paths.list())' 2>/dev/null)
+    EXISTING_SORTED=$(echo "$EXISTING_RULES" | tr ',' '\n' | sort -u | tr '\n' ',' | sed 's/,$//' | sed 's/^,//')
+    EXPECTED_SORTED="/config,/health,/login,/login/*,/styles.css"
+    if [[ "$EXISTING_SORTED" != "$EXPECTED_SORTED" ]]; then
+      log_warn "URL map path rules drift detected; refreshing..."
+      log_warn "  Existing: $EXISTING_SORTED"
+      log_warn "  Expected: $EXPECTED_SORTED"
+      gcloud compute url-maps remove-path-matcher opencode-url-map \
+        --path-matcher-name=login-paths \
+        --global --project="$PROJECT_ID" --quiet 2>/dev/null || true
+      gcloud compute url-maps add-path-matcher opencode-url-map \
+        --path-matcher-name=login-paths \
+        --default-service=opencode-web-backend \
+        --new-hosts="$CERT_DOMAIN" \
+        --backend-service-path-rules="/login=opencode-login-backend,/login/*=opencode-login-backend,/config=opencode-login-backend,/styles.css=opencode-login-backend,/health=opencode-login-backend" \
+        --global --project="$PROJECT_ID" --quiet
+      log_success "URL map path rules refreshed"
+    else
+      log_info "URL map path rules are up to date"
+    fi
   fi
 
   # 6) Target HTTPS proxy
@@ -472,79 +581,210 @@ cmd_setup_lb() {
   echo ""
   log_success "LB resources provisioned"
   echo ""
-  log_info "Next manual step (one-time):"
-  log_info "  Apply IAP gcipSettings YAML for the agent-flow tenantIds pattern."
-  log_info "  See gcip-magiclink-setup.md Phase 4."
-  log_info ""
-  log_info "Then bind users: make cloud-sync-iap-users"
+  log_info "Next: 'make cloud-setup-auth' to configure GCIP Google IdP +"
+  log_info "authorizedDomains + IAP gcipSettings. (Or just run 'make cloud-setup'"
+  log_info "which chains all four sub-targets.)"
 }
 
-cmd_setup_gcip_magiclink() {
-  log_header "Enabling GCIP email-link sign-in"
+# -----------------------------------------------------------------------------
+# Auth: GCIP Google IdP + authorizedDomains merge + IAP gcipSettings YAML
+# -----------------------------------------------------------------------------
+# Single function that automates everything previously manual after PR #68:
+#   - POST/PATCH defaultSupportedIdpConfigs/google.com (Google IdP enable)
+#   - PATCH config?updateMask=authorizedDomains (preserving Firebase defaults)
+#   - gcloud beta iap settings set with agent-flow gcipSettings YAML
+#
+# Inputs:
+#   - config.toml [default.auth.google].client_id  (public, committed)
+#   - $GOOGLE_OAUTH_CLIENT_SECRET from .env       (sensitive, gitignored)
+#   - config.toml [default.dns]                   (for FQDN + loginPageUri)
+# -----------------------------------------------------------------------------
+cmd_setup_auth() {
+  log_header "Configuring GCIP Google IdP + authorizedDomains + IAP gcipSettings"
 
-  log_info "Project: $PROJECT_ID"
-  echo ""
+  _load_env
 
-  ACCESS_TOKEN=$(gcloud auth print-access-token)
+  local client_id client_secret deployment_fqdn
+  client_id=$(_oauth_client_id)
+  client_secret=$(_oauth_client_secret)
+  deployment_fqdn=$(_deployment_fqdn) || {
+    log_error "Could not determine deployment FQDN from config.toml [default.dns]."
+    log_error "Ensure subdomain and base_domain are set."
+    return 1
+  }
 
-  curl -sS -X PATCH \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "x-goog-user-project: $PROJECT_ID" \
-    -H "Content-Type: application/json" \
-    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config?updateMask=signIn.email" \
-    -d '{"signIn":{"email":{"enabled":true,"passwordRequired":false}}}'
-
-  echo ""
-  log_success "GCIP email-link sign-in enabled in project $PROJECT_ID"
-
-  # === Emit current Firebase public config for the operator ===
-  echo ""
-  log_info "Fetching current Firebase public config..."
-  RESPONSE=$(curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "x-goog-user-project: $PROJECT_ID" \
-    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config" \
-    || echo '{}')
-
-  read -r API_KEY SUBDOMAIN < <(echo "$RESPONSE" | bun -e "
-    const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
-    console.log((r.client?.apiKey || '') + ' ' + (r.client?.firebaseSubdomain || ''));
-  " 2>/dev/null)
-
-  if [[ -z "$API_KEY" ]]; then
-    log_warn "Could not extract apiKey from Identity Toolkit response."
-    log_warn "Raw response (first 300 chars): ${RESPONSE:0:300}"
-    log_warn "Manually fetch from: https://console.firebase.google.com/project/$PROJECT_ID/settings/general"
-    return 0
+  if [[ -z "$client_id" || "$client_id" == "<GOOGLE_OAUTH_CLIENT_ID>" ]]; then
+    log_error "config.toml [default.auth.google].client_id is unset/placeholder."
+    log_error "See gcip-google-signin-setup.md Phase 1 for setup."
+    return 1
+  fi
+  if [[ -z "$client_secret" ]]; then
+    log_error "GOOGLE_OAUTH_CLIENT_SECRET not set in environment."
+    log_error "Copy .env.example to .env and fill in the secret."
+    log_error "See gcip-google-signin-setup.md Phase 0."
+    return 1
   fi
 
-  AUTH_DOMAIN="${SUBDOMAIN:-$PROJECT_ID}.firebaseapp.com"
+  local access_token
+  access_token=$(gcloud auth print-access-token 2>/dev/null)
+
+  # === 1. Configure Google IdP (POST first; if 409/400, PATCH) ===
+  # Fix #1: write client_secret to a chmod 600 temp file and pass via --data @file
+  # so the secret is never visible in `ps` or `set -x` traces.
+  # Fix #2: explicit error handling for non-2xx/non-409 responses (no silent success).
+  log_info "Configuring Google IdP in GCIP..."
+  local http_code body_file
+  body_file=$(mktemp)
+  chmod 600 "$body_file"
+  cat > "$body_file" <<EOF_BODY
+{"enabled":true,"clientId":"$client_id","clientSecret":"$client_secret"}
+EOF_BODY
+
+  http_code=$(curl -s -o /tmp/gcip_idp_resp.json -w "%{http_code}" \
+    -X POST -H "Authorization: Bearer $access_token" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    -H "Content-Type: application/json" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/defaultSupportedIdpConfigs?idpId=google.com" \
+    --data @"$body_file")
+  rm -f "$body_file"
+
+  case "$http_code" in
+    2*)
+      log_success "Google IdP created"
+      ;;
+    409|400)
+      log_info "  Already exists; PATCHing..."
+      local patch_body_file
+      patch_body_file=$(mktemp)
+      chmod 600 "$patch_body_file"
+      cat > "$patch_body_file" <<EOF_BODY
+{"enabled":true,"clientId":"$client_id","clientSecret":"$client_secret"}
+EOF_BODY
+      curl -sX PATCH -H "Authorization: Bearer $access_token" \
+        -H "x-goog-user-project: $PROJECT_ID" \
+        -H "Content-Type: application/json" \
+        "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/defaultSupportedIdpConfigs/google.com?updateMask=enabled,clientId,clientSecret" \
+        --data @"$patch_body_file" \
+        > /dev/null
+      rm -f "$patch_body_file"
+      log_success "Google IdP updated"
+      ;;
+    *)
+      log_error "Unexpected HTTP $http_code from Identity Toolkit Admin API."
+      log_error "Response body:"
+      cat /tmp/gcip_idp_resp.json | head -c 500 >&2
+      echo "" >&2
+      return 1
+      ;;
+  esac
+
+  # === 2. authorizedDomains merge ===
+  # Fix #3: validate the GET response and parsed array before computing the merge.
+  # If parsing fails or yields a non-array, refuse to PATCH — sending null/[] would
+  # wipe required defaults (localhost, *.firebaseapp.com, *.web.app) and break sign-in.
+  log_info "Syncing authorizedDomains (preserving defaults + adding $deployment_fqdn)..."
+  local current_domains merged config_response
+  config_response=$(curl -sH "Authorization: Bearer $access_token" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config" 2>/dev/null)
+
+  if [[ -z "$config_response" ]]; then
+    log_error "Failed to fetch project config from Identity Toolkit Admin API"
+    return 1
+  fi
+
+  current_domains=$(echo "$config_response" | bun -e "
+    try {
+      const data = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
+      const ad = data.authorizedDomains;
+      if (!Array.isArray(ad)) {
+        console.error('authorizedDomains is not an array');
+        process.exit(1);
+      }
+      console.log(JSON.stringify(ad));
+    } catch (e) {
+      console.error('Failed to parse config response:', e.message);
+      process.exit(1);
+    }
+  " 2>/tmp/cmd_setup_auth_parse_err)
+
+  if [[ $? -ne 0 || -z "$current_domains" ]]; then
+    log_error "Failed to parse authorizedDomains from config response."
+    log_error "Parse error: $(cat /tmp/cmd_setup_auth_parse_err 2>/dev/null)"
+    log_error "Refusing to PATCH (would risk wiping defaults)."
+    return 1
+  fi
+
+  merged=$(echo "$current_domains" | bun -e "
+    const cur = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
+    const required = ['localhost', '${PROJECT_ID}.firebaseapp.com', '${PROJECT_ID}.web.app', '$deployment_fqdn'];
+    const merged = [...new Set([...cur, ...required])];
+    console.log(JSON.stringify(merged));
+  ")
+
+  # Final safety check: merged must contain required defaults before PATCHing.
+  if ! echo "$merged" | grep -q "localhost" || ! echo "$merged" | grep -q "${PROJECT_ID}.firebaseapp.com"; then
+    log_error "Merged authorizedDomains is missing required defaults; refusing to PATCH."
+    log_error "Computed merged: $merged"
+    return 1
+  fi
+
+  # Fix #1 (also): write JSON body to chmod 600 temp file, pass via --data @file.
+  local domains_body
+  domains_body=$(mktemp)
+  chmod 600 "$domains_body"
+  echo "{\"authorizedDomains\":$merged}" > "$domains_body"
+  curl -sX PATCH -H "Authorization: Bearer $access_token" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    -H "Content-Type: application/json" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config?updateMask=authorizedDomains" \
+    --data @"$domains_body" > /dev/null
+  rm -f "$domains_body"
+  log_success "authorizedDomains synced: $merged"
+
+  # === 3. IAP gcipSettings (agent-flow YAML) ===
+  log_info "Applying IAP gcipSettings (agent flow)..."
+  local project_number login_url tmp_yaml
+  project_number=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+  # Fetch current Firebase API key for loginPageUri query string
+  local response api_key
+  response=$(curl -sH "Authorization: Bearer $access_token" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config" || echo '{}')
+  api_key=$(echo "$response" | bun -e "
+    const r = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
+    console.log(r.client?.apiKey || '');
+  ")
+  if [[ -z "$api_key" ]]; then
+    log_warn "Could not fetch Firebase apiKey. IAP gcipSettings YAML cannot include the apiKey query parameter."
+    log_warn "loginPageUri will be incomplete; IAP may reject."
+    return 1
+  fi
+  login_url="https://${deployment_fqdn}/login?apiKey=${api_key}"
+  tmp_yaml=$(mktemp)
+  chmod 600 "$tmp_yaml"
+  cat > "$tmp_yaml" <<EOF
+accessSettings:
+  gcipSettings:
+    tenantIds:
+    - _${project_number}
+    loginPageUri: ${login_url}
+EOF
+  gcloud beta iap settings set "$tmp_yaml" \
+    --project="$PROJECT_ID" \
+    --resource-type=backend-services \
+    --service=opencode-web-backend > /dev/null
+  rm -f "$tmp_yaml"
+  log_success "IAP gcipSettings applied (tenantIds: [_${project_number}])"
 
   echo ""
-  log_success "Firebase public config (use as Cloud Build substitutions):"
-  echo ""
-  echo "  _FIREBASE_API_KEY=$API_KEY"
-  echo "  _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN"
-  echo "  _FIREBASE_PROJECT_ID=$PROJECT_ID"
-  echo ""
-  log_info "Pass these to Cloud Build:"
-  echo ""
-  echo "  gcloud builds submit --substitutions=\\"
-  echo "    _FIREBASE_API_KEY=$API_KEY,\\"
-  echo "    _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN,\\"
-  echo "    _FIREBASE_PROJECT_ID=$PROJECT_ID,..."
-  echo ""
-  log_info "Or set them in your shell environment:"
-  echo ""
-  echo "  export _FIREBASE_API_KEY=$API_KEY"
-  echo "  export _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN"
-  echo "  export _FIREBASE_PROJECT_ID=$PROJECT_ID"
-  echo ""
-  log_info "These values are PUBLIC by Firebase design — safe to commit/share."
-  log_info "Security comes from authorized-domain whitelist + Security Rules,"
-  log_info "not from secrecy of the apiKey."
+  log_success "Auth setup complete"
 }
 
-cmd_sync_iap_users() {
+# -----------------------------------------------------------------------------
+# Sync IAP allowed_users from config.toml
+# -----------------------------------------------------------------------------
+cmd_sync_users() {
   log_header "Syncing IAP users from config.toml to opencode-web-backend"
 
   # Parse allowed_users from config.toml using bun + smol-toml
@@ -626,18 +866,21 @@ cmd_sync_iap_users() {
   log_success "IAP users synced to opencode-web-backend"
 }
 
-cmd_teardown_lb() {
-  log_header "Tearing down LB resources (DESTRUCTIVE)"
-
-  log_warn "This will REMOVE the LB and BREAK the deployment."
-  log_warn "Cloud DNS records and Cloud Run services are NOT touched."
-  read -r -p "Are you sure? [y/N]: " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+# -----------------------------------------------------------------------------
+# Teardown: LB resources + Cloud Run services (single confirmation)
+# -----------------------------------------------------------------------------
+cmd_teardown() {
+  log_header "Tearing down ALL infrastructure (DESTRUCTIVE)"
+  log_warn "This will REMOVE the LB AND all Cloud Run services."
+  log_warn "Cloud DNS records and the Artifact Registry repo are NOT touched."
+  read -r -p "Are you sure? Type 'yes' to confirm: " confirm
+  if [[ "$confirm" != "yes" ]]; then
     log_info "Cancelled"
     return 0
   fi
 
-  # Delete in reverse dependency order; ignore errors if resource is absent
+  # 1. LB resources (delete in reverse dependency order; ignore errors)
+  log_info "Removing LB resources..."
   for cmd in \
     "gcloud compute forwarding-rules delete opencode-fwd-rule --global --quiet --project=$PROJECT_ID" \
     "gcloud compute target-https-proxies delete opencode-https-proxy --global --quiet --project=$PROJECT_ID" \
@@ -649,18 +892,39 @@ cmd_teardown_lb() {
     "gcloud compute network-endpoint-groups delete opencode-login-neg --region=$REGION --quiet --project=$PROJECT_ID" \
     "gcloud compute ssl-certificates delete opencode-web-cert --global --quiet --project=$PROJECT_ID" \
     "gcloud compute addresses delete opencode-web-lb-ip --global --quiet --project=$PROJECT_ID"; do
-    log_info "Running: $cmd"
-    eval "$cmd" 2>/dev/null || true
+    eval "$cmd 2>/dev/null || true"
   done
+  log_success "LB resources removed"
+
+  # 2. Cloud Run services
+  log_info "Removing Cloud Run services..."
+  for service in opencode-web opencode-login payment-agent store-agent midnight-agent sonic-agent midnight-mcp evm-mcp somnia-agent agent-registry midnight-indexer midnight-proof-server midnight-node; do
+    gcloud run services delete "$service" --region="$REGION" --project="$PROJECT_ID" --quiet 2>/dev/null || true
+  done
+  log_success "Cloud Run services removed"
 
   echo ""
-  log_success "LB resources removed"
+  log_success "Full teardown complete"
 }
 
-# Main
+# -----------------------------------------------------------------------------
+# Dispatcher
+# -----------------------------------------------------------------------------
 case "${1:-}" in
   setup)
     cmd_setup
+    ;;
+  setup-project)
+    cmd_setup_project
+    ;;
+  setup-dns)
+    cmd_setup_dns
+    ;;
+  setup-lb)
+    cmd_setup_lb
+    ;;
+  setup-auth)
+    cmd_setup_auth
     ;;
   deploy)
     cmd_deploy
@@ -674,40 +938,27 @@ case "${1:-}" in
   logs)
     cmd_logs "${2:-}"
     ;;
-  delete)
-    cmd_delete
+  sync-users)
+    cmd_sync_users
     ;;
-  setup-dns)
-    cmd_setup_dns
-    ;;
-  setup-lb)
-    cmd_setup_lb
-    ;;
-  setup-gcip-magiclink)
-    cmd_setup_gcip_magiclink
-    ;;
-  sync-iap-users)
-    cmd_sync_iap_users
-    ;;
-  teardown-lb)
-    cmd_teardown_lb
+  teardown)
+    cmd_teardown
     ;;
   *)
     show_usage "cloud.sh" "
-  setup                  One-time setup (APIs, Artifact Registry, IAM)
-  deploy                 Build and deploy to Cloud Run
-  status                 Show Cloud Run service status
-  urls                   Show service URLs
-  logs [svc]             View logs (default: opencode-web)
-  delete                 Delete all Cloud Run services
+  setup            One-time meta bootstrap (project + dns + lb + auth)
+  deploy           Build and deploy to Cloud Run (auto Firebase substitutions)
+  status           Show Cloud Run service status
+  urls             Show service URLs
+  logs [svc]       View logs (default: opencode-web)
+  sync-users       Sync IAP allowed_users from config.toml
+  teardown         DESTRUCTIVE: tear down LB + Cloud Run services
 
-  setup-dns              Create cross-project DNS A record from config.toml
-  setup-lb               Provision LB resources (NEGs, backend services,
-                         URL map with path routing, SSL cert, fwd rule)
-  setup-gcip-magiclink   Enable GCIP email-link sign-in in this project
-  sync-iap-users         Sync IAP allowed_users from config.toml to the
-                         opencode-web-backend backend service
-  teardown-lb            DESTRUCTIVE: remove all LB resources
+Advanced sub-targets (called by 'setup'; useful for recovery):
+  setup-project    APIs + project IAM only
+  setup-dns        Cross-project DNS A record only
+  setup-lb         LB resources + URL map + IAP enable
+  setup-auth       GCIP Google IdP + authorizedDomains + IAP gcipSettings
 
 Environment variables:
   GCP_PROJECT  GCP project ID (default: kunal-scratch)

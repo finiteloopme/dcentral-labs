@@ -8,6 +8,8 @@ build/
 *.tsbuildinfo
 
 # Environment
+# .env holds local secrets sourced by scripts/cloud.sh (e.g.
+# GOOGLE_OAUTH_CLIENT_SECRET). Use .env.example as the committed template.
 .env
 .env.local
 .env.*.local
