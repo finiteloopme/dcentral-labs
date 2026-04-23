@@ -68,6 +68,38 @@ host = "localhost"
 port = 3000
 
 # -----------------------------------------------------------------------------
+# Cloud Run service routing for the LB + IAP + GCIP magic-link architecture
+# -----------------------------------------------------------------------------
+# These mirror the live Cloud Run service names. They define how the External
+# Application Load Balancer maps URL paths to backend services and which
+# backend service has IAP enabled.
+#
+# IMPORTANT: live Cloud Run service names are `opencode-web` and
+# `opencode-login`. The package directory is `packages/adk-backend/` for
+# legacy reasons (issue #61); cloudbuild.yaml deploys it as `opencode-web`.
+#
+# Path-based routing on the single subdomain `dcoder.<base_domain>`:
+#   /login*       → opencode-login (IAP DISABLED — public sign-in UI)
+#   /__/auth/*    → opencode-login (IAP DISABLED — Firebase auth handlers)
+#   /*  (default) → opencode-web   (IAP ENABLED via gcipSettings agent flow)
+
+[default.services.opencode-web]
+host = "0.0.0.0"
+port = 8080
+# Default backend — handles all paths NOT claimed by another service
+path_prefix = "/"
+# IAP enabled at LB backend service level (gcipSettings agent flow)
+iap_enabled = true
+
+[default.services.opencode-login]
+host = "0.0.0.0"
+port = 8080
+# Login UI at /login; Firebase Auth handlers at /__/auth/*
+path_prefixes = ["/login", "/__/auth"]
+# IAP MUST be disabled — this is the public sign-in page
+iap_enabled = false
+
+# -----------------------------------------------------------------------------
 # Agents (registered in agent-registry)
 # -----------------------------------------------------------------------------
 # Each agent references a service for URL construction.
@@ -265,19 +297,48 @@ opencode = "vertex-anthropic"
 # These must match agent IDs defined in [default.agents.*]
 default_agents = ["somnia", "sonic", "midnight", "store", "payment", "security"]
 
+# =============================================================================
+# DNS / Custom Domain Configuration
+# =============================================================================
+# Cross-project Cloud DNS managed zone hosting the dCoder deployment domain.
+# The DNS zone lives in a separate Argolis project; the Cloud Build SA must
+# have roles/dns.recordSetEditor on that project.
+#
+# Workflow:
+#   1. Fill in placeholders below with actual values
+#   2. Grant cross-project IAM (see gcip-magiclink-setup.md)
+#   3. Run: make cloud-setup-gcip-magiclink
+#   4. Run: make cloud-setup-dns
+#   5. Run: make cloud-setup-lb
+#   6. Run: make cloud-sync-iap-users
+
+[default.dns]
+# Argolis project hosting the Cloud DNS managed zone (cross-project)
+project_id = "<DNS_PROJECT_ID>"
+
+# Cloud DNS managed-zone resource name (GCP resource ID, NOT the DNS name)
+zone_name = "<ZONE_NAME>"
+
+# Root DNS name of the managed zone (with trailing dot per Cloud DNS convention)
+# e.g. "kunall.demo.altostrat.com."
+base_domain = "<BASE_DOMAIN>"
+
+# Subdomain for the dCoder deployment (relative to base_domain)
+# Constructs the full FQDN: dcoder.<base_domain>
+subdomain = "dcoder"
+
 # -----------------------------------------------------------------------------
 # Authentication (IAP user whitelist)
 # -----------------------------------------------------------------------------
-# Users listed here will be granted access to opencode-web via IAP.
+# Users listed here are granted access to the IAP-protected backend service
+# (`opencode-web-backend`) at the LB layer. With GCIP-issued tokens via the
+# magic-link "agent flow", IAP IAM works for ANY email address (not just
+# Workspace-managed accounts).
 #
 # Workflow:
 #   1. Add/remove emails from allowed_users list
-#   2. Run: make cloud-sync-users    # Sync IAP bindings
+#   2. Run: make cloud-sync-iap-users    # Sync IAP bindings on backend service
 #   3. Changes take effect immediately
-#
-# NOTE: This project is deployed on an Argolis (Google internal demo) org.
-# Only @kunall.altostrat.com users can access IAP-protected resources.
-# External users require deployment to a non-Argolis GCP project.
 
 [default.auth]
 allowed_users = [

@@ -6,6 +6,8 @@
         container-clean container-build container-run container-stop container-logs \
         up down rebuild logs \
         cloud-setup cloud-deploy cloud-status cloud-urls cloud-logs cloud-delete \
+        cloud-setup-dns cloud-setup-lb cloud-setup-gcip-magiclink \
+        cloud-sync-iap-users cloud-teardown-lb \
         config health send
 
 .DEFAULT_GOAL := help
@@ -82,8 +84,20 @@ cloud-logs: ## View Cloud Run logs (SVC=service-name)
 cloud-delete: ## Delete all Cloud Run services
 	@./scripts/cloud.sh delete
 
-cloud-sync-users: ## Sync IAP allowed users from config.toml
-	@./scripts/cloud.sh sync-users
+cloud-setup-dns: ## Set up cross-project DNS A record from config.toml
+	@./scripts/cloud.sh setup-dns
+
+cloud-setup-lb: ## Provision LB resources (URL map, backend services, NEGs, cert)
+	@./scripts/cloud.sh setup-lb
+
+cloud-setup-gcip-magiclink: ## Enable GCIP email-link sign-in in this project
+	@./scripts/cloud.sh setup-gcip-magiclink
+
+cloud-sync-iap-users: ## Sync IAP allowed_users from config.toml to opencode-web-backend
+	@./scripts/cloud.sh sync-iap-users
+
+cloud-teardown-lb: ## DESTRUCTIVE: tear down LB resources
+	@./scripts/cloud.sh teardown-lb
 
 # =============================================================================
 # UTILITIES

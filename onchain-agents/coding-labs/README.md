@@ -29,21 +29,41 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 
 **Detailed Architecture**
 
+The deployment fronts two Cloud Run services with a single External HTTPS
+Load Balancer at `dcoder.<base_domain>`. URL-map path routing sends
+`/login` and `/__/auth/*` to `opencode-login` (the magic-link sign-in UI,
+no IAP) and everything else to `opencode-web` (IAP at the LB backend
+service via gcipSettings agent flow). See `gcip-magiclink-setup.md` for
+details and issue #60 for rationale.
+
 ```
-┌──────────────────────┐         ┌─────────────────────────────────────────────┐
-│   opencode-login     │         │              opencode-web                   │
-│                      │         │  ┌─────────────────────────────────────┐    │
-│                      │         │  │            OpenCode Web             │    │
-│   dCoder Landing     │  ──→    │  │       (Primary User Interface)      │    │
-│   "Sign in with      │  click  │  │                                     │    │
-│    Google" button    │         │  │  - Browser-based coding session     │    │
-│                      │         │  │  - Wallet connection (MetaMask)     │    │
-│   (Public)           │         │  │  - A2A Client integrated            │    │
-│                      │         │  │  - Routes to chain agents           │    │
-└──────────────────────┘         │  └──────────────────┬──────────────────┘    │
-                                 │    (IAP Protected)  │                       │
-                                 └─────────────────────┼───────────────────────┘
-                                                       │ A2A Protocol (HTTP+JSON)
+                       https://dcoder.<base_domain>
+                                    │
+              ┌─────────────────────┴─────────────────────┐
+              │  External HTTPS LB + URL map              │
+              │   /login*    + /__/auth/* → opencode-login│
+              │   /*  (default)           → opencode-web  │
+              │   IAP (gcipSettings agent flow) on        │
+              │       opencode-web-backend only           │
+              └─────────────────┬─────────┬───────────────┘
+                                │         │
+              ┌─────────────────┘         └─────────────────────────┐
+              ▼                                                     ▼
+┌──────────────────────┐                ┌─────────────────────────────────────────────┐
+│   opencode-login     │                │              opencode-web                   │
+│                      │                │  ┌─────────────────────────────────────┐    │
+│  Magic-link UI       │ Firebase JS    │  │            OpenCode Web             │    │
+│  /login              │ ──email link── │  │       (Primary User Interface)      │    │
+│  /__/auth/handler    │   ◀──────────  │  │                                     │    │
+│                      │                │  │  - Browser-based coding session     │    │
+│  GCIP "agent flow"   │                │  │  - Wallet connection (MetaMask)     │    │
+│  tenantIds:          │                │  │  - A2A Client integrated            │    │
+│  ["_<project_num>"]  │                │  │  - Routes to chain agents           │    │
+│  (LB-only ingress,   │                │  └──────────────────┬──────────────────┘    │
+│   no IAP)            │                │    (LB-only ingress;│                       │
+└──────────────────────┘                │     IAP at backend) │                       │
+                                        └─────────────────────┼───────────────────────┘
+                                                              │ A2A Protocol (HTTP+JSON)
        ┌──────────────┬──────────────┬─────────────────┼──────────────┬──────────────┬──────────────────┐
        ▼              ▼              ▼                  ▼              ▼              ▼                  ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐ ┌─────────────────┐
@@ -328,8 +348,17 @@ make help  # Show all available targets
 #### Cloud
 | Target | Description |
 |--------|-------------|
-| `cloud-build` | Build for Cloud Run (stub) |
-| `cloud-deploy` | Deploy to Cloud Run (stub) |
+| `cloud-setup` | One-time cloud infrastructure setup |
+| `cloud-deploy` | Deploy all services to Cloud Run |
+| `cloud-status` | Show Cloud Run service status |
+| `cloud-urls` | Print Cloud Run service URLs |
+| `cloud-logs SVC=<name>` | View Cloud Run logs |
+| `cloud-delete` | Delete all Cloud Run services |
+| `cloud-setup-dns` | Create cross-project DNS A record from `config.toml` |
+| `cloud-setup-lb` | Provision LB resources (NEGs, backend services, URL map, cert) |
+| `cloud-setup-gcip-magiclink` | Enable GCIP email-link sign-in |
+| `cloud-sync-iap-users` | Sync IAP allowed users from `config.toml` to `opencode-web-backend` |
+| `cloud-teardown-lb` | DESTRUCTIVE: tear down LB resources |
 
 #### Utilities
 | Target | Description |
@@ -417,6 +446,20 @@ describe('somniaAgentCard', () => {
 | `SOMNIA_AGENT_HOST` | `localhost` | Agent host |
 | `GOOGLE_CLOUD_PROJECT` | `kunal-scratch` | GCP project for Vertex AI |
 | `GOOGLE_CLOUD_LOCATION` | `global` | GCP region |
+| `FIREBASE_API_KEY` | _(unset)_ | Public Firebase Web API key (browser-safe). Required by `opencode-login` to render the magic-link sign-in UI. See `gcip-magiclink-setup.md`. |
+| `FIREBASE_AUTH_DOMAIN` | _(unset)_ | Firebase auth domain, typically `<project>.firebaseapp.com`. Public, browser-safe. |
+| `FIREBASE_PROJECT_ID` | `kunal-scratch` | GCP project ID hosting GCIP. |
+
+### Custom domain & magic-link auth
+
+The production deployment is fronted by an External HTTPS Load Balancer at
+`dcoder.<base_domain>` with IAP + GCIP "agent flow" + magic-link email
+sign-in (issue #60). Path-based routing on the URL map sends `/login*` and
+`/__/auth/*` to a public sign-in service (`opencode-login`) and everything
+else to the IAP-protected app backend (`opencode-web`).
+
+For one-time bootstrap (DNS, SSL cert, LB resources, GCIP enable, IAP user
+sync), see [`gcip-magiclink-setup.md`](./gcip-magiclink-setup.md).
 
 ### Centralized Configuration
 
