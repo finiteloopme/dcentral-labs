@@ -578,51 +578,39 @@
               <li>Integrated with Google Cloud for enterprise scale</li>
             </ul>
 
-            <!-- Magic-link sign-in (issue #60). The legacy Google OAuth
-                 button has been replaced with email-link auth via Firebase /
-                 GCIP. The handler page lives at /__/auth/handler. -->
+            <!-- Google sign-in (issue #67). Replaces email-link sign-in due to a
+                 Firebase backend bug for IDENTITY_PLATFORM subtype projects.
+                 The OAuth client (referenced as gcipSettings.googleProvider in the
+                 IAP↔GCIP agent flow) lives in a non-Argolis project — see
+                 gcip-google-signin-setup.md for one-time setup. -->
             <div id="signin-container">
-              <div id="email-input-state">
-                <input
-                  type="email"
-                  id="email-input"
-                  class="email-input"
-                  placeholder="you@example.com"
-                  autocomplete="email"
-                  required
-                />
-                <button id="send-link-btn" class="signin-button">
-                  <svg
-                    class="email-icon"
-                    viewBox="0 0 24 24"
-                    width="20"
-                    height="20"
-                  >
-                    <path
-                      fill="#ffffff"
-                      d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
-                    />
-                  </svg>
-                  Send magic link
-                </button>
-                <p id="signin-error" class="signin-error" hidden></p>
-              </div>
-
-              <div id="check-email-state" hidden>
-                <div class="check-email-icon">📧</div>
-                <h3 class="check-email-title">Check your email</h3>
-                <p class="check-email-body">
-                  We sent a magic link to
-                  <strong id="sent-to-email"></strong>.
-                </p>
-                <p class="signin-hint">
-                  Click the link to complete sign-in. The link expires in
-                  15 minutes.
-                </p>
-                <button id="resend-link-btn" class="signin-button-secondary">
-                  Send another link
-                </button>
-              </div>
+              <button id="google-signin-btn" class="signin-button">
+                <svg
+                  class="google-icon"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                >
+                  <path
+                    fill="#ffffff"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#ffffff"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#ffffff"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#ffffff"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+                Sign in with Google
+              </button>
+              <p id="signin-error" class="signin-error" hidden></p>
             </div>
 
             <div class="divider"></div>
@@ -687,42 +675,41 @@
         scrim.classList.remove('visible');
       });
 
-      // The legacy init() that wired the Google sign-in button to APP_URL is
-      // gone — sign-in now happens via the magic-link module script below.
-      // The header "Sign in" link just anchors to the email input section.
+      // Sign-in is wired up by the Google sign-in module script below
+      // (issue #67). The header "Sign in" link just anchors to the
+      // sign-in button section.
 
       // Show dCoder page by default
       showPage('dcoder');
     </script>
 
     <!--
-      Magic-link sign-in module (issue #60).
+      Google sign-in module (issue #67).
       Loads Firebase JS SDK from the official CDN, fetches public config
-      from /config, and wires up the email input + send-link button.
+      from /config, and wires up the "Sign in with Google" button using
+      signInWithPopup against the GCIP-configured Google IdP.
     -->
     <script type="module">
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
       import {
         getAuth,
-        sendSignInLinkToEmail,
+        GoogleAuthProvider,
+        signInWithPopup,
       } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 
       function showError(msg) {
         const errEl = document.getElementById('signin-error');
-        if (!errEl) return;
         errEl.textContent = msg;
         errEl.hidden = false;
       }
 
       function clearError() {
         const errEl = document.getElementById('signin-error');
-        if (errEl) {
-          errEl.hidden = true;
-          errEl.textContent = '';
-        }
+        errEl.hidden = true;
+        errEl.textContent = '';
       }
 
-      async function initFirebaseAuth() {
+      async function initGoogleAuth() {
         let config;
         try {
           const response = await fetch('/config');
@@ -744,64 +731,45 @@
         const app = initializeApp(config.firebase);
         const auth = getAuth(app);
 
-        const emailInput = document.getElementById('email-input');
-        const sendBtn = document.getElementById('send-link-btn');
-        const resendBtn = document.getElementById('resend-link-btn');
-        const inputState = document.getElementById('email-input-state');
-        const checkState = document.getElementById('check-email-state');
-        const sentToEmail = document.getElementById('sent-to-email');
+        const signInBtn = document.getElementById('google-signin-btn');
 
-        async function sendLink(email) {
+        signInBtn.addEventListener('click', async () => {
           clearError();
-          // The magic link returns the user to /__/auth/handler on the same
-          // hostname (the LB FQDN, e.g. dcoder.<base_domain>). The URL map
-          // routes /__/auth/* to opencode-login (no IAP), where handler.html
-          // calls signInWithEmailLink and forwards the user back to IAP.
-          const actionCodeSettings = {
-            url: window.location.origin + '/__/auth/handler',
-            handleCodeInApp: true,
-          };
+          const provider = new GoogleAuthProvider();
           try {
-            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-            window.localStorage.setItem('emailForSignIn', email);
-            sentToEmail.textContent = email;
-            inputState.hidden = true;
-            checkState.hidden = false;
+            // signInWithPopup uses GCIP's configured Google IdP.
+            // GCIP routes to the cross-project OAuth client (External user type)
+            // and returns a Firebase ID token. The IAP↔GCIP agent flow
+            // (gcipSettings.tenantIds: ["_<project_number>"]) accepts this token.
+            const result = await signInWithPopup(auth, provider);
+            const idToken = await result.user.getIdToken();
+            console.log('[opencode-login] Sign-in succeeded for', result.user.email);
+
+            // Standard IAP+GCIP redirect-back: navigate to the original target.
+            // IAP detects the GCIP session via Firebase's auth-state cookies
+            // (set by signInWithPopup) and completes its session establishment
+            // on the next request to a protected URL.
+            // Try to extract original URL from URL params (IAP passes 'continueUri'
+            // or 'state' in some configurations); fall back to root.
+            const params = new URLSearchParams(window.location.search);
+            const continueUri = params.get('continueUri') || params.get('state') || '/';
+            window.location.href = continueUri;
           } catch (err) {
-            console.error('[opencode-login] sendSignInLinkToEmail failed:', err);
-            showError(err.message || 'Failed to send link. Try again.');
-          }
-        }
-
-        sendBtn.addEventListener('click', () => {
-          const email = emailInput.value.trim();
-          if (!email) {
-            showError('Enter your email address.');
-            return;
-          }
-          sendLink(email);
-        });
-
-        emailInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') sendBtn.click();
-        });
-
-        emailInput.addEventListener('input', clearError);
-
-        resendBtn.addEventListener('click', () => {
-          const email =
-            window.localStorage.getItem('emailForSignIn') ||
-            (emailInput && emailInput.value.trim());
-          if (email) {
-            // Reset to input state so the user sees the result of resending.
-            checkState.hidden = true;
-            inputState.hidden = false;
-            sendLink(email);
+            console.error('[opencode-login] Google sign-in failed:', err);
+            if (err.code === 'auth/popup-closed-by-user') {
+              // User cancelled; no error needed
+              return;
+            }
+            if (err.code === 'auth/popup-blocked') {
+              showError('Popup blocked. Please allow popups for this site and try again.');
+              return;
+            }
+            showError(err.message || 'Sign-in failed. Try again.');
           }
         });
       }
 
-      document.addEventListener('DOMContentLoaded', initFirebaseAuth);
+      document.addEventListener('DOMContentLoaded', initGoogleAuth);
     </script>
   </body>
 </html>

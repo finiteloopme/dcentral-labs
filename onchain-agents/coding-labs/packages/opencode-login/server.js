@@ -1,14 +1,13 @@
 /**
  * dCoder Login Page Server
  *
- * Express server hosting the magic-link sign-in UI under the LB + IAP + GCIP
- * agent-flow architecture (issue #60).
+ * Express server hosting the Google sign-in UI under the LB + IAP + GCIP
+ * agent-flow architecture (issues #60, #67).
  *
  * Routes:
  *   GET /health         — liveness probe
  *   GET /config         — public Firebase config + APP_URL for the SPA
  *   GET /login          — sign-in page (renders public/index.html)
- *   GET /__/auth/handler — magic-link return handler (static file)
  *   GET /*              — fallback to public/index.html
  *
  * Firebase env vars are PUBLIC (browser-safe):
@@ -55,8 +54,7 @@ app.get('/login', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
-// Serve static files from public/ (includes /__/auth/handler.html and
-// /styles.css). Express resolves /__/auth/handler.html naturally.
+// Serve static files from public/ (e.g. /styles.css).
 app.use(express.static(join(__dirname, 'public')));
 
 // Fallback to index.html for SPA-like behavior on unknown paths
