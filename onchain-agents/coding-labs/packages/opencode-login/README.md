@@ -1,19 +1,19 @@
 # dCoder Login Page
 
-Magic-link email sign-in UI for dCoder, hosted at `/login` and `/__/auth/*`
-on the deployment FQDN (e.g. `dcoder.<base_domain>`).
+Google sign-in UI for dCoder, hosted at `/login` on the deployment FQDN
+(e.g. `dcoder.<base_domain>`).
 
 ## Overview
 
 This service hosts:
 
-- The dCoder branded landing page with an email input + "Send magic link" button
-- The `/__/auth/handler` endpoint that completes Firebase email-link sign-in
-  and redirects the user back to the IAP-protected app
+- The dCoder branded landing page with a "Sign in with Google" button
+  that uses Firebase JS SDK `signInWithPopup(GoogleAuthProvider)` against
+  the GCIP-configured Google IdP.
 
 It is deployed as a public Cloud Run service with `--ingress=internal-and-cloud-load-balancing`
 so it is only reachable through the External HTTPS Load Balancer (which
-routes `/login*` and `/__/auth/*` paths to it).
+routes `/login*` to it).
 
 ## Architecture
 
@@ -24,30 +24,32 @@ routes `/login*` and `/__/auth/*` paths to it).
 │                          │       │    agent flow)              │
 │   /login                 │       │                             │
 │     ▲                    │       │   Main application          │
-│     │ user enters email  │       │   Receives x-goog-iap-jwt-  │
-│     ▼                    │       │   assertion + enforces      │
-│   Firebase JS SDK        │       │   config.toml allow-list    │
-│     ▲                    │       │                             │
-│     │ magic link in      │       └────────────▲────────────────┘
-│     │ email              │                    │
-│     ▼                    │                    │
-│   /__/auth/handler       │ signInWithEmailLink│
-│     ▲                    │ → ID token         │
-│     │ user clicks link   │ → IAP session      │
-│     ▼                    │ ───────────────────┘
-│   redirect to original   │
-│   target URL             │
+│     │ user clicks "Sign  │       │   Receives x-goog-iap-jwt-  │
+│     │ in with Google"    │       │   assertion + enforces      │
+│     ▼                    │       │   config.toml allow-list    │
+│   Firebase JS SDK        │       │                             │
+│   signInWithPopup        │       └────────────▲────────────────┘
+│   (GoogleAuthProvider)   │                    │
+│     ▲                    │                    │
+│     │ popup closes with  │                    │
+│     │ Firebase ID token  │ Firebase auth      │
+│     ▼                    │ cookies set →      │
+│   redirect to original   │ IAP detects GCIP   │
+│   target URL             │ session ───────────┘
 └──────────────────────────┘
 
   All paths share the same hostname (dcoder.<base_domain>) — no
   cross-domain bouncing. The LB URL map handles routing:
 
       /login*       → opencode-login-backend (no IAP)
-      /__/auth/*    → opencode-login-backend (no IAP)
       /*  (default) → opencode-web-backend   (IAP enabled)
 ```
 
-See `gcip-magiclink-setup.md` for the one-time bootstrap.
+> The legacy `/__/auth/*` URL map path rule (used by the email-link return
+> handler in v1) is now inactive but harmless; cleanup is tracked as a
+> follow-up issue.
+
+See `gcip-google-signin-setup.md` for the one-time bootstrap.
 
 ## Development
 
@@ -68,8 +70,8 @@ APP_URL=http://localhost:4097 \
 # Visit http://localhost:8080/login
 ```
 
-If the Firebase env vars are unset, the page renders but clicking "Send magic
-link" will display a "Sign-in is not configured" error.
+If the Firebase env vars are unset, the page renders but clicking "Sign in
+with Google" will display a "Sign-in is not configured" error.
 
 For fully offline testing, run the Firebase Auth emulator:
 
@@ -116,16 +118,15 @@ docker compose --profile login up
 
 The Firebase values are PUBLIC config (browser-safe) — security comes from
 authorized-domain whitelisting in the Firebase Console + Firebase Security
-Rules, not from secrecy of the apiKey. See `gcip-magiclink-setup.md`
-Phase 0 for how to retrieve them.
+Rules, not from secrecy of the apiKey. See `gcip-google-signin-setup.md`
+for how to retrieve them and the operator-side OAuth client provisioning.
 
 ## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /` | Landing page HTML |
-| `GET /login` | Magic-link sign-in page (alias for `/`) |
-| `GET /__/auth/handler` | Email-link return handler (completes sign-in) |
+| `GET /login` | Google sign-in page (alias for `/`) |
 | `GET /health` | Health check |
 | `GET /config` | Returns `{ appUrl, firebase: { apiKey, authDomain, projectId } }` for the SPA |
 
@@ -134,6 +135,6 @@ Phase 0 for how to retrieve them.
 The login page is deployed as a Cloud Run service with LB-only ingress
 (`--ingress=internal-and-cloud-load-balancing`) so it can only be reached
 through the External HTTPS Load Balancer. The LB URL map routes `/login*`
-and `/__/auth/*` requests to this backend without IAP.
+requests to this backend without IAP.
 
-See `cloudbuild.yaml` and `gcip-magiclink-setup.md` for deployment details.
+See `cloudbuild.yaml` and `gcip-google-signin-setup.md` for deployment details.

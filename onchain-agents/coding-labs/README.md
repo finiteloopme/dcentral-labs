@@ -31,17 +31,17 @@ Coding Labs provides AI agents specialized for blockchain development. Each agen
 
 The deployment fronts two Cloud Run services with a single External HTTPS
 Load Balancer at `dcoder.<base_domain>`. URL-map path routing sends
-`/login` and `/__/auth/*` to `opencode-login` (the magic-link sign-in UI,
-no IAP) and everything else to `opencode-web` (IAP at the LB backend
-service via gcipSettings agent flow). See `gcip-magiclink-setup.md` for
-details and issue #60 for rationale.
+`/login` to `opencode-login` (the Google sign-in UI, no IAP) and
+everything else to `opencode-web` (IAP at the LB backend service via
+gcipSettings agent flow). See `gcip-google-signin-setup.md` for details
+and issues #60 / #67 for rationale.
 
 ```
                        https://dcoder.<base_domain>
                                     │
               ┌─────────────────────┴─────────────────────┐
               │  External HTTPS LB + URL map              │
-              │   /login*    + /__/auth/* → opencode-login│
+              │   /login*                 → opencode-login│
               │   /*  (default)           → opencode-web  │
               │   IAP (gcipSettings agent flow) on        │
               │       opencode-web-backend only           │
@@ -52,17 +52,17 @@ details and issue #60 for rationale.
 ┌──────────────────────┐                ┌─────────────────────────────────────────────┐
 │   opencode-login     │                │              opencode-web                   │
 │                      │                │  ┌─────────────────────────────────────┐    │
-│  Magic-link UI       │ Firebase JS    │  │            OpenCode Web             │    │
-│  /login              │ ──email link── │  │       (Primary User Interface)      │    │
-│  /__/auth/handler    │   ◀──────────  │  │                                     │    │
-│                      │                │  │  - Browser-based coding session     │    │
-│  GCIP "agent flow"   │                │  │  - Wallet connection (MetaMask)     │    │
-│  tenantIds:          │                │  │  - A2A Client integrated            │    │
-│  ["_<project_num>"]  │                │  │  - Routes to chain agents           │    │
-│  (LB-only ingress,   │                │  └──────────────────┬──────────────────┘    │
-│   no IAP)            │                │    (LB-only ingress;│                       │
-└──────────────────────┘                │     IAP at backend) │                       │
-                                        └─────────────────────┼───────────────────────┘
+│  Google sign-in UI   │ Firebase JS    │  │            OpenCode Web             │    │
+│  /login              │ signInWithPopup│  │       (Primary User Interface)      │    │
+│  (popup → Google     │ (GoogleAuth    │  │                                     │    │
+│   account picker)    │  Provider)     │  │  - Browser-based coding session     │    │
+│                      │                │  │  - Wallet connection (MetaMask)     │    │
+│  GCIP "agent flow"   │                │  │  - A2A Client integrated            │    │
+│  tenantIds:          │                │  │  - Routes to chain agents           │    │
+│  ["_<project_num>"]  │                │  └──────────────────┬──────────────────┘    │
+│  (LB-only ingress,   │                │    (LB-only ingress;│                       │
+│   no IAP)            │                │     IAP at backend) │                       │
+└──────────────────────┘                └─────────────────────┼───────────────────────┘
                                                               │ A2A Protocol (HTTP+JSON)
        ┌──────────────┬──────────────┬─────────────────┼──────────────┬──────────────┬──────────────────┐
        ▼              ▼              ▼                  ▼              ▼              ▼                  ▼
@@ -356,7 +356,7 @@ make help  # Show all available targets
 | `cloud-delete` | Delete all Cloud Run services |
 | `cloud-setup-dns` | Create cross-project DNS A record from `config.toml` |
 | `cloud-setup-lb` | Provision LB resources (NEGs, backend services, URL map, cert) |
-| `cloud-setup-gcip-magiclink` | Enable GCIP email-link sign-in |
+| `cloud-setup-gcip-magiclink` | (Legacy/unused) Enable GCIP email-link sign-in — superseded by Google sign-in (#67); see `gcip-google-signin-setup.md` |
 | `cloud-sync-iap-users` | Sync IAP allowed users from `config.toml` to `opencode-web-backend` |
 | `cloud-teardown-lb` | DESTRUCTIVE: tear down LB resources |
 
@@ -446,20 +446,26 @@ describe('somniaAgentCard', () => {
 | `SOMNIA_AGENT_HOST` | `localhost` | Agent host |
 | `GOOGLE_CLOUD_PROJECT` | `kunal-scratch` | GCP project for Vertex AI |
 | `GOOGLE_CLOUD_LOCATION` | `global` | GCP region |
-| `FIREBASE_API_KEY` | _(unset)_ | Public Firebase Web API key (browser-safe). Required by `opencode-login` to render the magic-link sign-in UI. See `gcip-magiclink-setup.md`. |
+| `FIREBASE_API_KEY` | _(unset)_ | Public Firebase Web API key (browser-safe). Required by `opencode-login` to render the Google sign-in UI. See `gcip-google-signin-setup.md`. |
 | `FIREBASE_AUTH_DOMAIN` | _(unset)_ | Firebase auth domain, typically `<project>.firebaseapp.com`. Public, browser-safe. |
 | `FIREBASE_PROJECT_ID` | `kunal-scratch` | GCP project ID hosting GCIP. |
 
-### Custom domain & magic-link auth
+### Custom domain & Google sign-in
 
 The production deployment is fronted by an External HTTPS Load Balancer at
-`dcoder.<base_domain>` with IAP + GCIP "agent flow" + magic-link email
-sign-in (issue #60). Path-based routing on the URL map sends `/login*` and
-`/__/auth/*` to a public sign-in service (`opencode-login`) and everything
-else to the IAP-protected app backend (`opencode-web`).
+`dcoder.<base_domain>` with IAP + GCIP "agent flow" + Google sign-in
+(issues #60, #67). Path-based routing on the URL map sends `/login*` to
+a public sign-in service (`opencode-login`) and everything else to the
+IAP-protected app backend (`opencode-web`).
 
-For one-time bootstrap (DNS, SSL cert, LB resources, GCIP enable, IAP user
-sync), see [`gcip-magiclink-setup.md`](./gcip-magiclink-setup.md).
+The IdP within GCIP is `google.com`, backed by a Google OAuth Web Client
+provisioned in a non-Argolis project (Argolis projects lock OAuth Consent
+Screen User Type to Internal, which Google sign-in cannot use). The
+cross-project dependency is a single Web OAuth client credential.
+
+For one-time bootstrap (DNS, SSL cert, LB resources, OAuth client
+provisioning, GCIP IdP config, IAP user sync), see
+[`gcip-google-signin-setup.md`](./gcip-google-signin-setup.md).
 
 ### Centralized Configuration
 
