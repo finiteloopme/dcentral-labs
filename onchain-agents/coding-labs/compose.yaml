@@ -407,10 +407,13 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # OpenCode Login - Landing page with "Sign in with Google" (optional)
+  # OpenCode Login - Magic-link sign-in page (optional)
   # ---------------------------------------------------------------------------
   # Only starts when using --profile login
-  # In production, this is a separate Cloud Run service (public, no IAP)
+  # In production, this is a separate Cloud Run service behind the LB at /login
+  # and /__/auth/* (no IAP). The Firebase env vars are PUBLIC config values
+  # used by the browser SDK; security comes from authorized domains in the
+  # Firebase Console, not from secrecy.
   opencode-login:
     build:
       context: .
@@ -423,14 +426,37 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=8080
-      # URL of the main app (for "Sign in with Google" button)
+      # URL of the main app (used for "return to app" fallback)
       - APP_URL=http://localhost:${OPENCODE_FRONTEND_PORT:-3000}
+      # Firebase public config — set these in your shell or .env to test
+      # the magic-link UI locally. Without them, the page loads but sign-in
+      # will display a "Sign-in is not configured" error.
+      - FIREBASE_API_KEY=${FIREBASE_API_KEY:-}
+      - FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN:-}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
     healthcheck:
       test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/health']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Firebase Auth Emulator - Optional offline GCIP for local magic-link testing
+  # ---------------------------------------------------------------------------
+  # Run with: docker compose --profile emulator up firebase-auth-emulator
+  # When enabled, point the opencode-login Firebase SDK at the emulator by
+  # setting FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 in your shell before
+  # loading the page (the SDK reads it automatically when running in dev).
+  firebase-auth-emulator:
+    image: andreysenov/firebase-tools:latest
+    container_name: firebase-auth-emulator
+    profiles:
+      - emulator
+    command: firebase emulators:start --only auth --project=${FIREBASE_PROJECT_ID:-kunal-scratch}
+    ports:
+      - '9099:9099'
     restart: unless-stopped
 
 # ===========================================================================
