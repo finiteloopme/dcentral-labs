@@ -32,6 +32,17 @@ cmd_setup() {
     artifactregistry.googleapis.com \
     iap.googleapis.com \
     --project="$PROJECT_ID"
+
+  log_info "Enabling additional APIs (compute, dns, identitytoolkit)..."
+  gcloud services enable \
+    compute.googleapis.com \
+    dns.googleapis.com \
+    identitytoolkit.googleapis.com \
+    --project="$PROJECT_ID"
+
+  log_info "Creating IAP service identity (idempotent)..."
+  gcloud beta services identity create --service=iap.googleapis.com \
+    --project="$PROJECT_ID" 2>/dev/null || true
   
   log_info "Creating Artifact Registry repository..."
   if gcloud artifacts repositories describe "$REPO" \
@@ -89,12 +100,65 @@ cmd_setup() {
     --condition=None \
     --quiet 2>/dev/null
   
+  log_info "Checking config.toml for cross-project DNS configuration..."
+  DNS_PROJECT=$(bun -e "
+    const fs = require('fs');
+    const { parse } = require('smol-toml');
+    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
+    console.log(config.default?.dns?.project_id || '');
+  " 2>/dev/null)
+
+  if [[ -z "$DNS_PROJECT" || "$DNS_PROJECT" == "<DNS_PROJECT_ID>" ]]; then
+    log_warn "config.toml [default.dns].project_id is unset/placeholder."
+    log_warn "Skipping cross-project DNS IAM grant. Edit config.toml and re-run"
+    log_warn "'make cloud-setup' to grant when ready."
+  elif [[ "$DNS_PROJECT" == "$PROJECT_ID" ]]; then
+    log_info "DNS zone is in same project ($PROJECT_ID); no cross-project grant needed."
+  else
+    log_info "Granting cross-project DNS access to $DNS_PROJECT..."
+    CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+    COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+    GRANT_FAILED=0
+
+    for SA in "$CB_SA" "$COMPUTE_SA"; do
+      if ! gcloud projects add-iam-policy-binding "$DNS_PROJECT" \
+             --member="serviceAccount:$SA" \
+             --role="roles/dns.recordSetEditor" \
+             --condition=None --quiet 2>/dev/null; then
+        log_warn "  Failed to grant for $SA"
+        GRANT_FAILED=1
+      fi
+    done
+
+    if [[ "$GRANT_FAILED" -eq 1 ]]; then
+      log_warn ""
+      log_warn "Cross-project IAM grant failed. You may not have permission on the"
+      log_warn "DNS-hosting project. Either grant manually OR ask the DNS project"
+      log_warn "owner to run:"
+      log_warn ""
+      log_warn "  gcloud projects add-iam-policy-binding $DNS_PROJECT \\"
+      log_warn "    --member=serviceAccount:$CB_SA \\"
+      log_warn "    --role=roles/dns.recordSetEditor"
+      log_warn ""
+      log_warn "  gcloud projects add-iam-policy-binding $DNS_PROJECT \\"
+      log_warn "    --member=serviceAccount:$COMPUTE_SA \\"
+      log_warn "    --role=roles/dns.recordSetEditor"
+    else
+      log_success "Cross-project DNS IAM granted on $DNS_PROJECT"
+    fi
+  fi
+
   echo ""
   log_success "Cloud infrastructure setup complete"
   echo ""
   log_info "Next steps:"
-  log_info "  1. Run: make cloud-deploy"
-  log_info "  2. Get URLs: make cloud-urls"
+  log_info "  1. Fill in config.toml [default.dns] if not done; re-run 'make cloud-setup' to grant cross-project IAM"
+  log_info "  2. Run: make cloud-setup-gcip-magiclink (enables email-link + emits Firebase config)"
+  log_info "  3. Run: make cloud-deploy"
+  log_info "  4. Run: make cloud-setup-dns"
+  log_info "  5. Run: make cloud-setup-lb"
+  log_info "  6. Manual: apply IAP gcipSettings YAML (see gcip-magiclink-setup.md Phase 4)"
+  log_info "  7. Run: make cloud-sync-iap-users"
 }
 
 cmd_deploy() {
@@ -437,6 +501,54 @@ cmd_setup_gcip_magiclink() {
 
   echo ""
   log_success "GCIP email-link sign-in enabled in project $PROJECT_ID"
+
+  # === Emit current Firebase public config for the operator ===
+  echo ""
+  log_info "Fetching current Firebase public config..."
+  RESPONSE=$(curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config")
+
+  API_KEY=$(echo "$RESPONSE" | bun -e "
+    const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
+    console.log(r.client?.apiKey || '');
+  " 2>/dev/null)
+  SUBDOMAIN=$(echo "$RESPONSE" | bun -e "
+    const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
+    console.log(r.client?.firebaseSubdomain || '');
+  " 2>/dev/null)
+
+  if [[ -z "$API_KEY" ]]; then
+    log_warn "Could not extract apiKey from Identity Toolkit response."
+    log_warn "Manually fetch from: https://console.firebase.google.com/project/$PROJECT_ID/settings/general"
+    return 0
+  fi
+
+  AUTH_DOMAIN="${SUBDOMAIN:-$PROJECT_ID}.firebaseapp.com"
+
+  echo ""
+  log_success "Firebase public config (use as Cloud Build substitutions):"
+  echo ""
+  echo "  _FIREBASE_API_KEY=$API_KEY"
+  echo "  _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN"
+  echo "  _FIREBASE_PROJECT_ID=$PROJECT_ID"
+  echo ""
+  log_info "Pass these to Cloud Build:"
+  echo ""
+  echo "  gcloud builds submit --substitutions=\\"
+  echo "    _FIREBASE_API_KEY=$API_KEY,\\"
+  echo "    _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN,\\"
+  echo "    _FIREBASE_PROJECT_ID=$PROJECT_ID,..."
+  echo ""
+  log_info "Or set them in your shell environment:"
+  echo ""
+  echo "  export _FIREBASE_API_KEY=$API_KEY"
+  echo "  export _FIREBASE_AUTH_DOMAIN=$AUTH_DOMAIN"
+  echo "  export _FIREBASE_PROJECT_ID=$PROJECT_ID"
+  echo ""
+  log_info "These values are PUBLIC by Firebase design — safe to commit/share."
+  log_info "Security comes from authorized-domain whitelist + Security Rules,"
+  log_info "not from secrecy of the apiKey."
 }
 
 cmd_sync_iap_users() {
