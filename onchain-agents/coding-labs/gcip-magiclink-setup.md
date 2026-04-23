@@ -43,100 +43,62 @@ comment.
 
 ## Phase 0 — Prerequisites (~5 min)
 
-### Required configuration values
+1. Edit `config.toml [default.dns]` — fill in `project_id`, `zone_name`,
+   `base_domain` (with trailing dot), and `subdomain`. The deployment FQDN is
+   constructed as `<subdomain>.<base_domain>` (e.g.
+   `dcoder.kunall.demo.altostrat.com`). To list available managed zones:
 
-Fill in these placeholders in `config.toml [default.dns]`:
+   ```bash
+   gcloud dns managed-zones list --project=<dns-project-id>
+   ```
 
-| Field | Description | Example |
-|---|---|---|
-| `project_id` | Argolis project hosting the Cloud DNS managed zone | `dns-host-project` |
-| `zone_name`  | GCP resource name of the managed zone (NOT the DNS name) | `kunall-demo-altostrat-com` |
-| `base_domain`| Root DNS name of the zone with **trailing dot** | `kunall.demo.altostrat.com.` |
-| `subdomain`  | Subdomain for the dCoder deployment | `dcoder` |
+   | Field | Description | Example |
+   |---|---|---|
+   | `project_id` | Argolis project hosting the Cloud DNS managed zone | `dns-host-project` |
+   | `zone_name`  | GCP resource name of the managed zone (NOT the DNS name) | `kunall-demo-altostrat-com` |
+   | `base_domain`| Root DNS name of the zone with **trailing dot** | `kunall.demo.altostrat.com.` |
+   | `subdomain`  | Subdomain for the dCoder deployment | `dcoder` |
 
-The full FQDN for the deployment is constructed as `<subdomain>.<base_domain>`,
-e.g. `dcoder.kunall.demo.altostrat.com`.
+2. Run `make cloud-setup` — this enables APIs (`cloudbuild`, `run`,
+   `artifactregistry`, `iap`, `compute`, `dns`, `identitytoolkit`), creates the
+   IAP service identity, grants project-internal IAM, and **conditionally**
+   grants cross-project DNS IAM (`roles/dns.recordSetEditor` for the Cloud
+   Build SA and the default compute SA on the DNS-hosting project). The script
+   skips gracefully if `config.toml [default.dns].project_id` is unset/placeholder
+   or matches the current project.
 
-To list available managed zones:
-
-```bash
-gcloud dns managed-zones list --project=<dns-project-id>
-```
-
-### Cross-project DNS IAM grant
-
-The Cloud Build service account in `kunal-scratch` must be able to create A
-records in the DNS-hosting project. Grant `roles/dns.recordSetEditor` on that
-project:
-
-```bash
-PROJECT_NUMBER=$(gcloud projects describe kunal-scratch --format='value(projectNumber)')
-
-# Cloud Build SA
-gcloud projects add-iam-policy-binding <DNS_PROJECT_ID> \
-  --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
-  --role=roles/dns.recordSetEditor
-
-# Default compute SA (used by cloudbuild deploy steps)
-gcloud projects add-iam-policy-binding <DNS_PROJECT_ID> \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role=roles/dns.recordSetEditor
-```
-
-### Firebase public config
-
-The opencode-login service needs Firebase public config values
-(`apiKey`, `authDomain`). These are **browser-safe public values** —
-security is enforced via authorized domain whitelisting in the Firebase
-Console plus Firebase Security Rules, not via secrecy of the apiKey.
-
-Get them from the Identity Toolkit admin API:
-
-```bash
-ACCESS_TOKEN=$(gcloud auth print-access-token)
-curl -sH "Authorization: Bearer $ACCESS_TOKEN" \
-     -H "x-goog-user-project: kunal-scratch" \
-     https://identitytoolkit.googleapis.com/admin/v2/projects/kunal-scratch/config
-```
-
-The response contains `client.apiKey` and `client.firebaseSubdomain`. The
-`apiKey` is for `FIREBASE_API_KEY`. The auth domain is
-`<firebaseSubdomain>.firebaseapp.com`.
-
-Set these as Cloud Build substitutions when triggering a deploy:
-
-```bash
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --substitutions=_FIREBASE_API_KEY=AIza...,_FIREBASE_AUTH_DOMAIN=kunal-scratch.firebaseapp.com
-```
-
-Or add them to your shell/`.env` for local testing.
+3. If you don't have admin on the DNS-hosting project, ask its owner to run
+   the manual `gcloud projects add-iam-policy-binding` commands the script
+   prints in its warning output.
 
 ---
 
-## Phase 1 — Enable GCIP magic-link sign-in (~2 min)
+## Phase 1 — Enable GCIP magic-link sign-in + capture Firebase config (~2 min)
+
+Run:
 
 ```bash
 make cloud-setup-gcip-magiclink
 ```
 
-This makes a single PATCH call to the Identity Toolkit Admin API:
+This:
 
-```
-PATCH https://identitytoolkit.googleapis.com/admin/v2/projects/kunal-scratch/config?updateMask=signIn.email
-{
-  "signIn": {
-    "email": {
-      "enabled": true,
-      "passwordRequired": false
-    }
-  }
-}
-```
+- Enables email-link sign-in in GCIP via the Identity Toolkit Admin API
+  (single `PATCH .../config?updateMask=signIn.email`). **No OAuth providers
+  are configured** in v1 — only email link.
+- Fetches and prints your project's current Firebase public config:
+  - `_FIREBASE_API_KEY`
+  - `_FIREBASE_AUTH_DOMAIN`
+  - `_FIREBASE_PROJECT_ID`
 
-After this, magic-link email sign-in is enabled. **No OAuth providers are
-configured** in v1 — only email link.
+Copy the printed substitution flags for use in `make cloud-deploy` (or `export`
+them as shell env vars per the script's output, e.g.
+`export _FIREBASE_API_KEY=...`).
+
+> **Note:** the apiKey is **PUBLIC by Firebase design** — safe to commit,
+> share, and log. Security comes from the authorized-domain whitelist
+> (Firebase Console) plus Firebase Security Rules, **not** from secrecy of
+> the apiKey.
 
 ---
 
