@@ -196,10 +196,253 @@ cmd_delete() {
   fi
 }
 
-cmd_sync_users() {
-  log_header "Syncing IAP users from config.toml"
-  
-  # Parse allowed_users from config.toml using bun
+# -----------------------------------------------------------------------------
+# Helpers for parsing [default.dns] from config.toml via smol-toml + bun
+# -----------------------------------------------------------------------------
+_dns_field() {
+  # $1 = field name (project_id, zone_name, base_domain, subdomain)
+  bun -e "
+    const fs = require('fs');
+    const { parse } = require('smol-toml');
+    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
+    console.log(config.default?.dns?.${1} || '');
+  " 2>/dev/null
+}
+
+_require_dns_config() {
+  # Read all DNS fields and validate they're populated (not placeholder values).
+  # Sets DNS_PROJECT, ZONE_NAME, BASE_DOMAIN, SUBDOMAIN, FQDN as globals.
+  DNS_PROJECT=$(_dns_field project_id)
+  ZONE_NAME=$(_dns_field zone_name)
+  BASE_DOMAIN=$(_dns_field base_domain)
+  SUBDOMAIN=$(_dns_field subdomain)
+
+  if [[ -z "$DNS_PROJECT" || "$DNS_PROJECT" == "<DNS_PROJECT_ID>" ]]; then
+    log_error "config.toml [default.dns].project_id is not set."
+    log_error "Edit config.toml and fill in the [default.dns] block first."
+    log_error "See gcip-magiclink-setup.md Phase 0 for guidance."
+    return 1
+  fi
+  if [[ -z "$ZONE_NAME" || "$ZONE_NAME" == "<ZONE_NAME>" ]]; then
+    log_error "config.toml [default.dns].zone_name is not set."
+    return 1
+  fi
+  if [[ -z "$BASE_DOMAIN" || "$BASE_DOMAIN" == "<BASE_DOMAIN>" ]]; then
+    log_error "config.toml [default.dns].base_domain is not set."
+    return 1
+  fi
+  if [[ -z "$SUBDOMAIN" ]]; then
+    log_error "config.toml [default.dns].subdomain is not set."
+    return 1
+  fi
+
+  # Construct FQDN. base_domain may end with a dot (Cloud DNS convention).
+  # Strip trailing dot, concat subdomain, then re-add trailing dot.
+  FQDN="${SUBDOMAIN}.${BASE_DOMAIN%.}."
+  return 0
+}
+
+cmd_setup_dns() {
+  log_header "Setting up cross-project DNS A record"
+
+  _require_dns_config || return 1
+
+  log_info "DNS project:  $DNS_PROJECT"
+  log_info "Managed zone: $ZONE_NAME"
+  log_info "FQDN:         $FQDN"
+  echo ""
+
+  # Reserve global IP in kunal-scratch (LB project) if not already present
+  LB_IP=$(gcloud compute addresses describe opencode-web-lb-ip \
+    --global --project="$PROJECT_ID" --format='value(address)' 2>/dev/null || true)
+
+  if [[ -z "$LB_IP" ]]; then
+    log_info "Reserving global IP: opencode-web-lb-ip"
+    gcloud compute addresses create opencode-web-lb-ip \
+      --global --project="$PROJECT_ID" --quiet
+    LB_IP=$(gcloud compute addresses describe opencode-web-lb-ip \
+      --global --project="$PROJECT_ID" --format='value(address)')
+  fi
+
+  log_info "LB IP: $LB_IP"
+
+  # Idempotent: update existing A record, or create one
+  if gcloud dns record-sets describe "$FQDN" --type=A \
+       --zone="$ZONE_NAME" --project="$DNS_PROJECT" &>/dev/null; then
+    log_info "A record exists; updating to $LB_IP"
+    gcloud dns record-sets update "$FQDN" --type=A --ttl=300 \
+      --rrdatas="$LB_IP" --zone="$ZONE_NAME" --project="$DNS_PROJECT"
+  else
+    log_info "Creating A record"
+    gcloud dns record-sets create "$FQDN" --type=A --ttl=300 \
+      --rrdatas="$LB_IP" --zone="$ZONE_NAME" --project="$DNS_PROJECT"
+  fi
+
+  echo ""
+  log_success "DNS A record set: $FQDN → $LB_IP"
+}
+
+cmd_setup_lb() {
+  log_header "Provisioning LB resources for opencode-web + opencode-login"
+
+  _require_dns_config || return 1
+
+  # Strip trailing dot for SSL cert (cert domains do NOT use trailing dot)
+  CERT_DOMAIN="${FQDN%.}"
+
+  log_info "Project:    $PROJECT_ID"
+  log_info "Region:     $REGION"
+  log_info "FQDN:       $FQDN"
+  log_info "Cert SAN:   $CERT_DOMAIN"
+  echo ""
+
+  # 1) Reserved global IP (cmd_setup_dns may have already created it)
+  if ! gcloud compute addresses describe opencode-web-lb-ip \
+        --global --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Reserving global IP: opencode-web-lb-ip"
+    gcloud compute addresses create opencode-web-lb-ip \
+      --global --project="$PROJECT_ID" --quiet
+  else
+    log_info "Global IP opencode-web-lb-ip already exists"
+  fi
+
+  # 2) Google-managed SSL cert (provisioning is async, takes 10-15 min)
+  if ! gcloud compute ssl-certificates describe opencode-web-cert \
+        --global --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Creating Google-managed SSL cert for $CERT_DOMAIN"
+    gcloud compute ssl-certificates create opencode-web-cert \
+      --domains="$CERT_DOMAIN" \
+      --global --project="$PROJECT_ID" --quiet
+  else
+    log_info "SSL cert opencode-web-cert already exists"
+  fi
+
+  # 3) Serverless NEGs (one per Cloud Run service)
+  for entry in "opencode-web-neg:opencode-web" "opencode-login-neg:opencode-login"; do
+    NEG_NAME="${entry%%:*}"
+    SVC_NAME="${entry##*:}"
+    if ! gcloud compute network-endpoint-groups describe "$NEG_NAME" \
+          --region="$REGION" --project="$PROJECT_ID" &>/dev/null; then
+      log_info "Creating serverless NEG: $NEG_NAME → $SVC_NAME"
+      gcloud compute network-endpoint-groups create "$NEG_NAME" \
+        --region="$REGION" \
+        --network-endpoint-type=serverless \
+        --cloud-run-service="$SVC_NAME" \
+        --project="$PROJECT_ID" --quiet
+    else
+      log_info "NEG $NEG_NAME already exists"
+    fi
+  done
+
+  # 4) Backend services
+  for entry in "opencode-web-backend:opencode-web-neg" "opencode-login-backend:opencode-login-neg"; do
+    BS_NAME="${entry%%:*}"
+    NEG_NAME="${entry##*:}"
+    if ! gcloud compute backend-services describe "$BS_NAME" \
+          --global --project="$PROJECT_ID" &>/dev/null; then
+      log_info "Creating backend service: $BS_NAME"
+      gcloud compute backend-services create "$BS_NAME" \
+        --global \
+        --load-balancing-scheme=EXTERNAL_MANAGED \
+        --project="$PROJECT_ID" --quiet
+      gcloud compute backend-services add-backend "$BS_NAME" \
+        --global \
+        --network-endpoint-group="$NEG_NAME" \
+        --network-endpoint-group-region="$REGION" \
+        --project="$PROJECT_ID" --quiet
+    else
+      log_info "Backend service $BS_NAME already exists"
+    fi
+  done
+
+  # 5) URL map with path-based routing
+  #    /login*       → opencode-login-backend
+  #    /__/auth/*    → opencode-login-backend
+  #    everything else (default) → opencode-web-backend
+  if ! gcloud compute url-maps describe opencode-url-map \
+        --global --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Creating URL map: opencode-url-map"
+    gcloud compute url-maps create opencode-url-map \
+      --default-service=opencode-web-backend \
+      --global --project="$PROJECT_ID" --quiet
+
+    log_info "Adding path matcher (login + auth handlers → opencode-login-backend)"
+    gcloud compute url-maps add-path-matcher opencode-url-map \
+      --path-matcher-name=login-paths \
+      --default-service=opencode-web-backend \
+      --new-hosts="$CERT_DOMAIN" \
+      --backend-service-path-rules="/login=opencode-login-backend,/login/*=opencode-login-backend,/__/auth/*=opencode-login-backend" \
+      --global --project="$PROJECT_ID" --quiet
+  else
+    log_info "URL map opencode-url-map already exists"
+  fi
+
+  # 6) Target HTTPS proxy
+  if ! gcloud compute target-https-proxies describe opencode-https-proxy \
+        --global --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Creating target HTTPS proxy: opencode-https-proxy"
+    gcloud compute target-https-proxies create opencode-https-proxy \
+      --url-map=opencode-url-map \
+      --ssl-certificates=opencode-web-cert \
+      --global --project="$PROJECT_ID" --quiet
+  else
+    log_info "Target HTTPS proxy opencode-https-proxy already exists"
+  fi
+
+  # 7) Global forwarding rule (port 443)
+  if ! gcloud compute forwarding-rules describe opencode-fwd-rule \
+        --global --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Creating forwarding rule: opencode-fwd-rule (443)"
+    gcloud compute forwarding-rules create opencode-fwd-rule \
+      --address=opencode-web-lb-ip \
+      --target-https-proxy=opencode-https-proxy \
+      --ports=443 \
+      --load-balancing-scheme=EXTERNAL_MANAGED \
+      --global --project="$PROJECT_ID" --quiet
+  else
+    log_info "Forwarding rule opencode-fwd-rule already exists"
+  fi
+
+  # 8) Enable IAP on opencode-web-backend ONLY (login backend stays public)
+  log_info "Enabling IAP on opencode-web-backend (login backend stays public)"
+  gcloud iap web enable \
+    --resource-type=backend-services \
+    --service=opencode-web-backend \
+    --project="$PROJECT_ID" 2>/dev/null || log_warn "IAP enable skipped (already enabled or requires manual gcipSettings step)"
+
+  echo ""
+  log_success "LB resources provisioned"
+  echo ""
+  log_info "Next manual step (one-time):"
+  log_info "  Apply IAP gcipSettings YAML for the agent-flow tenantIds pattern."
+  log_info "  See gcip-magiclink-setup.md Phase 4."
+  log_info ""
+  log_info "Then bind users: make cloud-sync-iap-users"
+}
+
+cmd_setup_gcip_magiclink() {
+  log_header "Enabling GCIP email-link sign-in"
+
+  log_info "Project: $PROJECT_ID"
+  echo ""
+
+  ACCESS_TOKEN=$(gcloud auth print-access-token)
+
+  curl -sS -X PATCH \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "x-goog-user-project: $PROJECT_ID" \
+    -H "Content-Type: application/json" \
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config?updateMask=signIn.email" \
+    -d '{"signIn":{"email":{"enabled":true,"passwordRequired":false}}}'
+
+  echo ""
+  log_success "GCIP email-link sign-in enabled in project $PROJECT_ID"
+}
+
+cmd_sync_iap_users() {
+  log_header "Syncing IAP users from config.toml to opencode-web-backend"
+
+  # Parse allowed_users from config.toml using bun + smol-toml
   log_info "Reading allowed_users from config.toml..."
   USERS=$(bun -e "
     const fs = require('fs');
@@ -208,78 +451,105 @@ cmd_sync_users() {
     const users = config.default?.auth?.allowed_users || [];
     console.log(users.join('\n'));
   " 2>/dev/null)
-  
+
   if [[ -z "$USERS" ]]; then
     log_warn "No users found in config.toml [default.auth.allowed_users]"
     return 1
   fi
-  
+
   log_info "Users in config.toml:"
   echo "$USERS" | while read -r user; do
-    echo "  - $user"
+    [[ -n "$user" ]] && echo "  - $user"
   done
   echo ""
-  
-  # Get current IAP bindings
-  log_info "Fetching current IAP bindings..."
-  CURRENT=$(gcloud beta iap web get-iam-policy \
-    --region="$REGION" \
-    --resource-type=cloud-run \
-    --service=opencode-web \
+
+  # Get current bindings on the backend service (NOT cloud-run anymore)
+  log_info "Fetching current IAP bindings on opencode-web-backend..."
+  CURRENT=$(gcloud iap web get-iam-policy \
+    --resource-type=backend-services \
+    --service=opencode-web-backend \
     --project="$PROJECT_ID" \
     --format='json' 2>/dev/null | \
     bun -e "
       const input = require('fs').readFileSync('/dev/stdin', 'utf-8');
       const policy = JSON.parse(input || '{}');
-      const bindings = policy.bindings || [];
-      const accessorBinding = bindings.find(b => b.role === 'roles/iap.httpsResourceAccessor');
-      const members = accessorBinding?.members || [];
-      const users = members
+      const accessor = (policy.bindings || []).find(b =>
+        b.role === 'roles/iap.httpsResourceAccessor');
+      const users = (accessor?.members || [])
         .filter(m => m.startsWith('user:'))
         .map(m => m.replace('user:', ''));
       console.log(users.join('\n'));
     " 2>/dev/null || echo "")
-  
+
   # Add new users
-  log_info "Checking for users to add..."
+  log_info "Adding users present in config.toml..."
   echo "$USERS" | while read -r user; do
     [[ -z "$user" ]] && continue
-    if ! echo "$CURRENT" | grep -q "^${user}$"; then
-      log_info "Adding: $user"
-      gcloud beta iap web add-iam-policy-binding \
+    if ! echo "$CURRENT" | grep -qx "$user"; then
+      log_info "  Adding: $user"
+      gcloud iap web add-iam-policy-binding \
         --member="user:$user" \
         --role=roles/iap.httpsResourceAccessor \
-        --region="$REGION" \
-        --resource-type=cloud-run \
-        --service=opencode-web \
+        --resource-type=backend-services \
+        --service=opencode-web-backend \
         --project="$PROJECT_ID" \
         --quiet 2>/dev/null
     else
-      log_info "Already exists: $user"
+      log_info "  Already exists: $user"
     fi
   done
-  
+
   # Remove users not in config
-  log_info "Checking for users to remove..."
+  log_info "Removing users no longer in config.toml..."
   if [[ -n "$CURRENT" ]]; then
     echo "$CURRENT" | while read -r user; do
       [[ -z "$user" ]] && continue
-      if ! echo "$USERS" | grep -q "^${user}$"; then
-        log_warn "Removing: $user"
-        gcloud beta iap web remove-iam-policy-binding \
+      if ! echo "$USERS" | grep -qx "$user"; then
+        log_warn "  Removing: $user"
+        gcloud iap web remove-iam-policy-binding \
           --member="user:$user" \
           --role=roles/iap.httpsResourceAccessor \
-          --region="$REGION" \
-          --resource-type=cloud-run \
-          --service=opencode-web \
+          --resource-type=backend-services \
+          --service=opencode-web-backend \
           --project="$PROJECT_ID" \
           --quiet 2>/dev/null
       fi
     done
   fi
-  
+
   echo ""
-  log_success "IAP users synced from config.toml"
+  log_success "IAP users synced to opencode-web-backend"
+}
+
+cmd_teardown_lb() {
+  log_header "Tearing down LB resources (DESTRUCTIVE)"
+
+  log_warn "This will REMOVE the LB and BREAK the deployment."
+  log_warn "Cloud DNS records and Cloud Run services are NOT touched."
+  read -r -p "Are you sure? [y/N]: " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    log_info "Cancelled"
+    return 0
+  fi
+
+  # Delete in reverse dependency order; ignore errors if resource is absent
+  for cmd in \
+    "gcloud compute forwarding-rules delete opencode-fwd-rule --global --quiet --project=$PROJECT_ID" \
+    "gcloud compute target-https-proxies delete opencode-https-proxy --global --quiet --project=$PROJECT_ID" \
+    "gcloud compute url-maps delete opencode-url-map --global --quiet --project=$PROJECT_ID" \
+    "gcloud iap web disable --resource-type=backend-services --service=opencode-web-backend --project=$PROJECT_ID" \
+    "gcloud compute backend-services delete opencode-web-backend --global --quiet --project=$PROJECT_ID" \
+    "gcloud compute backend-services delete opencode-login-backend --global --quiet --project=$PROJECT_ID" \
+    "gcloud compute network-endpoint-groups delete opencode-web-neg --region=$REGION --quiet --project=$PROJECT_ID" \
+    "gcloud compute network-endpoint-groups delete opencode-login-neg --region=$REGION --quiet --project=$PROJECT_ID" \
+    "gcloud compute ssl-certificates delete opencode-web-cert --global --quiet --project=$PROJECT_ID" \
+    "gcloud compute addresses delete opencode-web-lb-ip --global --quiet --project=$PROJECT_ID"; do
+    log_info "Running: $cmd"
+    eval "$cmd" 2>/dev/null || true
+  done
+
+  echo ""
+  log_success "LB resources removed"
 }
 
 # Main
@@ -302,18 +572,37 @@ case "${1:-}" in
   delete)
     cmd_delete
     ;;
-  sync-users)
-    cmd_sync_users
+  setup-dns)
+    cmd_setup_dns
+    ;;
+  setup-lb)
+    cmd_setup_lb
+    ;;
+  setup-gcip-magiclink)
+    cmd_setup_gcip_magiclink
+    ;;
+  sync-iap-users)
+    cmd_sync_iap_users
+    ;;
+  teardown-lb)
+    cmd_teardown_lb
     ;;
   *)
     show_usage "cloud.sh" "
-  setup              One-time setup (APIs, Artifact Registry, IAM)
-  deploy             Build and deploy to Cloud Run
-  status             Show Cloud Run service status
-  urls               Show service URLs
-  logs [svc]         View logs (default: opencode-web)
-  delete             Delete all Cloud Run services
-  sync-users         Sync IAP allowed users from config.toml
+  setup                  One-time setup (APIs, Artifact Registry, IAM)
+  deploy                 Build and deploy to Cloud Run
+  status                 Show Cloud Run service status
+  urls                   Show service URLs
+  logs [svc]             View logs (default: opencode-web)
+  delete                 Delete all Cloud Run services
+
+  setup-dns              Create cross-project DNS A record from config.toml
+  setup-lb               Provision LB resources (NEGs, backend services,
+                         URL map with path routing, SSL cert, fwd rule)
+  setup-gcip-magiclink   Enable GCIP email-link sign-in in this project
+  sync-iap-users         Sync IAP allowed_users from config.toml to the
+                         opencode-web-backend backend service
+  teardown-lb            DESTRUCTIVE: remove all LB resources
 
 Environment variables:
   GCP_PROJECT  GCP project ID (default: kunal-scratch)
