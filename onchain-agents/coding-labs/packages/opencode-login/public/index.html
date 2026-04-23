@@ -684,18 +684,27 @@
     </script>
 
     <!--
-      Google sign-in module (issue #67).
-      Loads Firebase JS SDK from the official CDN, fetches public config
-      from /config, and wires up the "Sign in with Google" button using
-      signInWithPopup against the GCIP-configured Google IdP.
+      Google sign-in module (issue #67, fix issue #71).
+      Uses Google's official `gcip-iap` library to drive the IAP+GCIP
+      "agent flow" redirect-back contract. The library reads the IAP-passed
+      query params (apiKey, mode, tid, redirect_uri, state), invokes our
+      `startSignIn` handler (still backed by signInWithPopup), and POSTs
+      `id_token` + `state` to IAP's `redirect_uri` so IAP can mint its
+      session cookie and bounce the user back to the original protected URL.
     -->
     <script type="module">
-      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+      import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
       import {
         getAuth,
         GoogleAuthProvider,
         signInWithPopup,
       } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
+      import * as ciap from 'https://cdn.jsdelivr.net/npm/gcip-iap@2.0.0/+esm';
+
+      // Agent-flow tenant ID per IAP+GCIP convention: `_<project_number>`.
+      // Mirrors the value in `gcipSettings.tenantIds` (PR #62) for the
+      // kunal-scratch project (project number 550614207330).
+      const AGENT_TENANT_ID = '_550614207330';
 
       function showError(msg) {
         const errEl = document.getElementById('signin-error');
@@ -709,10 +718,24 @@
         errEl.textContent = '';
       }
 
-      async function initGoogleAuth() {
+      // Fetch a fresh app instance for a given (apiKey, tenantId) tuple.
+      // gcip-iap calls `getAuth(apiKey, tenantId)` per tenant; we keep one
+      // Firebase app per tuple to keep auth state isolated.
+      function getOrCreateApp(firebaseConfig, tenantId) {
+        const appName = `auth-${firebaseConfig.apiKey}-${tenantId || 'default'}`;
+        if (getApps().some((a) => a.name === appName)) {
+          return getApp(appName);
+        }
+        return initializeApp(firebaseConfig, appName);
+      }
+
+      async function init() {
         let config;
         try {
           const response = await fetch('/config');
+          if (!response.ok) {
+            throw new Error(`/config returned HTTP ${response.status}`);
+          }
           config = await response.json();
         } catch (err) {
           console.error('[opencode-login] Failed to fetch /config:', err);
@@ -728,48 +751,95 @@
           return;
         }
 
-        const app = initializeApp(config.firebase);
-        const auth = getAuth(app);
+        const firebaseConfig = config.firebase;
 
-        const signInBtn = document.getElementById('google-signin-btn');
+        // gcip-iap config map: keyed by API key, then per-tenant signInOptions.
+        // Single-tenant agent-flow setup; only Google is configured as IdP.
+        const ciapConfig = {
+          [firebaseConfig.apiKey]: {
+            authDomain: firebaseConfig.authDomain,
+            tenants: {
+              [AGENT_TENANT_ID]: {
+                signInOptions: ['google.com'],
+              },
+            },
+          },
+        };
 
-        signInBtn.addEventListener('click', async () => {
-          clearError();
-          const provider = new GoogleAuthProvider();
-          try {
-            // signInWithPopup uses GCIP's configured Google IdP.
-            // GCIP routes to the cross-project OAuth client (External user type)
-            // and returns a Firebase ID token. The IAP↔GCIP agent flow
-            // (gcipSettings.tenantIds: ["_<project_number>"]) accepts this token.
-            const result = await signInWithPopup(auth, provider);
-            const idToken = await result.user.getIdToken();
-            console.log('[opencode-login] Sign-in succeeded for', result.user.email);
+        const handler = {
+          languageCode: 'en',
 
-            // Standard IAP+GCIP redirect-back: navigate to the original target.
-            // IAP detects the GCIP session via Firebase's auth-state cookies
-            // (set by signInWithPopup) and completes its session establishment
-            // on the next request to a protected URL.
-            // Try to extract original URL from URL params (IAP passes 'continueUri'
-            // or 'state' in some configurations); fall back to root.
-            const params = new URLSearchParams(window.location.search);
-            const continueUri = params.get('continueUri') || params.get('state') || '/';
-            window.location.href = continueUri;
-          } catch (err) {
-            console.error('[opencode-login] Google sign-in failed:', err);
-            if (err.code === 'auth/popup-closed-by-user') {
-              // User cancelled; no error needed
-              return;
+          getAuth: (apiKey, tenantId) => {
+            const app = getOrCreateApp(firebaseConfig, tenantId);
+            const auth = getAuth(app);
+            if (tenantId) {
+              auth.tenantId = tenantId;
             }
-            if (err.code === 'auth/popup-blocked') {
-              showError('Popup blocked. Please allow popups for this site and try again.');
-              return;
-            }
-            showError(err.message || 'Sign-in failed. Try again.');
-          }
-        });
+            return auth;
+          },
+
+          // Single-tenant agent flow — auto-select the only configured tenant.
+          selectTenant: (_projectConfig, tenantIds) => {
+            return Promise.resolve({
+              tenantId: tenantIds[0],
+              providerIds: ['google.com'],
+            });
+          },
+
+          // Wait for the user to click "Sign in with Google", then run
+          // signInWithPopup. Returning the UserCredential hands control back
+          // to gcip-iap, which will POST id_token + state to IAP's redirect_uri.
+          startSignIn: (auth) => {
+            return new Promise((resolve, reject) => {
+              const signInBtn = document.getElementById('google-signin-btn');
+
+              const onClick = async () => {
+                signInBtn.removeEventListener('click', onClick);
+                clearError();
+                try {
+                  const result = await signInWithPopup(auth, new GoogleAuthProvider());
+                  console.log(
+                    '[opencode-login] Sign-in succeeded for',
+                    result.user && result.user.email
+                  );
+                  resolve(result);
+                } catch (err) {
+                  console.error('[opencode-login] Google sign-in failed:', err);
+                  // Re-attach listener for retry on recoverable errors.
+                  signInBtn.addEventListener('click', onClick);
+                  if (err.code === 'auth/popup-closed-by-user') {
+                    // User cancelled; no error needed and no rejection
+                    // (rejecting would surface as a handler error).
+                    return;
+                  }
+                  if (err.code === 'auth/popup-blocked') {
+                    showError('Popup blocked. Please allow popups for this site and try again.');
+                    return;
+                  }
+                  showError(err.message || 'Sign-in failed. Try again.');
+                  reject(err);
+                }
+              };
+
+              signInBtn.addEventListener('click', onClick);
+            });
+          },
+
+          completeSignOut: () => Promise.resolve(),
+
+          handleError: (error) => {
+            console.error('[opencode-login] gcip-iap handler error:', error);
+            showError((error && error.message) || 'Sign-in failed. Try again.');
+          },
+        };
+
+        // Start the gcip-iap flow — handles IAP query params, sign-in, and
+        // the redirect-back POST to IAP's redirect_uri automatically.
+        const ciapInstance = new ciap.Authentication(handler);
+        ciapInstance.start();
       }
 
-      document.addEventListener('DOMContentLoaded', initGoogleAuth);
+      document.addEventListener('DOMContentLoaded', init);
     </script>
   </body>
 </html>
