@@ -42,7 +42,7 @@ _dns_field() {
     const fs = require('fs');
     const { parse } = require('smol-toml');
     const config = parse(fs.readFileSync('config.toml', 'utf-8'));
-    console.log(config.default?.dns?.${1} || '');
+    console.log(config.default?.dns?.['$1'] || '');
   " 2>/dev/null
 }
 
@@ -299,8 +299,15 @@ cmd_deploy() {
   auth_domain="${PROJECT_ID}.firebaseapp.com"
 
   if [[ -z "$api_key" ]]; then
-    log_warn "Firebase apiKey unavailable; opencode-login will deploy with empty FIREBASE_API_KEY env var."
-    log_warn "Run 'make cloud-setup-auth' first to ensure GCIP is configured."
+    log_error "Firebase apiKey unavailable from Identity Toolkit Admin API."
+    log_error "This would deploy opencode-login with an empty FIREBASE_API_KEY env var,"
+    log_error "causing the sign-in UI to show 'Sign-in is not configured'."
+    log_error ""
+    log_error "Fix: ensure GCIP is initialized for project ${PROJECT_ID}."
+    log_error "Run: make cloud-setup-auth"
+    log_error ""
+    log_error "Aborting deploy to prevent silent failure."
+    return 1
   fi
 
   log_info "Submitting build to Cloud Build..."
@@ -622,47 +629,117 @@ cmd_setup_auth() {
   access_token=$(gcloud auth print-access-token 2>/dev/null)
 
   # === 1. Configure Google IdP (POST first; if 409/400, PATCH) ===
+  # Fix #1: write client_secret to a chmod 600 temp file and pass via --data @file
+  # so the secret is never visible in `ps` or `set -x` traces.
+  # Fix #2: explicit error handling for non-2xx/non-409 responses (no silent success).
   log_info "Configuring Google IdP in GCIP..."
-  local http_code
+  local http_code body_file
+  body_file=$(mktemp)
+  chmod 600 "$body_file"
+  cat > "$body_file" <<EOF_BODY
+{"enabled":true,"clientId":"$client_id","clientSecret":"$client_secret"}
+EOF_BODY
+
   http_code=$(curl -s -o /tmp/gcip_idp_resp.json -w "%{http_code}" \
     -X POST -H "Authorization: Bearer $access_token" \
     -H "x-goog-user-project: $PROJECT_ID" \
     -H "Content-Type: application/json" \
     "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/defaultSupportedIdpConfigs?idpId=google.com" \
-    -d "{\"enabled\":true,\"clientId\":\"$client_id\",\"clientSecret\":\"$client_secret\"}")
+    --data @"$body_file")
+  rm -f "$body_file"
 
-  if [[ "$http_code" =~ ^(409|400)$ ]]; then
-    log_info "  Already exists; PATCHing..."
-    curl -sX PATCH -H "Authorization: Bearer $access_token" \
-      -H "x-goog-user-project: $PROJECT_ID" \
-      -H "Content-Type: application/json" \
-      "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/defaultSupportedIdpConfigs/google.com?updateMask=enabled,clientId,clientSecret" \
-      -d "{\"enabled\":true,\"clientId\":\"$client_id\",\"clientSecret\":\"$client_secret\"}" \
-      > /dev/null
-  fi
-  log_success "Google IdP configured"
+  case "$http_code" in
+    2*)
+      log_success "Google IdP created"
+      ;;
+    409|400)
+      log_info "  Already exists; PATCHing..."
+      local patch_body_file
+      patch_body_file=$(mktemp)
+      chmod 600 "$patch_body_file"
+      cat > "$patch_body_file" <<EOF_BODY
+{"enabled":true,"clientId":"$client_id","clientSecret":"$client_secret"}
+EOF_BODY
+      curl -sX PATCH -H "Authorization: Bearer $access_token" \
+        -H "x-goog-user-project: $PROJECT_ID" \
+        -H "Content-Type: application/json" \
+        "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/defaultSupportedIdpConfigs/google.com?updateMask=enabled,clientId,clientSecret" \
+        --data @"$patch_body_file" \
+        > /dev/null
+      rm -f "$patch_body_file"
+      log_success "Google IdP updated"
+      ;;
+    *)
+      log_error "Unexpected HTTP $http_code from Identity Toolkit Admin API."
+      log_error "Response body:"
+      cat /tmp/gcip_idp_resp.json | head -c 500 >&2
+      echo "" >&2
+      return 1
+      ;;
+  esac
 
   # === 2. authorizedDomains merge ===
+  # Fix #3: validate the GET response and parsed array before computing the merge.
+  # If parsing fails or yields a non-array, refuse to PATCH — sending null/[] would
+  # wipe required defaults (localhost, *.firebaseapp.com, *.web.app) and break sign-in.
   log_info "Syncing authorizedDomains (preserving defaults + adding $deployment_fqdn)..."
-  local current_domains merged
-  current_domains=$(curl -sH "Authorization: Bearer $access_token" \
+  local current_domains merged config_response
+  config_response=$(curl -sH "Authorization: Bearer $access_token" \
     -H "x-goog-user-project: $PROJECT_ID" \
-    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config" \
-    | bun -e "
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config" 2>/dev/null)
+
+  if [[ -z "$config_response" ]]; then
+    log_error "Failed to fetch project config from Identity Toolkit Admin API"
+    return 1
+  fi
+
+  current_domains=$(echo "$config_response" | bun -e "
+    try {
       const data = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
-      console.log(JSON.stringify(data.authorizedDomains || []));
-    ")
+      const ad = data.authorizedDomains;
+      if (!Array.isArray(ad)) {
+        console.error('authorizedDomains is not an array');
+        process.exit(1);
+      }
+      console.log(JSON.stringify(ad));
+    } catch (e) {
+      console.error('Failed to parse config response:', e.message);
+      process.exit(1);
+    }
+  " 2>/tmp/cmd_setup_auth_parse_err)
+
+  if [[ $? -ne 0 || -z "$current_domains" ]]; then
+    log_error "Failed to parse authorizedDomains from config response."
+    log_error "Parse error: $(cat /tmp/cmd_setup_auth_parse_err 2>/dev/null)"
+    log_error "Refusing to PATCH (would risk wiping defaults)."
+    return 1
+  fi
+
   merged=$(echo "$current_domains" | bun -e "
     const cur = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
     const required = ['localhost', '${PROJECT_ID}.firebaseapp.com', '${PROJECT_ID}.web.app', '$deployment_fqdn'];
     const merged = [...new Set([...cur, ...required])];
     console.log(JSON.stringify(merged));
   ")
+
+  # Final safety check: merged must contain required defaults before PATCHing.
+  if ! echo "$merged" | grep -q "localhost" || ! echo "$merged" | grep -q "${PROJECT_ID}.firebaseapp.com"; then
+    log_error "Merged authorizedDomains is missing required defaults; refusing to PATCH."
+    log_error "Computed merged: $merged"
+    return 1
+  fi
+
+  # Fix #1 (also): write JSON body to chmod 600 temp file, pass via --data @file.
+  local domains_body
+  domains_body=$(mktemp)
+  chmod 600 "$domains_body"
+  echo "{\"authorizedDomains\":$merged}" > "$domains_body"
   curl -sX PATCH -H "Authorization: Bearer $access_token" \
     -H "x-goog-user-project: $PROJECT_ID" \
     -H "Content-Type: application/json" \
     "https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config?updateMask=authorizedDomains" \
-    -d "{\"authorizedDomains\":$merged}" > /dev/null
+    --data @"$domains_body" > /dev/null
+  rm -f "$domains_body"
   log_success "authorizedDomains synced: $merged"
 
   # === 3. IAP gcipSettings (agent-flow YAML) ===
@@ -685,6 +762,7 @@ cmd_setup_auth() {
   fi
   login_url="https://${deployment_fqdn}/login?apiKey=${api_key}"
   tmp_yaml=$(mktemp)
+  chmod 600 "$tmp_yaml"
   cat > "$tmp_yaml" <<EOF
 accessSettings:
   gcipSettings:
