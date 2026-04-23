@@ -971,7 +971,7 @@ steps:
 #
 # Example invocation:
 #   gcloud builds submit \
-#     --substitutions=_FIREBASE_API_KEY=$_FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,...
+#     --substitutions=_FIREBASE_API_KEY=$_FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,_FIREBASE_PROJECT_ID=$_FIREBASE_PROJECT_ID,...
 substitutions:
   _REGION: us-central1
   _REPO: coding-labs

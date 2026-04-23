@@ -101,12 +101,7 @@ cmd_setup() {
     --quiet 2>/dev/null
   
   log_info "Checking config.toml for cross-project DNS configuration..."
-  DNS_PROJECT=$(bun -e "
-    const fs = require('fs');
-    const { parse } = require('smol-toml');
-    const config = parse(fs.readFileSync('config.toml', 'utf-8'));
-    console.log(config.default?.dns?.project_id || '');
-  " 2>/dev/null)
+  DNS_PROJECT=$(_dns_field project_id 2>/dev/null || echo '')
 
   if [[ -z "$DNS_PROJECT" || "$DNS_PROJECT" == "<DNS_PROJECT_ID>" ]]; then
     log_warn "config.toml [default.dns].project_id is unset/placeholder."
@@ -507,19 +502,17 @@ cmd_setup_gcip_magiclink() {
   log_info "Fetching current Firebase public config..."
   RESPONSE=$(curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" \
     -H "x-goog-user-project: $PROJECT_ID" \
-    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config")
+    "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT_ID}/config" \
+    || echo '{}')
 
-  API_KEY=$(echo "$RESPONSE" | bun -e "
+  read -r API_KEY SUBDOMAIN < <(echo "$RESPONSE" | bun -e "
     const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
-    console.log(r.client?.apiKey || '');
-  " 2>/dev/null)
-  SUBDOMAIN=$(echo "$RESPONSE" | bun -e "
-    const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
-    console.log(r.client?.firebaseSubdomain || '');
+    console.log((r.client?.apiKey || '') + ' ' + (r.client?.firebaseSubdomain || ''));
   " 2>/dev/null)
 
   if [[ -z "$API_KEY" ]]; then
     log_warn "Could not extract apiKey from Identity Toolkit response."
+    log_warn "Raw response (first 300 chars): ${RESPONSE:0:300}"
     log_warn "Manually fetch from: https://console.firebase.google.com/project/$PROJECT_ID/settings/general"
     return 0
   fi
