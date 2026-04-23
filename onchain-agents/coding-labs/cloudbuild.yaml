@@ -15,21 +15,20 @@
 # Services:
 #   - midnight-node, midnight-indexer, midnight-proof-server: Public (Midnight infra)
 #   - agent-registry, somnia-agent, midnight-agent, midnight-mcp: Public (no auth)
-#   - opencode-login: LB-only, no auth (renders the magic-link sign-in page)
+#   - opencode-login: LB-only, no auth (renders the Google sign-in page)
 #   - opencode-web:   LB-only, IAP via gcipSettings agent flow at backend
 #                     service layer (NOT direct Cloud Run --iap)
 #
-# Authentication architecture (issue #60):
+# Authentication architecture (issues #60 + #67 + #69):
 #   External Application LB + IAP at LB backend service + GCIP "agent flow"
-#   + magic-link email sign-in. See gcip-magiclink-setup.md.
+#   + Google sign-in via cross-project OAuth client. See
+#   gcip-google-signin-setup.md.
 #
-#   The LB resources, IAP enablement, gcipSettings YAML, and IAP IAM bindings
-#   are NOT provisioned by this pipeline. They are managed by:
-#     make cloud-setup-dns
-#     make cloud-setup-lb
-#     make cloud-setup-gcip-magiclink
-#     make cloud-sync-iap-users
-#   plus a one-time manual `gcloud beta iap settings set` for gcipSettings.
+#   The LB resources, IAP enablement, gcipSettings YAML, GCIP Google IdP
+#   config, and IAP IAM bindings are NOT provisioned by this pipeline. They
+#   are managed by (issue #69 consolidation):
+#     make cloud-setup        # one-time: project + DNS + LB + auth
+#     make cloud-sync-users   # bind allowed_users from config.toml
 #
 # Midnight Infrastructure Versions:
 #   - Node: 0.20.1
@@ -963,15 +962,13 @@ steps:
 # -----------------------------------------------------------------------------
 # Substitutions
 # -----------------------------------------------------------------------------
-# _FIREBASE_API_KEY and _FIREBASE_AUTH_DOMAIN are PUBLIC Firebase config values
-# used by opencode-login to render the magic-link sign-in UI.
+# _FIREBASE_API_KEY and _FIREBASE_AUTH_DOMAIN are auto-supplied by
+# `make cloud-deploy` from the Identity Toolkit Admin API. No manual
+# substitution needed.
 #
-# Get current values by running: make cloud-setup-gcip-magiclink
-# (it emits the substitution flags ready to copy-paste).
-#
-# Example invocation:
-#   gcloud builds submit \
-#     --substitutions=_FIREBASE_API_KEY=$_FIREBASE_API_KEY,_FIREBASE_AUTH_DOMAIN=$_FIREBASE_AUTH_DOMAIN,_FIREBASE_PROJECT_ID=$_FIREBASE_PROJECT_ID,...
+# These values are used by opencode-login to render the Google sign-in UI
+# via Firebase JS SDK. They are PUBLIC by Firebase design (security comes
+# from authorizedDomains + Security Rules, not from secrecy of the apiKey).
 substitutions:
   _REGION: us-central1
   _REPO: coding-labs
