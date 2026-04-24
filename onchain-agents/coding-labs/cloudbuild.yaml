@@ -865,14 +865,11 @@ steps:
           --max-instances=10 \
           --set-env-vars="NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global,AGENT_REGISTRY_URL=$${REGISTRY_URL},SOMNIA_AGENT_URL=$${SOMNIA_URL},SONIC_AGENT_URL=$${SONIC_URL},MIDNIGHT_AGENT_URL=$${MIDNIGHT_URL},STORE_AGENT_URL=$${STORE_URL},PAYMENT_AGENT_URL=$${PAYMENT_URL},SECURITY_AGENT_URL=$${SECURITY_URL},LOGIN_PAGE_URL=$${LOGIN_URL}"
 
-  # NOTE: The previous `setup-iap` step (which granted the IAP service agent
-  # run.invoker via Cloud Run direct IAP) has been REMOVED.
-  #
-  # In the new architecture, IAP is enabled at the LB backend service
-  # (opencode-web-backend), and the LB serverless NEG service agent (NOT the
-  # IAP service agent) needs run.invoker on the Cloud Run service. That binding
-  # is provisioned by `make cloud-setup-lb` / managed manually one-time.
-  # See gcip-magiclink-setup.md.
+  # NOTE: The IAP service agent (service-<PROJECT_NUMBER>@gcp-sa-iap.iam.gserviceaccount.com)
+  # requires roles/run.invoker on opencode-web Cloud Run service so IAP can
+  # forward authenticated user requests to the backend. This binding is granted
+  # automatically by cmd_setup_lb in scripts/cloud.sh (run via `make cloud-setup`
+  # or `make cloud-setup-lb`). See gcip-google-signin-setup.md for the full flow.
 
   # ===========================================================================
   # UPDATE agent-registry with agent URLs
