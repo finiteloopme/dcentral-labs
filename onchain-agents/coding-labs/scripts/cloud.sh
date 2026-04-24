@@ -578,6 +578,31 @@ cmd_setup_lb() {
     --service=opencode-web-backend \
     --project="$PROJECT_ID" 2>/dev/null || log_warn "IAP enable skipped (already enabled or requires manual gcipSettings step)"
 
+  # 8b) Grant IAP service agent run.invoker on opencode-web Cloud Run service.
+  #     IAP forwards requests using its service agent identity. Without this
+  #     binding, Cloud Run rejects with 403 "client does not have permission".
+  #     opencode-login already has allUsers:run.invoker (deployed --allow-unauth);
+  #     opencode-web is correctly hardened to --no-allow-unauthenticated, so this
+  #     compensating grant is required. See issue #75.
+  local project_number iap_sa
+  project_number=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)' 2>/dev/null)
+  if [[ -z "$project_number" ]]; then
+    log_warn "Could not determine project number; skipping IAP service agent invoker grant"
+  else
+    iap_sa="service-${project_number}@gcp-sa-iap.iam.gserviceaccount.com"
+    log_info "Granting roles/run.invoker to IAP service agent on opencode-web"
+    if gcloud run services add-iam-policy-binding opencode-web \
+         --region="$REGION" \
+         --project="$PROJECT_ID" \
+         --member="serviceAccount:${iap_sa}" \
+         --role="roles/run.invoker" \
+         --quiet >/dev/null 2>&1; then
+      log_success "IAP service agent granted run.invoker on opencode-web"
+    else
+      log_warn "Failed to grant invoker on opencode-web (may already exist or insufficient permissions)"
+    fi
+  fi
+
   echo ""
   log_success "LB resources provisioned"
   echo ""
@@ -715,9 +740,18 @@ EOF_BODY
     return 1
   fi
 
+  # Required defaults:
+  #   - localhost: Firebase dev convenience
+  #   - <PROJECT_ID>.firebaseapp.com / .web.app: Firebase Hosting defaults
+  #   - $deployment_fqdn: the LB hostname users actually visit
+  #   - iap.googleapis.com: required for IAP+GCIP redirect-back POST. The
+  #     gcip-iap library validates the IAP handler URL
+  #     (https://iap.googleapis.com/v1beta1/gcip/resources/<RID>:handleRedirect)
+  #     against authorizedDomains BEFORE POSTing the ID token; without this
+  #     entry sign-in fails with "Unauthorized domain". See issue #76.
   merged=$(echo "$current_domains" | bun -e "
     const cur = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
-    const required = ['localhost', '${PROJECT_ID}.firebaseapp.com', '${PROJECT_ID}.web.app', '$deployment_fqdn'];
+    const required = ['localhost', '${PROJECT_ID}.firebaseapp.com', '${PROJECT_ID}.web.app', '$deployment_fqdn', 'iap.googleapis.com'];
     const merged = [...new Set([...cur, ...required])];
     console.log(JSON.stringify(merged));
   ")

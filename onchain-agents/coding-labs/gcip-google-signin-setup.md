@@ -113,7 +113,9 @@ make cloud-sync-users   # ~30 sec
 1. `cloud-setup-project` — APIs + project IAM (idempotent)
 2. `cloud-setup-dns` — Cross-project A record from `[default.dns]`
 3. `cloud-setup-lb` — NEGs + backend services + URL map + cert + IAP enable
-4. `cloud-setup-auth` — Google IdP + authorizedDomains merge + IAP gcipSettings
+   + IAP service agent `roles/run.invoker` grant on `opencode-web`
+4. `cloud-setup-auth` — Google IdP + authorizedDomains merge (incl.
+   `iap.googleapis.com` for the gcip-iap redirect-back POST) + IAP gcipSettings
 
 Each sub-target is also runnable individually for surgical recovery, e.g.,
 if the LB cert needs to be re-provisioned: `make cloud-setup-lb`.
